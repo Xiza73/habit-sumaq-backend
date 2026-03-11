@@ -19,6 +19,7 @@ Guía de reglas para Claude Code al trabajar en este proyecto.
 | Framework | NestJS 11 |
 | Lenguaje | TypeScript 5.7 (strict) |
 | ORM | TypeORM + PostgreSQL |
+| Cache / sesiones | Redis (ioredis) — refresh tokens |
 | Validación | class-validator + class-transformer |
 | Autenticación | Passport.js + Google OAuth 2.0 + JWT |
 | Documentación | @nestjs/swagger (OpenAPI 3) |
@@ -119,6 +120,10 @@ JWT_REFRESH_EXPIRES_IN=7d
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
 
 # Frontend
 FRONTEND_URL=http://localhost:5173

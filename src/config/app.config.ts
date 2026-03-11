@@ -27,3 +27,8 @@ export const googleConfig = registerAs('google', () => ({
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackUrl: process.env.GOOGLE_CALLBACK_URL,
 }));
+
+export const redisConfig = registerAs('redis', () => ({
+  host: process.env.REDIS_HOST ?? 'localhost',
+  port: Number(process.env.REDIS_PORT ?? 6379),
+}));

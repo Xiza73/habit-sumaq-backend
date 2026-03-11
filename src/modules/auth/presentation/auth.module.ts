@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { RedisModule } from '../../../redis/redis.module';
 import { UsersModule } from '../../users/presentation/users.module';
 import { GoogleLoginUseCase } from '../application/use-cases/google-login.use-case';
 import { LogoutUseCase } from '../application/use-cases/logout.use-case';
 import { RotateRefreshTokenUseCase } from '../application/use-cases/rotate-refresh-token.use-case';
 import { RefreshTokenRepository } from '../domain/refresh-token.repository';
-import { RefreshTokenOrmEntity } from '../infrastructure/persistence/refresh-token.orm-entity';
 import { RefreshTokenRepositoryImpl } from '../infrastructure/persistence/refresh-token.repository.impl';
 import { GoogleStrategy } from '../infrastructure/strategies/google.strategy';
 import { JwtAccessStrategy } from '../infrastructure/strategies/jwt-access.strategy';
@@ -18,7 +17,7 @@ import { AuthController } from './auth.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RefreshTokenOrmEntity]),
+    RedisModule,
     PassportModule,
     JwtModule.register({}), // secrets se pasan en cada sign() call desde ConfigService
     UsersModule,

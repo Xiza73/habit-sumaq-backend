@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 
-import { appConfig, dbConfig, googleConfig, jwtConfig } from './app.config';
+import { appConfig, dbConfig, googleConfig, jwtConfig, redisConfig } from './app.config';
 import { envSchema } from './env.schema';
 
 @Module({
@@ -9,7 +9,7 @@ import { envSchema } from './env.schema';
     NestConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: [appConfig, dbConfig, jwtConfig, googleConfig],
+      load: [appConfig, dbConfig, jwtConfig, googleConfig, redisConfig],
       validate: (config: Record<string, unknown>) => {
         const result = envSchema.safeParse(config);
 

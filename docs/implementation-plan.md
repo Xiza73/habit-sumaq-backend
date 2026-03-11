@@ -86,7 +86,7 @@ pnpm add @nestjs/testing supertest @types/supertest -D
 
 ### 1.2 Módulo Auth
 
-- [x] `RefreshToken` domain entity + ORM entity
+- [x] `RefreshToken` domain entity (sin ORM — almacenado en Redis)
 - [x] `RefreshTokenRepository`
 - [x] `GoogleStrategy` (passport-google-oauth20)
 - [x] `JwtAccessStrategy` (passport-jwt, header Bearer)
@@ -94,7 +94,7 @@ pnpm add @nestjs/testing supertest @types/supertest -D
 - [x] `GoogleLoginUseCase` — recibe perfil Google, llama a FindOrCreateUser, genera tokens
 - [x] `RotateRefreshTokenUseCase` — valida refresh, rota token, retorna nuevo access
 - [x] `LogoutUseCase` — revoca refresh token
-- [ ] Migración: `CreateRefreshTokensTable`
+- [x] ~~Migración: `CreateRefreshTokensTable`~~ — no aplica, refresh tokens en Redis (TTL automático)
 - [x] Tests unitarios de los 3 use cases
 
 ### 1.3 Endpoints Auth
