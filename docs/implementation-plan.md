@@ -32,7 +32,7 @@ pnpm add helmet @nestjs/throttler cookie-parser
 pnpm add @types/cookie-parser -D
 
 # Validación de config
-pnpm add joi
+pnpm add zod
 
 # Testing
 pnpm add @nestjs/testing supertest @types/supertest -D

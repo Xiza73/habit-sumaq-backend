@@ -24,7 +24,7 @@ Guía de reglas para Claude Code al trabajar en este proyecto.
 | Documentación | @nestjs/swagger (OpenAPI 3) |
 | Testing | Jest (unit) + Supertest (e2e) |
 | Logging | Pino (@nestjs/pino) |
-| Config | @nestjs/config + Joi validation |
+| Config | @nestjs/config + Zod validation |
 | Package manager | pnpm |
 
 ---
@@ -47,7 +47,7 @@ Guía de reglas para Claude Code al trabajar en este proyecto.
 2. **No poner lógica de negocio en controllers** — Solo orquestación HTTP (llamar al servicio, mapear respuesta).
 3. **No acceder a la DB desde un controller** — Pasar siempre por el servicio de aplicación.
 4. **No devolver entidades ORM directamente** — Mapear siempre a DTOs de respuesta.
-5. **No hardcodear secrets** — Toda config sensible va en `.env` y se valida con Joi en `ConfigModule`.
+5. **No hardcodear secrets** — Toda config sensible va en `.env` y se valida con Zod en `ConfigModule`.
 6. **No omitir validación de entrada** — Todo body, param y query decorado con `class-validator` y transformado con `ValidationPipe`.
 7. **No importar entre módulos de feature directamente** — Comunicación entre módulos vía servicios exportados o eventos.
 8. **No crear helpers de un solo uso** — Si algo se usa una vez, queda inline. Si se reutiliza 2+, va a `common/`.

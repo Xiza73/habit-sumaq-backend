@@ -1,8 +1,46 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm lint:*)",
-      "Bash(pnpm add:*)"
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Bash(pnpm *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch*)",
+      "Bash(git checkout *)",
+      "Bash(git stash*)",
+      "Bash(git merge *)",
+      "Bash(git fetch*)",
+      "Bash(git pull*)",
+      "Bash(cd *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(echo *)",
+      "Bash(touch *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(chmod *)",
+      "Bash(pub *)",
+      "Bash(npx *)",
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''deps:'', Object.keys\\(p.dependencies\\).join\\('', ''\\)\\); console.log\\(''devDeps:'', Object.keys\\(p.devDependencies\\).join\\('', ''\\)\\)\")"
     ]
   }
 }
