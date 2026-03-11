@@ -19,8 +19,8 @@ interface ApiResponse<T> {
   data: T | null;
   message: string;
   error?: {
-    code: string;       // Código de error del dominio: "ACCOUNT_NOT_FOUND"
-    details?: unknown;  // Detalles adicionales (errores de validación, etc.)
+    code: string;       // Hash del código de error (8 hex chars): "a3f1c209"
+    details?: unknown;  // Solo en errores de validación (400): array de campos inválidos
   };
   meta?: {
     page: number;
@@ -52,13 +52,32 @@ interface ApiResponse<T> {
 
 ### Respuesta de error
 
+El campo `code` es un hash SHA-256 truncado a 8 caracteres hex. No expone nombres internos del dominio.
+
 ```json
 {
   "success": false,
   "data": null,
-  "message": "La cuenta no existe",
+  "message": "El recurso solicitado no existe",
   "error": {
-    "code": "ACCOUNT_NOT_FOUND"
+    "code": "a3f1c209"
+  }
+}
+```
+
+### Respuesta de error de validación (400)
+
+```json
+{
+  "success": false,
+  "data": null,
+  "message": "Los datos enviados son inválidos",
+  "error": {
+    "code": "b7e2d401",
+    "details": [
+      { "field": "name", "message": "name should not be empty" },
+      { "field": "currency", "message": "currency must be a valid enum value" }
+    ]
   }
 }
 ```
@@ -304,22 +323,96 @@ export class PaginationDto {
 
 ## Manejo de errores de dominio
 
-Los `DomainError` se mapean a HTTP responses en el `AllExceptionsFilter`:
+### Registro de códigos de error
+
+Los códigos descriptivos viven **solo en el servidor** (código fuente y logs). La API nunca los expone en claro.
 
 ```typescript
-const DOMAIN_ERROR_MAP: Record<string, number> = {
-  ACCOUNT_NOT_FOUND: 404,
-  ACCOUNT_NAME_TAKEN: 409,
-  ACCOUNT_HAS_ACTIVE_TRANSACTIONS: 409,
-  ACCOUNT_BELONGS_TO_OTHER_USER: 403,
-  CANNOT_CHANGE_CURRENCY_WITH_TRANSACTIONS: 409,
-  USER_NOT_FOUND: 404,
-  USER_INACTIVE: 403,
-  INVALID_REFRESH_TOKEN: 401,
+// src/common/errors/error-codes.ts
+import { createHash } from 'crypto';
+
+function h(code: string): string {
+  return createHash('sha256').update(code).digest('hex').slice(0, 8);
+}
+
+export const ERROR_CODES = {
+  // Accounts
+  ACCOUNT_NOT_FOUND:                      h('ACCOUNT_NOT_FOUND'),
+  ACCOUNT_NAME_TAKEN:                     h('ACCOUNT_NAME_TAKEN'),
+  ACCOUNT_HAS_ACTIVE_TRANSACTIONS:        h('ACCOUNT_HAS_ACTIVE_TRANSACTIONS'),
+  ACCOUNT_BELONGS_TO_OTHER_USER:          h('ACCOUNT_BELONGS_TO_OTHER_USER'),
+  CANNOT_CHANGE_CURRENCY_WITH_TX:         h('CANNOT_CHANGE_CURRENCY_WITH_TX'),
+  // Users
+  USER_NOT_FOUND:                         h('USER_NOT_FOUND'),
+  USER_INACTIVE:                          h('USER_INACTIVE'),
+  // Auth
+  INVALID_REFRESH_TOKEN:                  h('INVALID_REFRESH_TOKEN'),
+  // Domain value objects
+  INVALID_MONEY_AMOUNT:                   h('INVALID_MONEY_AMOUNT'),
+  CURRENCY_MISMATCH:                      h('CURRENCY_MISMATCH'),
+  // Validation
+  VALIDATION_ERROR:                       h('VALIDATION_ERROR'),
+} as const;
+
+export type ErrorCodeKey = keyof typeof ERROR_CODES;
+```
+
+El hash es **determinístico**: siempre produce el mismo resultado para el mismo código, lo que permite que el frontend mantenga una tabla de traducción sincronizada.
+
+### Mapa de error → HTTP status
+
+```typescript
+// src/common/errors/domain-error.map.ts
+import { ERROR_CODES, ErrorCodeKey } from './error-codes';
+
+export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
+  ACCOUNT_NOT_FOUND:                      404,
+  ACCOUNT_NAME_TAKEN:                     409,
+  ACCOUNT_HAS_ACTIVE_TRANSACTIONS:        409,
+  ACCOUNT_BELONGS_TO_OTHER_USER:          403,
+  CANNOT_CHANGE_CURRENCY_WITH_TX:         409,
+  USER_NOT_FOUND:                         404,
+  USER_INACTIVE:                          403,
+  INVALID_REFRESH_TOKEN:                  401,
+  VALIDATION_ERROR:                       400,
 };
 ```
 
-Ejemplo de error en use case:
+### `DomainError`
+
+```typescript
+// src/common/exceptions/domain.exception.ts
+import { ERROR_CODES, ErrorCodeKey } from '../errors/error-codes';
+
+export class DomainError extends Error {
+  public readonly code: ErrorCodeKey;
+  public readonly hashedCode: string;
+
+  constructor(code: ErrorCodeKey, message: string) {
+    super(message);
+    this.code = code;                      // Para logs internos
+    this.hashedCode = ERROR_CODES[code];   // Para la respuesta al cliente
+  }
+}
+```
+
+### En el `AllExceptionsFilter`
+
+```typescript
+if (exception instanceof DomainError) {
+  const status = DOMAIN_HTTP_MAP[exception.code] ?? 500;
+  response.status(status).json({
+    success: false,
+    data: null,
+    message: exception.message,
+    error: { code: exception.hashedCode },   // Solo el hash sale al cliente
+  });
+  logger.warn({ errorCode: exception.code }, exception.message); // Código claro en logs
+  return;
+}
+```
+
+### Ejemplo de uso en un use case
 
 ```typescript
 const existing = await this.repo.findByUserId(userId);
@@ -328,6 +421,12 @@ if (nameTaken) {
   throw new DomainError('ACCOUNT_NAME_TAKEN', 'Ya existe una cuenta con ese nombre');
 }
 ```
+
+### Sincronización con el frontend
+
+El frontend mantiene una copia generada del mismo `ERROR_CODES` para mapear hashes a mensajes de UI. Se puede generar automáticamente exportando el objeto desde el build del backend, o copiándolo manualmente al iniciar el frontend del proyecto.
+
+**Nunca incluir los códigos descriptivos en la respuesta HTTP**, ni en modo `development`.
 
 ---
 

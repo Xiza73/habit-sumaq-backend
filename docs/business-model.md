@@ -98,12 +98,12 @@ class Money {
     readonly amount: number,   // Siempre positivo en el VO; el signo lo da la transacción
     readonly currency: Currency,
   ) {
-    if (amount < 0) throw new DomainError('Money amount cannot be negative');
+    if (amount < 0) throw new DomainError('INVALID_MONEY_AMOUNT', 'Money amount cannot be negative');
   }
 
   add(other: Money): Money {
     if (other.currency !== this.currency) {
-      throw new DomainError('Cannot add Money with different currencies');
+      throw new DomainError('CURRENCY_MISMATCH', 'Cannot add Money with different currencies');
     }
     return new Money(this.amount + other.amount, this.currency);
   }

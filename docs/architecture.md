@@ -367,7 +367,7 @@ export class ApiResponse<T> {
   success: boolean;
   data: T | null;
   message: string;
-  error?: { code: string; details?: unknown };
+  error?: { code: string; details?: unknown }; // code = hash SHA-256 truncado a 8 hex chars
   meta?: { page: number; limit: number; total: number };
 }
 ```
