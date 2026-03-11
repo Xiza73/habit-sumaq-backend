@@ -378,13 +378,13 @@ export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
 };
 ```
 
-### `DomainError`
+### `DomainException`
 
 ```typescript
 // src/common/exceptions/domain.exception.ts
 import { ERROR_CODES, ErrorCodeKey } from '../errors/error-codes';
 
-export class DomainError extends Error {
+export class DomainException extends Error {
   public readonly code: ErrorCodeKey;
   public readonly hashedCode: string;
 
@@ -399,7 +399,7 @@ export class DomainError extends Error {
 ### En el `AllExceptionsFilter`
 
 ```typescript
-if (exception instanceof DomainError) {
+if (exception instanceof DomainException) {
   const status = DOMAIN_HTTP_MAP[exception.code] ?? 500;
   response.status(status).json({
     success: false,
@@ -418,7 +418,7 @@ if (exception instanceof DomainError) {
 const existing = await this.repo.findByUserId(userId);
 const nameTaken = existing.some(a => a.name === dto.name);
 if (nameTaken) {
-  throw new DomainError('ACCOUNT_NAME_TAKEN', 'Ya existe una cuenta con ese nombre');
+  throw new DomainException('ACCOUNT_NAME_TAKEN', 'Ya existe una cuenta con ese nombre');
 }
 ```
 

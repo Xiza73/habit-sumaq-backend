@@ -79,13 +79,13 @@ describe('CreateAccountUseCase', () => {
       expect(mockRepo.save).toHaveBeenCalledOnce();
     });
 
-    it('should throw DomainError when account name already exists for user', async () => {
+    it('should throw DomainException when account name already exists for user', async () => {
       const existing = buildAccount({ userId: 'user-1', name: 'Mi cuenta' });
       mockRepo.findByUserId.mockResolvedValue([existing]);
 
       await expect(
         useCase.execute('user-1', { name: 'Mi cuenta', type: AccountType.CHECKING, currency: Currency.PEN }),
-      ).rejects.toThrow(DomainError);
+      ).rejects.toThrow(DomainException);
     });
   });
 });

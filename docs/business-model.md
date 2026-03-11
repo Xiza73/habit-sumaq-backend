@@ -98,12 +98,12 @@ class Money {
     readonly amount: number,   // Siempre positivo en el VO; el signo lo da la transacción
     readonly currency: Currency,
   ) {
-    if (amount < 0) throw new DomainError('INVALID_MONEY_AMOUNT', 'Money amount cannot be negative');
+    if (amount < 0) throw new DomainException('INVALID_MONEY_AMOUNT', 'Money amount cannot be negative');
   }
 
   add(other: Money): Money {
     if (other.currency !== this.currency) {
-      throw new DomainError('CURRENCY_MISMATCH', 'Cannot add Money with different currencies');
+      throw new DomainException('CURRENCY_MISMATCH', 'Cannot add Money with different currencies');
     }
     return new Money(this.amount + other.amount, this.currency);
   }
@@ -189,4 +189,4 @@ Mejora de UX: el usuario puede personalizar la apariencia de cada cuenta desde l
 | `RefreshToken` | Token de larga duración que permite renovar el access token |
 | `JwtPayload` | Contenido del JWT: `{ sub: userId, email, iat, exp }` |
 | `Money` | Value object que combina monto y moneda |
-| `DomainError` | Error lanzado por violación de invariante de dominio |
+| `DomainException` | Error lanzado por violación de invariante de dominio |
