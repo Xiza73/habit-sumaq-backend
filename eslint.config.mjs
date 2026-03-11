@@ -1,5 +1,6 @@
 // @ts-check
 import eslint from '@eslint/js';
+import importPlugin from 'eslint-plugin-import';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import globals from 'globals';
@@ -25,9 +26,20 @@ export default tseslint.config(
       },
       sourceType: 'module',
       parserOptions: {
-        projectService: true,
+        project: './tsconfig.eslint.json',
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+    settings: {
+      'import/resolver': {
+        typescript: {
+          alwaysTryTypes: true,
+          project: './tsconfig.eslint.json',
+        },
+      },
+    },
+    plugins: {
+      import: importPlugin,
     },
   },
   {
