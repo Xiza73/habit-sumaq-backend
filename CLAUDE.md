@@ -100,8 +100,8 @@ src/modules/<feature>/
 ```env
 # App
 NODE_ENV=development
-PORT=3000
-APP_URL=http://localhost:3000
+PORT=3010
+APP_URL=http://localhost:3010
 
 # Database
 DB_HOST=localhost

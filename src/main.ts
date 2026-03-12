@@ -15,7 +15,7 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   const config = app.get(ConfigService);
-  const port = config.get<number>('app.port', 3000);
+  const port = config.get<number>('app.port', 3010);
   const frontendUrl = config.get<string>('app.frontendUrl', 'http://localhost:5173');
 
   // Seguridad

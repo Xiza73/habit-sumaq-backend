@@ -45,7 +45,7 @@ Editar `.env` y completar los valores obligatorios:
 | `GOOGLE_CLIENT_SECRET` | Idem |
 
 En Google Cloud Console, agregar como URI de redirección autorizada:
-`http://localhost:3000/api/v1/auth/google/callback`
+`http://localhost:3010/api/v1/auth/google/callback`
 
 ### 3. Levantar infraestructura (PostgreSQL + Redis)
 
@@ -71,12 +71,12 @@ pnpm migration:run
 pnpm start:dev
 ```
 
-El servidor queda disponible en `http://localhost:3000`.
+El servidor queda disponible en `http://localhost:3010`.
 
 ## Documentación de la API
 
-- Swagger UI: `http://localhost:3000/docs`
-- OpenAPI JSON: `http://localhost:3000/docs-json`
+- Swagger UI: `http://localhost:3010/docs`
+- OpenAPI JSON: `http://localhost:3010/docs-json`
 
 ## Endpoints
 
