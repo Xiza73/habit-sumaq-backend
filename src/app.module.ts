@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
+import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
 import { UsersModule } from './modules/users/presentation/users.module';
 import { AppController } from './app.controller';
@@ -20,6 +21,7 @@ import { AppService } from './app.service';
     DatabaseModule,
     UsersModule,
     AuthModule,
+    AccountsModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
     LoggerModule.forRoot({
       pinoHttp: {
