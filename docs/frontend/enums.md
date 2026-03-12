@@ -89,3 +89,66 @@ Estado de liquidación de una deuda o préstamo. Solo aplica cuando `type` es `D
 Para tipos INCOME, EXPENSE y TRANSFER, el campo `status` es siempre `null`.
 
 **Uso:** filtro `?status=` en `GET /transactions` y campo en la respuesta.
+
+---
+
+## Language
+
+Idioma de la interfaz del usuario.
+
+| Valor | Descripción |
+|---|---|
+| `es` | Español |
+| `en` | Inglés |
+| `pt` | Portugués |
+
+**Default:** `es`
+
+**Uso:** campo `language` en `PATCH /users/settings`.
+
+---
+
+## Theme
+
+Tema visual de la aplicación.
+
+| Valor | Descripción |
+|---|---|
+| `light` | Modo claro |
+| `dark` | Modo oscuro |
+| `system` | Sigue la preferencia del sistema operativo |
+
+**Default:** `system`
+
+**Uso:** campo `theme` en `PATCH /users/settings`.
+
+---
+
+## DateFormat
+
+Formato de fecha preferido por el usuario.
+
+| Valor | Ejemplo |
+|---|---|
+| `DD/MM/YYYY` | 15/03/2026 |
+| `MM/DD/YYYY` | 03/15/2026 |
+| `YYYY-MM-DD` | 2026-03-15 |
+
+**Default:** `DD/MM/YYYY`
+
+**Uso:** campo `dateFormat` en `PATCH /users/settings`. El frontend debe formatear las fechas según esta preferencia.
+
+---
+
+## StartOfWeek
+
+Primer día de la semana para calendarios y vistas semanales.
+
+| Valor | Descripción |
+|---|---|
+| `monday` | Lunes |
+| `sunday` | Domingo |
+
+**Default:** `monday`
+
+**Uso:** campo `startOfWeek` en `PATCH /users/settings`.

@@ -82,6 +82,47 @@ Retorna el perfil del usuario autenticado.
 
 ---
 
+## User Settings
+
+### `GET /users/settings`
+
+Obtiene la configuración del usuario autenticado. Si no existe, se crea automáticamente con valores por defecto.
+
+**Response:** `200` — `UserSettingsResponseDto`
+
+### `PATCH /users/settings`
+
+Actualiza parcialmente la configuración. Solo se modifican los campos enviados.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `language` | Language | Ver [enums.md](enums.md#language) |
+| `theme` | Theme | Ver [enums.md](enums.md#theme) |
+| `defaultCurrency` | Currency | Ver [enums.md](enums.md#currency) |
+| `dateFormat` | DateFormat | Ver [enums.md](enums.md#dateformat) |
+| `startOfWeek` | StartOfWeek | Ver [enums.md](enums.md#startofweek) |
+
+Todos los campos son opcionales. Si no existe configuración previa, se crea antes de aplicar los cambios.
+
+**Response:** `200` — `UserSettingsResponseDto`
+
+### Respuesta de configuración (`UserSettingsResponseDto`)
+
+```json
+{
+  "id": "uuid",
+  "language": "es",
+  "theme": "system",
+  "defaultCurrency": "PEN",
+  "dateFormat": "DD/MM/YYYY",
+  "startOfWeek": "monday",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+---
+
 ## Accounts
 
 ### `POST /accounts`

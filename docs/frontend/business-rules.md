@@ -91,6 +91,18 @@ Reglas que el frontend debe conocer para construir la UI correctamente y preveni
 
 ---
 
+## Configuración de usuario
+
+1. **Auto-creación.** La configuración se crea automáticamente con valores por defecto la primera vez que se consulta (`GET`) o actualiza (`PATCH`). No es necesario un endpoint de creación.
+2. **Relación 1:1 con usuario.** Cada usuario tiene exactamente una configuración.
+3. **Todos los campos son opcionales** en el PATCH. Solo se modifican los campos enviados.
+4. **`defaultCurrency`** indica la moneda sugerida al crear nuevas cuentas. No cambia la moneda de cuentas existentes.
+5. **`theme: system`** significa que el frontend debe respetar la preferencia del sistema operativo (`prefers-color-scheme`).
+6. **`dateFormat`** es una preferencia de presentación. El backend siempre envía fechas en ISO 8601 — el frontend debe formatearlas según esta configuración.
+7. **`startOfWeek`** afecta calendarios y vistas semanales en el frontend.
+
+---
+
 ## Autenticación
 
 1. **Google OAuth es el único método de login.**
