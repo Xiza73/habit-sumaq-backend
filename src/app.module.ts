@@ -11,6 +11,7 @@ import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
+import { HealthModule } from './modules/health/health.module';
 import { UsersModule } from './modules/users/presentation/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -22,6 +23,7 @@ import { AppService } from './app.service';
     UsersModule,
     AuthModule,
     AccountsModule,
+    HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
     LoggerModule.forRoot({
       pinoHttp: {

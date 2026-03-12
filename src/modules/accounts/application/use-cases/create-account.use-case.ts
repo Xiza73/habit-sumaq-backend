@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 
@@ -11,6 +11,8 @@ import type { CreateAccountDto } from '../dto/create-account.dto';
 
 @Injectable()
 export class CreateAccountUseCase {
+  private readonly logger = new Logger(CreateAccountUseCase.name);
+
   constructor(private readonly accountRepo: AccountRepository) {}
 
   async execute(userId: string, dto: CreateAccountDto): Promise<Account> {
@@ -37,6 +39,8 @@ export class CreateAccountUseCase {
       null,
     );
 
-    return this.accountRepo.save(account);
+    const saved = await this.accountRepo.save(account);
+    this.logger.log(`Cuenta creada: id=${saved.id} userId=${userId} tipo=${dto.type}`);
+    return saved;
   }
 }

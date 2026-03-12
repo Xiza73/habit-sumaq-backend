@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { Public } from '@common/decorators/public.decorator';
@@ -31,6 +32,7 @@ export class AuthController {
 
   @Get('google')
   @Public()
+  @SkipThrottle()
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Iniciar flujo de autenticación con Google' })
   @ApiResponse({ status: 302, description: 'Redirige a Google OAuth' })
@@ -40,6 +42,7 @@ export class AuthController {
 
   @Get('google/callback')
   @Public()
+  @SkipThrottle()
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Callback de Google OAuth — redirige al frontend con access token' })
   @ApiResponse({ status: 302, description: 'Redirige al frontend con token' })
@@ -53,6 +56,7 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @UseGuards(AuthGuard('jwt-refresh'))
   @ApiCookieAuth(REFRESH_COOKIE)
   @ApiOperation({ summary: 'Rotar access token usando el refresh token de la cookie' })

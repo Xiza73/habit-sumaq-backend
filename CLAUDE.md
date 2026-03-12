@@ -131,6 +131,55 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
+## Auditoría obligatoria al completar un feature
+
+Al terminar cualquier feature (módulo, use case, endpoint o refactor significativo), ejecutar la siguiente checklist **en orden**. No marcar el feature como completo si algún punto falla.
+
+### 1. Tests pasan sin errores
+
+```bash
+pnpm test                  # 0 fallos en unit tests
+pnpm test:e2e              # 0 fallos en e2e (si aplica al feature)
+```
+
+### 2. Cobertura no regresa
+
+```bash
+pnpm test:cov              # Statements ≥ 70% global; use cases ≥ 90%
+```
+
+### 3. Lint sin errores ni warnings bloqueantes
+
+```bash
+pnpm lint                  # 0 errors; warnings solo en casos justificados
+```
+
+### 4. TypeScript compila limpio
+
+```bash
+pnpm tsc --noEmit          # 0 errores de tipo
+```
+
+### 5. Revisión de bugs
+
+Verificar manualmente que:
+- Todos los casos de error del use case están cubiertos por tests
+- Los DTOs validan todos los campos de entrada (`class-validator`)
+- No hay rutas que omitan el `JwtAuthGuard` sin `@Public()` explícito
+- Los errores de dominio están mapeados en `DOMAIN_HTTP_MAP`
+
+### 6. Deuda técnica
+
+Buscar y evaluar los `// TODO` introducidos en el feature:
+- Si es deuda aceptable (requiere un módulo futuro), documentar en el comentario con la fase correspondiente: `// TODO (Fase 4): ...`
+- Si es un bug latente o workaround temporal, crear una tarea antes de continuar
+
+### 7. Actualizar el plan
+
+Marcar los ítems completados en [docs/implementation-plan.md](docs/implementation-plan.md).
+
+---
+
 ## Comandos frecuentes
 
 ```bash

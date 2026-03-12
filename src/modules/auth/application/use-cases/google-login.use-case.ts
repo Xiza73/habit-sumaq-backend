@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
@@ -18,6 +18,8 @@ export interface AuthTokens {
 
 @Injectable()
 export class GoogleLoginUseCase {
+  private readonly logger = new Logger(GoogleLoginUseCase.name);
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
@@ -26,6 +28,7 @@ export class GoogleLoginUseCase {
 
   async execute(user: User): Promise<AuthTokens> {
     if (!user.isActive) {
+      this.logger.warn(`Intento de login de usuario inactivo: ${user.id}`);
       throw new DomainException('USER_INACTIVE', 'La cuenta de usuario está desactivada');
     }
 
@@ -41,6 +44,7 @@ export class GoogleLoginUseCase {
 
     await this.refreshTokenRepo.create({ userId: user.id, hashedToken, expiresAt });
 
+    this.logger.log(`Login exitoso: userId=${user.id}`);
     return { accessToken, rawRefreshToken };
   }
 

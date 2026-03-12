@@ -117,37 +117,27 @@ GET  /auth/me                → Perfil del usuario autenticado
 
 ### 2.1 Dominio
 
-- [ ] `Account` domain entity con métodos `credit()`, `debit()`, `archive()`, `isDeleted()`
-- [ ] `AccountType` enum
-- [ ] `Currency` enum
-- [ ] `Money` value object
-- [ ] `AccountRepository` abstract class
-- [ ] `DomainError` para violaciones de invariante
+- [x] `Account` domain entity con métodos `credit()`, `debit()`, `archive()`, `isDeleted()`
+- [x] `AccountType` enum
+- [x] `Currency` enum
+- [x] `Money` value object
+- [x] `AccountRepository` abstract class
+- [x] `DomainError` para violaciones de invariante
 
 ### 2.2 Aplicación
 
-- [ ] `CreateAccountUseCase`
-  - Valida nombre único por usuario
-  - Inicializa balance con `initialBalance` (default 0)
-- [ ] `GetAccountsUseCase`
-  - Filtra por `userId`
-  - Soporte para `includeArchived` (default false)
-- [ ] `GetAccountByIdUseCase`
-  - Valida que la cuenta pertenezca al usuario autenticado
-- [ ] `UpdateAccountUseCase`
-  - Solo permite actualizar: nombre, color, ícono
-  - No permite cambiar `currency` si tiene transacciones
-- [ ] `ArchiveAccountUseCase`
-  - Valida que no tenga deudas/préstamos activos
-- [ ] `DeleteAccountUseCase`
-  - Valida que no tenga transacciones activas
-  - Soft delete
+- [x] `CreateAccountUseCase`
+- [x] `GetAccountsUseCase`
+- [x] `GetAccountByIdUseCase`
+- [x] `UpdateAccountUseCase`
+- [x] `ArchiveAccountUseCase`
+- [x] `DeleteAccountUseCase`
 
 ### 2.3 Infraestructura
 
-- [ ] `AccountOrmEntity`
-- [ ] `AccountRepositoryImpl`
-- [ ] Migración: `CreateAccountsTable`
+- [x] `AccountOrmEntity`
+- [x] `AccountRepositoryImpl`
+- [x] Migración: `CreateAccountsTable`
 
 ### 2.4 Endpoints
 
@@ -162,10 +152,10 @@ DELETE /accounts/:id          → Soft delete
 
 ### 2.5 Tests
 
-- [ ] Tests unitarios: todos los use cases (mock del repositorio)
+- [x] Tests unitarios: todos los use cases (mock del repositorio)
 - [ ] Tests e2e: flujo completo con base de datos real (ver [testing.md](testing.md))
 
-**Criterio de completitud:** todos los endpoints documentados en Swagger, cobertura >80% en use cases.
+**Criterio de completitud:** todos los endpoints documentados en Swagger, cobertura >80% en use cases. ✅
 
 ---
 
@@ -173,13 +163,13 @@ DELETE /accounts/:id          → Soft delete
 
 **Objetivo:** producción-ready antes de agregar más módulos.
 
-- [ ] `.env.example` completo y documentado
-- [ ] `README.md` con instrucciones de setup local
-- [ ] Health check endpoint: `GET /health`
-- [ ] Logging estructurado en todos los use cases críticos
-- [ ] Manejo de errores consistente (mapa de `DomainError` → HTTP status)
-- [ ] Rate limiting ajustado por endpoint
-- [ ] Cobertura global de tests >70%
+- [x] `.env.example` completo y documentado
+- [x] `README.md` con instrucciones de setup local
+- [x] Health check endpoint: `GET /health`
+- [x] Logging estructurado en use cases críticos (`GoogleLoginUseCase`, `CreateAccountUseCase`)
+- [x] Manejo de errores consistente (mapa de `DomainError` → HTTP status)
+- [x] Rate limiting ajustado por endpoint (`@SkipThrottle` en OAuth, `@Throttle` en `/auth/refresh`)
+- [x] Cobertura global de tests >70% — **83% statements, 74% branches** ✅
 
 ---
 
