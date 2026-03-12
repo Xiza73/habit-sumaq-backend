@@ -15,7 +15,7 @@ export class PaginationMeta {
 }
 
 export class ErrorDetail {
-  @ApiProperty({ example: 'a3f1c209' })
+  @ApiProperty({ example: 'ACC_001' })
   code: string;
 
   @ApiPropertyOptional({

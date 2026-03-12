@@ -19,7 +19,7 @@ interface ApiResponse<T> {
   data: T | null;
   message: string;
   error?: {
-    code: string;       // Hash del código de error (8 hex chars): "a3f1c209"
+    code: string;       // Código de error opaco: "ACC_001"
     details?: unknown;  // Solo en errores de validación (400): array de campos inválidos
   };
   meta?: {
@@ -52,7 +52,7 @@ interface ApiResponse<T> {
 
 ### Respuesta de error
 
-El campo `code` es un hash SHA-256 truncado a 8 caracteres hex. No expone nombres internos del dominio.
+El campo `code` es un identificador opaco (ej. `ACC_001`). No expone nombres internos del dominio.
 
 ```json
 {
@@ -60,7 +60,7 @@ El campo `code` es un hash SHA-256 truncado a 8 caracteres hex. No expone nombre
   "data": null,
   "message": "El recurso solicitado no existe",
   "error": {
-    "code": "a3f1c209"
+    "code": "ACC_001"
   }
 }
 ```
@@ -325,33 +325,27 @@ export class PaginationDto {
 
 ### Registro de códigos de error
 
-Los códigos descriptivos viven **solo en el servidor** (código fuente y logs). La API nunca los expone en claro.
+Cada clave interna se mapea a un código opaco con prefijo de dominio y número secuencial. La API expone solo el código opaco.
 
 ```typescript
 // src/common/errors/error-codes.ts
-import { createHash } from 'crypto';
-
-function h(code: string): string {
-  return createHash('sha256').update(code).digest('hex').slice(0, 8);
-}
-
 export const ERROR_CODES = {
   // Accounts
-  ACCOUNT_NOT_FOUND:                      h('ACCOUNT_NOT_FOUND'),
-  ACCOUNT_NAME_TAKEN:                     h('ACCOUNT_NAME_TAKEN'),
-  ACCOUNT_HAS_ACTIVE_TRANSACTIONS:        h('ACCOUNT_HAS_ACTIVE_TRANSACTIONS'),
-  ACCOUNT_BELONGS_TO_OTHER_USER:          h('ACCOUNT_BELONGS_TO_OTHER_USER'),
-  CANNOT_CHANGE_CURRENCY_WITH_TX:         h('CANNOT_CHANGE_CURRENCY_WITH_TX'),
+  ACCOUNT_NOT_FOUND:                      'ACC_001',
+  ACCOUNT_NAME_TAKEN:                     'ACC_002',
+  ACCOUNT_HAS_ACTIVE_TRANSACTIONS:        'ACC_003',
+  ACCOUNT_BELONGS_TO_OTHER_USER:          'ACC_004',
+  CANNOT_CHANGE_CURRENCY_WITH_TX:         'ACC_005',
   // Users
-  USER_NOT_FOUND:                         h('USER_NOT_FOUND'),
-  USER_INACTIVE:                          h('USER_INACTIVE'),
+  USER_NOT_FOUND:                         'USR_001',
+  USER_INACTIVE:                          'USR_002',
   // Auth
-  INVALID_REFRESH_TOKEN:                  h('INVALID_REFRESH_TOKEN'),
+  INVALID_REFRESH_TOKEN:                  'AUT_001',
   // Domain value objects
-  INVALID_MONEY_AMOUNT:                   h('INVALID_MONEY_AMOUNT'),
-  CURRENCY_MISMATCH:                      h('CURRENCY_MISMATCH'),
+  INVALID_MONEY_AMOUNT:                   'VAL_001',
+  CURRENCY_MISMATCH:                      'VAL_002',
   // Validation
-  VALIDATION_ERROR:                       h('VALIDATION_ERROR'),
+  VALIDATION_ERROR:                       'GEN_001',
 } as const;
 
 export type ErrorCodeKey = keyof typeof ERROR_CODES;
@@ -386,12 +380,12 @@ import { ERROR_CODES, ErrorCodeKey } from '../errors/error-codes';
 
 export class DomainException extends Error {
   public readonly code: ErrorCodeKey;
-  public readonly hashedCode: string;
+  public readonly errorCode: string;
 
   constructor(code: ErrorCodeKey, message: string) {
     super(message);
-    this.code = code;                      // Para logs internos
-    this.hashedCode = ERROR_CODES[code];   // Para la respuesta al cliente
+    this.code = code;                      // Clave interna (para logs y mapeo HTTP)
+    this.errorCode = ERROR_CODES[code];    // Código opaco para la respuesta al cliente
   }
 }
 ```
@@ -405,7 +399,7 @@ if (exception instanceof DomainException) {
     success: false,
     data: null,
     message: exception.message,
-    error: { code: exception.hashedCode },   // Solo el hash sale al cliente
+    error: { code: exception.errorCode },     // Código opaco sale al cliente
   });
   logger.warn({ errorCode: exception.code }, exception.message); // Código claro en logs
   return;

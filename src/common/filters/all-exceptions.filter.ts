@@ -28,7 +28,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         success: false,
         data: null,
         message: exception.message,
-        error: { code: exception.hashedCode },
+        error: { code: exception.errorCode },
       });
       return;
     }

@@ -25,14 +25,14 @@ describe('AllExceptionsFilter', () => {
   });
 
   describe('DomainException', () => {
-    it('should respond with the mapped HTTP status and hashed error code', () => {
+    it('should respond with the mapped HTTP status and error code', () => {
       const exception = new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta no encontrada');
       filter.catch(exception, buildHost(responseMock));
 
       expect(responseMock.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
       const body = responseMock.status.mock.results[0].value.json.mock.calls[0][0];
       expect(body.success).toBe(false);
-      expect(body.error.code).toBe(exception.hashedCode);
+      expect(body.error.code).toBe(exception.errorCode);
     });
 
     it('should respond with 500 for an unmapped domain code', () => {

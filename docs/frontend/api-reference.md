@@ -22,7 +22,7 @@ En caso de error:
   "data": null,
   "message": "Descripción del error",
   "error": {
-    "code": "a3f1c209",
+    "code": "ACC_001",
     "details": [{ "field": "name", "message": "name should not be empty" }]
   }
 }

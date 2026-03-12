@@ -28,12 +28,12 @@ describe('ApiResponse', () => {
 
   describe('fail()', () => {
     it('should return a failure response with code and message', () => {
-      const result = ApiResponse.fail('Recurso no encontrado', 'a3f1c209');
+      const result = ApiResponse.fail('Recurso no encontrado', 'ACC_001');
 
       expect(result.success).toBe(false);
       expect(result.data).toBeNull();
       expect(result.message).toBe('Recurso no encontrado');
-      expect(result.error?.code).toBe('a3f1c209');
+      expect(result.error?.code).toBe('ACC_001');
     });
 
     it('should include details when provided', () => {
