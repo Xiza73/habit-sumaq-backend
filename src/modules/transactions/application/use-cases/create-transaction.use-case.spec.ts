@@ -3,6 +3,7 @@ import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
 import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 import { type TransactionRepository } from '../../domain/transaction.repository';
 
@@ -21,6 +22,7 @@ describe('CreateTransactionUseCase', () => {
     txRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByRelatedTransactionId: jest.fn(),
       save: jest.fn().mockImplementation((tx) => Promise.resolve(tx)),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
@@ -169,6 +171,56 @@ describe('CreateTransactionUseCase', () => {
 
     await expect(useCase.execute(userId, dto)).rejects.toThrow(
       'Las cuentas deben tener la misma moneda para transferir',
+    );
+  });
+
+  it('should create a DEBT without affecting balance', async () => {
+    const account = buildAccount({ id: 'acc-1', userId, balance: 500 });
+    accountRepo.findById.mockResolvedValue(account);
+
+    const dto: CreateTransactionDto = {
+      ...expenseDto,
+      type: TransactionType.DEBT,
+      reference: 'Juan Pérez',
+    };
+    const result = await useCase.execute(userId, dto);
+
+    expect(result.type).toBe(TransactionType.DEBT);
+    expect(result.status).toBe(TransactionStatus.PENDING);
+    expect(result.remainingAmount).toBe(50);
+    expect(result.reference).toBe('Juan Pérez');
+    expect(account.balance).toBe(500); // unchanged
+    expect(accountRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('should create a LOAN without affecting balance', async () => {
+    const account = buildAccount({ id: 'acc-1', userId, balance: 300 });
+    accountRepo.findById.mockResolvedValue(account);
+
+    const dto: CreateTransactionDto = {
+      ...expenseDto,
+      type: TransactionType.LOAN,
+      reference: 'Empresa X',
+    };
+    const result = await useCase.execute(userId, dto);
+
+    expect(result.type).toBe(TransactionType.LOAN);
+    expect(result.status).toBe(TransactionStatus.PENDING);
+    expect(result.remainingAmount).toBe(50);
+    expect(account.balance).toBe(300); // unchanged
+  });
+
+  it('should throw REFERENCE_REQUIRED for DEBT without reference', async () => {
+    const account = buildAccount({ id: 'acc-1', userId });
+    accountRepo.findById.mockResolvedValue(account);
+
+    const dto: CreateTransactionDto = {
+      ...expenseDto,
+      type: TransactionType.DEBT,
+    };
+
+    await expect(useCase.execute(userId, dto)).rejects.toThrow(
+      'Las deudas y préstamos requieren un campo reference',
     );
   });
 });

@@ -12,6 +12,7 @@ describe('GetTransactionsUseCase', () => {
     txRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByRelatedTransactionId: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
@@ -31,6 +32,7 @@ describe('GetTransactionsUseCase', () => {
       accountId: undefined,
       categoryId: undefined,
       type: undefined,
+      status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });
@@ -48,6 +50,7 @@ describe('GetTransactionsUseCase', () => {
       accountId: 'acc-1',
       categoryId: undefined,
       type: TransactionType.EXPENSE,
+      status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });

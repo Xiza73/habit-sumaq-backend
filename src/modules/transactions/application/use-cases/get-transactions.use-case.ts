@@ -14,6 +14,7 @@ export class GetTransactionsUseCase {
       accountId: query.accountId,
       categoryId: query.categoryId,
       type: query.type,
+      status: query.status,
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
     });

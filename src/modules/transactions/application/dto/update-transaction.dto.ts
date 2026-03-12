@@ -38,4 +38,12 @@ export class UpdateTransactionDto {
   @Type(() => Date)
   @IsDate()
   date?: Date;
+
+  @ApiPropertyOptional({ example: 'Juan Pérez', nullable: true })
+  @IsOptional()
+  @ValidateIf((o: UpdateTransactionDto) => o.reference !== null)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reference?: string | null;
 }

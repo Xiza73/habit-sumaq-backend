@@ -17,12 +17,14 @@ import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
 import { CreateTransactionDto } from '../application/dto/create-transaction.dto';
 import { GetTransactionsQueryDto } from '../application/dto/get-transactions-query.dto';
+import { SettleTransactionDto } from '../application/dto/settle-transaction.dto';
 import { TransactionResponseDto } from '../application/dto/transaction-response.dto';
 import { UpdateTransactionDto } from '../application/dto/update-transaction.dto';
 import { CreateTransactionUseCase } from '../application/use-cases/create-transaction.use-case';
 import { DeleteTransactionUseCase } from '../application/use-cases/delete-transaction.use-case';
 import { GetTransactionByIdUseCase } from '../application/use-cases/get-transaction-by-id.use-case';
 import { GetTransactionsUseCase } from '../application/use-cases/get-transactions.use-case';
+import { SettleTransactionUseCase } from '../application/use-cases/settle-transaction.use-case';
 import { UpdateTransactionUseCase } from '../application/use-cases/update-transaction.use-case';
 
 import type { JwtPayload } from '../../auth/application/dto/jwt-payload.dto';
@@ -37,6 +39,7 @@ export class TransactionsController {
     private readonly getTransactionById: GetTransactionByIdUseCase,
     private readonly updateTransaction: UpdateTransactionUseCase,
     private readonly deleteTransaction: DeleteTransactionUseCase,
+    private readonly settleTransaction: SettleTransactionUseCase,
   ) {}
 
   @Post()
@@ -53,6 +56,25 @@ export class TransactionsController {
     return ApiResponseDto.ok(
       TransactionResponseDto.fromDomain(tx),
       'Transacción creada exitosamente',
+    );
+  }
+
+  @Post(':id/settle')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Liquidar parcial o totalmente una deuda/préstamo' })
+  @ApiResponse({ status: 201, description: 'Liquidación creada', type: TransactionResponseDto })
+  @ApiResponse({ status: 404, description: 'Transacción no encontrada' })
+  @ApiResponse({ status: 409, description: 'Transacción ya liquidada' })
+  @ApiResponse({ status: 422, description: 'Error de validación de dominio' })
+  async settle(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SettleTransactionDto,
+  ): Promise<ApiResponseDto<TransactionResponseDto>> {
+    const settlement = await this.settleTransaction.execute(id, payload.sub, dto);
+    return ApiResponseDto.ok(
+      TransactionResponseDto.fromDomain(settlement),
+      'Liquidación registrada exitosamente',
     );
   }
 

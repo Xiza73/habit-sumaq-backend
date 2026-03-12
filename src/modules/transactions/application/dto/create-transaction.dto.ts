@@ -57,4 +57,16 @@ export class CreateTransactionDto {
   @ValidateIf((o: CreateTransactionDto) => o.type === TransactionType.TRANSFER)
   @IsUUID()
   destinationAccountId?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Juan Pérez',
+    description: 'Referencia (de quién/a quién). Requerido para DEBT/LOAN',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((o: CreateTransactionDto) => o.reference !== null)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reference?: string | null;
 }

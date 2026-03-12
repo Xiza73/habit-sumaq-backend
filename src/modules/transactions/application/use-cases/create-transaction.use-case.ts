@@ -5,6 +5,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
 
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 import { Transaction } from '../../domain/transaction.entity';
 import { TransactionRepository } from '../../domain/transaction.repository';
@@ -29,7 +30,17 @@ export class CreateTransactionUseCase {
       throw new DomainException('ACCOUNT_BELONGS_TO_OTHER_USER', 'No tienes acceso a esta cuenta');
     }
 
-    if (dto.type === TransactionType.TRANSFER) {
+    const isDebtOrLoan = dto.type === TransactionType.DEBT || dto.type === TransactionType.LOAN;
+
+    if (isDebtOrLoan) {
+      if (!dto.reference) {
+        throw new DomainException(
+          'REFERENCE_REQUIRED',
+          'Las deudas y préstamos requieren un campo reference',
+        );
+      }
+      // DEBT/LOAN do NOT affect balance
+    } else if (dto.type === TransactionType.TRANSFER) {
       if (!dto.destinationAccountId) {
         throw new DomainException(
           'TRANSFER_DESTINATION_REQUIRED',
@@ -60,7 +71,6 @@ export class CreateTransactionUseCase {
         );
       }
 
-      // Debit source, credit destination
       account.debit(dto.amount);
       destAccount.credit(dto.amount);
       await this.accountRepo.save(account);
@@ -74,6 +84,7 @@ export class CreateTransactionUseCase {
       await this.accountRepo.save(account);
     }
 
+    const now = new Date();
     const transaction = new Transaction(
       randomUUID(),
       userId,
@@ -84,8 +95,12 @@ export class CreateTransactionUseCase {
       dto.description ?? null,
       dto.date,
       dto.destinationAccountId ?? null,
-      new Date(),
-      new Date(),
+      dto.reference ?? null,
+      isDebtOrLoan ? TransactionStatus.PENDING : null,
+      null,
+      isDebtOrLoan ? dto.amount : null,
+      now,
+      now,
       null,
     );
 

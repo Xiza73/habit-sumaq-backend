@@ -4,6 +4,7 @@ import { type AccountRepository } from '@modules/accounts/domain/account.reposit
 import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { buildTransaction } from '../../domain/__tests__/transaction.factory';
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 import { type TransactionRepository } from '../../domain/transaction.repository';
 
@@ -20,6 +21,7 @@ describe('UpdateTransactionUseCase', () => {
     txRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByRelatedTransactionId: jest.fn(),
       save: jest.fn().mockImplementation((tx) => Promise.resolve(tx)),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
@@ -117,5 +119,46 @@ describe('UpdateTransactionUseCase', () => {
     txRepo.findById.mockResolvedValue(tx);
 
     await expect(useCase.execute(tx.id, userId, { amount: 50 })).rejects.toThrow(DomainException);
+  });
+
+  it('should throw CANNOT_UPDATE_SETTLED_TRANSACTION for settled DEBT', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.DEBT,
+      status: TransactionStatus.SETTLED,
+      remainingAmount: 0,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    await expect(useCase.execute(tx.id, userId, { description: 'new' })).rejects.toThrow(
+      'No se puede modificar una transacción liquidada',
+    );
+  });
+
+  it('should update reference on any transaction', async () => {
+    const tx = buildTransaction({ userId });
+    txRepo.findById.mockResolvedValue(tx);
+
+    const result = await useCase.execute(tx.id, userId, { reference: 'Pedro' });
+
+    expect(result.reference).toBe('Pedro');
+  });
+
+  it('should update remainingAmount proportionally when amount changes on DEBT', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.DEBT,
+      amount: 100,
+      remainingAmount: 60,
+      status: TransactionStatus.PENDING,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    const result = await useCase.execute(tx.id, userId, { amount: 120 });
+
+    // remainingAmount: 60 + (120 - 100) = 80
+    expect(result.remainingAmount).toBe(80);
+    expect(result.amount).toBe(120);
+    expect(accountRepo.findById).not.toHaveBeenCalled(); // no balance effect
   });
 });

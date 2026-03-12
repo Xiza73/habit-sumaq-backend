@@ -4,6 +4,7 @@ import { type AccountRepository } from '@modules/accounts/domain/account.reposit
 import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { buildTransaction } from '../../domain/__tests__/transaction.factory';
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 import { type TransactionRepository } from '../../domain/transaction.repository';
 
@@ -20,7 +21,8 @@ describe('DeleteTransactionUseCase', () => {
     txRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
-      save: jest.fn(),
+      findByRelatedTransactionId: jest.fn().mockResolvedValue([]),
+      save: jest.fn().mockImplementation((tx) => Promise.resolve(tx)),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
@@ -105,5 +107,70 @@ describe('DeleteTransactionUseCase', () => {
     const tx = buildTransaction({ userId: 'other-user' });
     txRepo.findById.mockResolvedValue(tx);
     await expect(useCase.execute(tx.id, userId)).rejects.toThrow(DomainException);
+  });
+
+  it('should delete DEBT and cascade delete all settlements reversing their balances', async () => {
+    const debt = buildTransaction({
+      id: 'debt-1',
+      userId,
+      type: TransactionType.DEBT,
+      amount: 100,
+      remainingAmount: 40,
+      status: TransactionStatus.PENDING,
+    });
+    const settlement = buildTransaction({
+      id: 'settle-1',
+      userId,
+      accountId: 'acc-1',
+      type: TransactionType.EXPENSE,
+      amount: 60,
+      relatedTransactionId: 'debt-1',
+    });
+    const account = buildAccount({ id: 'acc-1', userId, balance: 200 });
+
+    txRepo.findById.mockResolvedValue(debt);
+    txRepo.findByRelatedTransactionId.mockResolvedValue([settlement]);
+    accountRepo.findById.mockResolvedValue(account);
+
+    await useCase.execute('debt-1', userId);
+
+    expect(account.balance).toBe(260); // 200 + 60 (reversed expense)
+    expect(txRepo.softDelete).toHaveBeenCalledWith('settle-1');
+    expect(txRepo.softDelete).toHaveBeenCalledWith('debt-1');
+  });
+
+  it('should delete a settlement and revert the original DEBT remainingAmount', async () => {
+    const debt = buildTransaction({
+      id: 'debt-1',
+      userId,
+      type: TransactionType.DEBT,
+      amount: 100,
+      remainingAmount: 40,
+      status: TransactionStatus.PENDING,
+    });
+    const settlement = buildTransaction({
+      id: 'settle-1',
+      userId,
+      accountId: 'acc-1',
+      type: TransactionType.EXPENSE,
+      amount: 60,
+      relatedTransactionId: 'debt-1',
+    });
+    const account = buildAccount({ id: 'acc-1', userId, balance: 200 });
+
+    txRepo.findById.mockImplementation((id) => {
+      if (id === 'settle-1') return Promise.resolve(settlement);
+      if (id === 'debt-1') return Promise.resolve(debt);
+      return Promise.resolve(null);
+    });
+    accountRepo.findById.mockResolvedValue(account);
+
+    await useCase.execute('settle-1', userId);
+
+    expect(debt.remainingAmount).toBe(100); // 40 + 60 reverted
+    expect(debt.status).toBe(TransactionStatus.PENDING);
+    expect(account.balance).toBe(260); // 200 + 60 reversed
+    expect(txRepo.save).toHaveBeenCalledWith(debt);
+    expect(txRepo.softDelete).toHaveBeenCalledWith('settle-1');
   });
 });

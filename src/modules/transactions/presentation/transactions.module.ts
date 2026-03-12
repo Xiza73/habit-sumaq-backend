@@ -7,6 +7,7 @@ import { CreateTransactionUseCase } from '../application/use-cases/create-transa
 import { DeleteTransactionUseCase } from '../application/use-cases/delete-transaction.use-case';
 import { GetTransactionByIdUseCase } from '../application/use-cases/get-transaction-by-id.use-case';
 import { GetTransactionsUseCase } from '../application/use-cases/get-transactions.use-case';
+import { SettleTransactionUseCase } from '../application/use-cases/settle-transaction.use-case';
 import { UpdateTransactionUseCase } from '../application/use-cases/update-transaction.use-case';
 import { TransactionRepository } from '../domain/transaction.repository';
 import { TransactionOrmEntity } from '../infrastructure/persistence/transaction.orm-entity';
@@ -24,6 +25,7 @@ import { TransactionsController } from './transactions.controller';
     GetTransactionByIdUseCase,
     UpdateTransactionUseCase,
     DeleteTransactionUseCase,
+    SettleTransactionUseCase,
   ],
   exports: [TransactionRepository],
 })

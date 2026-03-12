@@ -13,6 +13,7 @@ describe('GetTransactionByIdUseCase', () => {
     txRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByRelatedTransactionId: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),

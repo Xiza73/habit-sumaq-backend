@@ -8,12 +8,15 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 
 @Entity('transactions')
 @Index('IDX_transactions_userId', ['userId'])
 @Index('IDX_transactions_accountId', ['accountId'])
 @Index('IDX_transactions_date', ['date'])
+@Index('IDX_transactions_status', ['status'])
+@Index('IDX_transactions_relatedTransactionId', ['relatedTransactionId'])
 export class TransactionOrmEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -49,6 +52,32 @@ export class TransactionOrmEntity {
 
   @Column({ type: 'uuid', nullable: true })
   destinationAccountId: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  reference: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: TransactionStatus,
+    enumName: 'transaction_status_enum',
+    nullable: true,
+  })
+  status: TransactionStatus | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  relatedTransactionId: string | null;
+
+  @Column({
+    type: 'numeric',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      from: (v: string | null): number | null => (v === null ? null : parseFloat(v)),
+      to: (v: number | null): number | null => v,
+    },
+  })
+  remainingAmount: number | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

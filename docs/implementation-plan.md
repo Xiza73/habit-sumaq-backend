@@ -262,6 +262,56 @@ DELETE /transactions/:id    → Soft delete (revierte balance)
 
 ---
 
+## Fase 5.1 — Deudas y Préstamos (DEBT/LOAN)
+
+**Objetivo:** registrar deudas y préstamos que no afectan balance, con liquidaciones parciales/totales.
+
+### 5.1.1 Dominio
+
+- [x] `TransactionType` ampliado con `DEBT | LOAN`
+- [x] `TransactionStatus` enum (`PENDING | SETTLED`)
+- [x] 4 nuevos campos en `Transaction`: `reference`, `status`, `relatedTransactionId`, `remainingAmount`
+- [x] Métodos: `isDebtOrLoan()`, `isPending()`, `isSettled()`, `applySettlement()`, `revertSettlement()`
+- [x] `TransactionRepository.findByRelatedTransactionId()`
+
+### 5.1.2 Aplicación
+
+- [x] `CreateTransactionUseCase` — branch DEBT/LOAN sin efecto en balance, valida `reference`
+- [x] `SettleTransactionUseCase` — liquidación parcial/total, crea EXPENSE (DEBT) o INCOME (LOAN)
+- [x] `UpdateTransactionUseCase` — bloquea edición de settled, actualiza `reference`, ajusta `remainingAmount`
+- [x] `DeleteTransactionUseCase` — cascade delete de DEBT/LOAN + liquidaciones, revert settlement
+
+### 5.1.3 Infraestructura
+
+- [x] `TransactionOrmEntity` — 4 columnas nuevas + 2 índices
+- [x] `TransactionRepositoryImpl` — mappeo + `findByRelatedTransactionId` + filtro `status`
+- [x] Migración: `AddDebtLoanFields` (ALTER TYPE + 4 columnas + FK + 2 índices)
+
+### 5.1.4 Endpoints
+
+```
+POST /transactions/:id/settle → Liquidar parcial/total una deuda o préstamo
+```
+
+### 5.1.5 Error codes
+
+- [x] `REFERENCE_REQUIRED` (422)
+- [x] `TRANSACTION_NOT_DEBT_OR_LOAN` (422)
+- [x] `TRANSACTION_ALREADY_SETTLED` (409)
+- [x] `CANNOT_UPDATE_SETTLED_TRANSACTION` (409)
+- [x] `SETTLEMENT_AMOUNT_EXCEEDS_REMAINING` (422)
+
+### 5.1.6 Tests
+
+- [x] Unit tests: SettleTransactionUseCase (10 tests), +3 create, +2 delete cascade, +3 update
+- [x] Domain tests: entity (7 tests con applySettlement, revertSettlement, isDebtOrLoan, isPending, isSettled)
+- [x] DTO tests: response DTO con 4 campos nuevos
+- [x] E2e tests: DEBT creation, settle happy path, settle errors (422/409), cascade delete, settled update block
+
+**Criterio de completitud:** 159 unit tests + 48 e2e tests passing, tsc clean, lint clean. ✅
+
+---
+
 ## Orden de dependencias entre módulos
 
 ```

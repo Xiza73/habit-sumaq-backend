@@ -21,8 +21,10 @@ import { CreateTransactionUseCase } from '../src/modules/transactions/applicatio
 import { DeleteTransactionUseCase } from '../src/modules/transactions/application/use-cases/delete-transaction.use-case';
 import { GetTransactionByIdUseCase } from '../src/modules/transactions/application/use-cases/get-transaction-by-id.use-case';
 import { GetTransactionsUseCase } from '../src/modules/transactions/application/use-cases/get-transactions.use-case';
+import { SettleTransactionUseCase } from '../src/modules/transactions/application/use-cases/settle-transaction.use-case';
 import { UpdateTransactionUseCase } from '../src/modules/transactions/application/use-cases/update-transaction.use-case';
 import { buildTransaction } from '../src/modules/transactions/domain/__tests__/transaction.factory';
+import { TransactionStatus } from '../src/modules/transactions/domain/enums/transaction-status.enum';
 import { TransactionType } from '../src/modules/transactions/domain/enums/transaction-type.enum';
 import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 import { TransactionsController } from '../src/modules/transactions/presentation/transactions.controller';
@@ -41,6 +43,7 @@ describe('TransactionsController (e2e)', () => {
   const mockTxRepo: jest.Mocked<TransactionRepository> = {
     findByUserId: jest.fn(),
     findById: jest.fn(),
+    findByRelatedTransactionId: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
     existsByAccountId: jest.fn(),
@@ -72,6 +75,7 @@ describe('TransactionsController (e2e)', () => {
         GetTransactionByIdUseCase,
         UpdateTransactionUseCase,
         DeleteTransactionUseCase,
+        SettleTransactionUseCase,
         { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: AccountRepository, useValue: mockAccountRepo },
         JwtAccessStrategy,
@@ -192,6 +196,142 @@ describe('TransactionsController (e2e)', () => {
         })
         .expect(422);
     });
+
+    it('should create a DEBT with status PENDING and return 201', async () => {
+      const account = buildAccount({ id: ACC_ID_1, userId: USER_ID, balance: 500 });
+      mockAccountRepo.findById.mockResolvedValue(account);
+
+      const debtTx = buildTransaction({
+        userId: USER_ID,
+        accountId: ACC_ID_1,
+        type: TransactionType.DEBT,
+        amount: 100,
+        reference: 'Juan',
+        status: TransactionStatus.PENDING,
+        remainingAmount: 100,
+      });
+      mockTxRepo.save.mockResolvedValue(debtTx);
+
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          accountId: ACC_ID_1,
+          type: TransactionType.DEBT,
+          amount: 100,
+          reference: 'Juan',
+          date: '2026-01-15T12:00:00Z',
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.data.type).toBe(TransactionType.DEBT);
+          expect(body.data.status).toBe(TransactionStatus.PENDING);
+          expect(body.data.remainingAmount).toBe(100);
+          expect(body.data.reference).toBe('Juan');
+        });
+    });
+
+    it('should return 422 for DEBT without reference', async () => {
+      const account = buildAccount({ id: ACC_ID_1, userId: USER_ID });
+      mockAccountRepo.findById.mockResolvedValue(account);
+
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          accountId: ACC_ID_1,
+          type: TransactionType.DEBT,
+          amount: 100,
+          date: '2026-01-15T12:00:00Z',
+        })
+        .expect(422);
+    });
+  });
+
+  // ─── POST /transactions/:id/settle ──────────────────────────────────────────
+
+  describe('POST /api/v1/transactions/:id/settle', () => {
+    it('should settle a DEBT partially and return 201', async () => {
+      const debt = buildTransaction({
+        id: '00000000-0000-4000-c000-000000000001',
+        userId: USER_ID,
+        type: TransactionType.DEBT,
+        amount: 100,
+        remainingAmount: 100,
+        status: TransactionStatus.PENDING,
+        reference: 'Juan',
+        description: 'Deuda test',
+        categoryId: CAT_ID,
+      });
+      const account = buildAccount({ id: ACC_ID_1, userId: USER_ID, balance: 500 });
+
+      mockTxRepo.findById.mockResolvedValue(debt);
+      mockAccountRepo.findById.mockResolvedValue(account);
+      mockAccountRepo.save.mockResolvedValue(account);
+      mockTxRepo.save.mockImplementation((tx) => Promise.resolve(tx));
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/transactions/${debt.id}/settle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ accountId: ACC_ID_1, amount: 60 })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.success).toBe(true);
+          expect(body.data.type).toBe(TransactionType.EXPENSE);
+          expect(body.data.amount).toBe(60);
+          expect(body.data.relatedTransactionId).toBe(debt.id);
+        });
+    });
+
+    it('should return 422 for non-DEBT/LOAN transaction', async () => {
+      const expense = buildTransaction({
+        id: '00000000-0000-4000-c000-000000000002',
+        userId: USER_ID,
+        type: TransactionType.EXPENSE,
+      });
+      mockTxRepo.findById.mockResolvedValue(expense);
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/transactions/${expense.id}/settle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ accountId: ACC_ID_1, amount: 50 })
+        .expect(422);
+    });
+
+    it('should return 409 for already settled transaction', async () => {
+      const debt = buildTransaction({
+        id: '00000000-0000-4000-c000-000000000003',
+        userId: USER_ID,
+        type: TransactionType.DEBT,
+        status: TransactionStatus.SETTLED,
+        remainingAmount: 0,
+      });
+      mockTxRepo.findById.mockResolvedValue(debt);
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/transactions/${debt.id}/settle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ accountId: ACC_ID_1, amount: 50 })
+        .expect(409);
+    });
+
+    it('should return 422 when amount exceeds remaining', async () => {
+      const debt = buildTransaction({
+        id: '00000000-0000-4000-c000-000000000004',
+        userId: USER_ID,
+        type: TransactionType.DEBT,
+        amount: 100,
+        remainingAmount: 30,
+        status: TransactionStatus.PENDING,
+      });
+      mockTxRepo.findById.mockResolvedValue(debt);
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/transactions/${debt.id}/settle`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ accountId: ACC_ID_1, amount: 50 })
+        .expect(422);
+    });
   });
 
   // ─── GET /transactions ────────────────────────────────────────────────────────
@@ -287,6 +427,22 @@ describe('TransactionsController (e2e)', () => {
         .send({ description: 'New' })
         .expect(404);
     });
+
+    it('should return 409 when updating a settled DEBT', async () => {
+      const tx = buildTransaction({
+        userId: USER_ID,
+        type: TransactionType.DEBT,
+        status: TransactionStatus.SETTLED,
+        remainingAmount: 0,
+      });
+      mockTxRepo.findById.mockResolvedValue(tx);
+
+      return request(app.getHttpServer())
+        .patch(`/api/v1/transactions/${tx.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ description: 'New' })
+        .expect(409);
+    });
   });
 
   // ─── DELETE /transactions/:id ─────────────────────────────────────────────────
@@ -308,6 +464,36 @@ describe('TransactionsController (e2e)', () => {
 
       return request(app.getHttpServer())
         .delete(`/api/v1/transactions/${tx.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+    });
+
+    it('should soft delete DEBT with cascade and return 204', async () => {
+      const debt = buildTransaction({
+        userId: USER_ID,
+        accountId: ACC_ID_1,
+        type: TransactionType.DEBT,
+        amount: 100,
+        remainingAmount: 40,
+        status: TransactionStatus.PENDING,
+      });
+      const settlement = buildTransaction({
+        userId: USER_ID,
+        accountId: ACC_ID_1,
+        type: TransactionType.EXPENSE,
+        amount: 60,
+        relatedTransactionId: debt.id,
+      });
+      const account = buildAccount({ id: ACC_ID_1, userId: USER_ID, balance: 200 });
+
+      mockTxRepo.findById.mockResolvedValue(debt);
+      mockTxRepo.findByRelatedTransactionId.mockResolvedValue([settlement]);
+      mockAccountRepo.findById.mockResolvedValue(account);
+      mockAccountRepo.save.mockResolvedValue(account);
+      mockTxRepo.softDelete.mockResolvedValue(undefined);
+
+      return request(app.getHttpServer())
+        .delete(`/api/v1/transactions/${debt.id}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(204);
     });

@@ -28,9 +28,21 @@ export class UpdateTransactionUseCase {
       );
     }
 
+    if (tx.isDebtOrLoan() && tx.isSettled()) {
+      throw new DomainException(
+        'CANNOT_UPDATE_SETTLED_TRANSACTION',
+        'No se puede modificar una transacción liquidada',
+      );
+    }
+
     const amountChanged = dto.amount !== undefined && dto.amount !== tx.amount;
 
-    if (amountChanged) {
+    if (amountChanged && tx.isDebtOrLoan()) {
+      // For DEBT/LOAN: update remainingAmount proportionally
+      const diff = dto.amount! - tx.amount;
+      tx.remainingAmount = (tx.remainingAmount ?? 0) + diff;
+      if (tx.remainingAmount < 0) tx.remainingAmount = 0;
+    } else if (amountChanged) {
       const account = await this.accountRepo.findById(tx.accountId);
       if (!account) {
         throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta asociada no encontrada');
@@ -68,6 +80,7 @@ export class UpdateTransactionUseCase {
     if (dto.categoryId !== undefined) tx.categoryId = dto.categoryId ?? null;
     if (dto.description !== undefined) tx.description = dto.description ?? null;
     if (dto.date !== undefined) tx.date = dto.date;
+    if (dto.reference !== undefined) tx.reference = dto.reference ?? null;
     tx.updatedAt = new Date();
 
     return this.txRepo.save(tx);

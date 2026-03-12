@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 
 import type { Transaction } from '../../domain/transaction.entity';
@@ -32,6 +33,18 @@ export class TransactionResponseDto {
   @ApiPropertyOptional({ nullable: true })
   destinationAccountId: string | null;
 
+  @ApiPropertyOptional({ example: 'Juan Pérez', nullable: true })
+  reference: string | null;
+
+  @ApiPropertyOptional({ enum: TransactionStatus, nullable: true })
+  status: TransactionStatus | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  relatedTransactionId: string | null;
+
+  @ApiPropertyOptional({ example: 100.0, nullable: true })
+  remainingAmount: number | null;
+
   @ApiProperty()
   createdAt: Date;
 
@@ -49,6 +62,10 @@ export class TransactionResponseDto {
     dto.description = tx.description;
     dto.date = tx.date;
     dto.destinationAccountId = tx.destinationAccountId;
+    dto.reference = tx.reference;
+    dto.status = tx.status;
+    dto.relatedTransactionId = tx.relatedTransactionId;
+    dto.remainingAmount = tx.remainingAmount;
     dto.createdAt = tx.createdAt;
     dto.updatedAt = tx.updatedAt;
     return dto;

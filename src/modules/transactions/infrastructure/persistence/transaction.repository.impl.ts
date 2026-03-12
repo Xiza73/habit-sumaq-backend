@@ -32,6 +32,9 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     if (filters?.type) {
       qb.andWhere('tx.type = :type', { type: filters.type });
     }
+    if (filters?.status) {
+      qb.andWhere('tx.status = :status', { status: filters.status });
+    }
     if (filters?.dateFrom) {
       qb.andWhere('tx.date >= :dateFrom', { dateFrom: filters.dateFrom });
     }
@@ -50,6 +53,11 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     return entity ? this.toDomain(entity) : null;
   }
 
+  async findByRelatedTransactionId(relatedTransactionId: string): Promise<Transaction[]> {
+    const entities = await this.repo.find({ where: { relatedTransactionId } });
+    return entities.map((e) => this.toDomain(e));
+  }
+
   async save(transaction: Transaction): Promise<Transaction> {
     const entity = this.repo.create({
       id: transaction.id,
@@ -61,6 +69,10 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       description: transaction.description,
       date: transaction.date,
       destinationAccountId: transaction.destinationAccountId,
+      reference: transaction.reference,
+      status: transaction.status,
+      relatedTransactionId: transaction.relatedTransactionId,
+      remainingAmount: transaction.remainingAmount,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
       deletedAt: transaction.deletedAt,
@@ -89,6 +101,10 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       entity.description,
       entity.date,
       entity.destinationAccountId,
+      entity.reference,
+      entity.status,
+      entity.relatedTransactionId,
+      entity.remainingAmount,
       entity.createdAt,
       entity.updatedAt,
       entity.deletedAt,
