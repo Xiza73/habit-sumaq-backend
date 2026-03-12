@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
@@ -41,9 +41,17 @@ export class CategoriesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Crear una nueva categoría' })
-  @ApiResponse({ status: 201, description: 'Categoría creada', type: CategoryResponseDto })
-  @ApiResponse({ status: 409, description: 'Ya existe una categoría con ese nombre' })
+  @ApiOperation({
+    summary: 'Crear una nueva categoría',
+    description:
+      'Crea una categoría de tipo INCOME o EXPENSE. El nombre debe ser único por usuario y tipo.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Categoría creada exitosamente',
+    type: CategoryResponseDto,
+  })
+  @ApiResponse({ status: 409, description: 'Ya existe una categoría con ese nombre y tipo' })
   async create(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: CreateCategoryDto,
@@ -56,7 +64,12 @@ export class CategoriesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar categorías del usuario autenticado' })
+  @ApiOperation({
+    summary: 'Listar categorías del usuario autenticado',
+    description:
+      'Retorna todas las categorías del usuario, incluyendo las por defecto. ' +
+      'Filtrar opcionalmente por tipo con ?type=INCOME o ?type=EXPENSE.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de categorías', type: [CategoryResponseDto] })
   async findAll(
     @CurrentUser() payload: JwtPayload,
@@ -71,6 +84,11 @@ export class CategoriesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una categoría por ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la categoría',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 200, description: 'Categoría encontrada', type: CategoryResponseDto })
   @ApiResponse({ status: 403, description: 'La categoría pertenece a otro usuario' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
@@ -86,10 +104,18 @@ export class CategoriesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar nombre, color e ícono de una categoría' })
+  @ApiOperation({
+    summary: 'Actualizar nombre, color e ícono de una categoría',
+    description: 'Solo se actualizan los campos enviados. El tipo (INCOME/EXPENSE) no es editable.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la categoría',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 200, description: 'Categoría actualizada', type: CategoryResponseDto })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
-  @ApiResponse({ status: 409, description: 'El nuevo nombre ya está en uso' })
+  @ApiResponse({ status: 409, description: 'El nuevo nombre ya está en uso para este tipo' })
   async update(
     @CurrentUser() payload: JwtPayload,
     @Param('id') id: string,
@@ -104,7 +130,16 @@ export class CategoriesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Eliminar una categoría (soft delete)' })
+  @ApiOperation({
+    summary: 'Eliminar una categoría (soft delete)',
+    description:
+      'Las categorías marcadas como "por defecto" (isDefault=true) no se pueden eliminar.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la categoría',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 204, description: 'Categoría eliminada' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
   @ApiResponse({ status: 409, description: 'No se pueden eliminar categorías por defecto' })

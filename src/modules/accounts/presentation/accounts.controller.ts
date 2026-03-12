@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
@@ -43,9 +43,17 @@ export class AccountsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Crear una nueva cuenta financiera' })
-  @ApiResponse({ status: 201, description: 'Cuenta creada', type: AccountResponseDto })
-  @ApiResponse({ status: 409, description: 'Ya existe una cuenta con ese nombre' })
+  @ApiOperation({
+    summary: 'Crear una nueva cuenta financiera',
+    description:
+      'Crea una cuenta (checking, savings, cash, credit_card, investment) con moneda y balance inicial. ' +
+      'El nombre debe ser único por usuario.',
+  })
+  @ApiResponse({ status: 201, description: 'Cuenta creada exitosamente', type: AccountResponseDto })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe una cuenta con ese nombre para este usuario',
+  })
   async create(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: CreateAccountDto,
@@ -55,7 +63,12 @@ export class AccountsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar cuentas del usuario autenticado' })
+  @ApiOperation({
+    summary: 'Listar cuentas del usuario autenticado',
+    description:
+      'Retorna todas las cuentas del usuario. Por defecto excluye las archivadas; ' +
+      'usar ?includeArchived=true para incluirlas.',
+  })
   @ApiResponse({ status: 200, description: 'Lista de cuentas', type: [AccountResponseDto] })
   async findAll(
     @CurrentUser() payload: JwtPayload,
@@ -70,6 +83,11 @@ export class AccountsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una cuenta por ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la cuenta',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 200, description: 'Cuenta encontrada', type: AccountResponseDto })
   @ApiResponse({ status: 403, description: 'La cuenta pertenece a otro usuario' })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
@@ -85,7 +103,16 @@ export class AccountsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar nombre, color e ícono de una cuenta' })
+  @ApiOperation({
+    summary: 'Actualizar nombre, color e ícono de una cuenta',
+    description:
+      'Solo se actualizan los campos enviados. El tipo, moneda y balance no son editables.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la cuenta',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 200, description: 'Cuenta actualizada', type: AccountResponseDto })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   @ApiResponse({ status: 409, description: 'El nuevo nombre ya está en uso' })
@@ -102,7 +129,16 @@ export class AccountsController {
   }
 
   @Patch(':id/archive')
-  @ApiOperation({ summary: 'Archivar una cuenta (ocultar sin eliminar)' })
+  @ApiOperation({
+    summary: 'Archivar una cuenta',
+    description:
+      'La cuenta se oculta del listado por defecto pero no se elimina. El balance se mantiene.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la cuenta',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 200, description: 'Cuenta archivada', type: AccountResponseDto })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   async archive(
@@ -118,9 +154,20 @@ export class AccountsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Eliminar una cuenta (soft delete)' })
+  @ApiOperation({
+    summary: 'Eliminar una cuenta (soft delete)',
+    description:
+      'Eliminación lógica. Falla si la cuenta tiene transacciones activas. ' +
+      'Una vez eliminada, no aparece en listados.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la cuenta',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 204, description: 'Cuenta eliminada' })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
+  @ApiResponse({ status: 409, description: 'La cuenta tiene transacciones activas' })
   async remove(@CurrentUser() payload: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.deleteAccount.execute(id, payload.sub);
   }

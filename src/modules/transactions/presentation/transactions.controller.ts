@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
@@ -44,10 +44,24 @@ export class TransactionsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registrar una nueva transacción' })
-  @ApiResponse({ status: 201, description: 'Transacción creada', type: TransactionResponseDto })
-  @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
-  @ApiResponse({ status: 422, description: 'Error de validación de dominio' })
+  @ApiOperation({
+    summary: 'Registrar una nueva transacción',
+    description:
+      'Crea un INCOME, EXPENSE, TRANSFER, DEBT o LOAN. ' +
+      'INCOME/EXPENSE/TRANSFER afectan el balance de la cuenta. ' +
+      'DEBT/LOAN no afectan balance y requieren el campo `reference`. ' +
+      'TRANSFER requiere `destinationAccountId` y ambas cuentas deben compartir moneda.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Transacción creada exitosamente',
+    type: TransactionResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Cuenta origen o destino no encontrada' })
+  @ApiResponse({
+    status: 422,
+    description: 'Validación de dominio: monedas distintas, misma cuenta, falta reference, etc.',
+  })
   async create(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: CreateTransactionDto,
@@ -61,11 +75,26 @@ export class TransactionsController {
 
   @Post(':id/settle')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Liquidar parcial o totalmente una deuda/préstamo' })
-  @ApiResponse({ status: 201, description: 'Liquidación creada', type: TransactionResponseDto })
-  @ApiResponse({ status: 404, description: 'Transacción no encontrada' })
-  @ApiResponse({ status: 409, description: 'Transacción ya liquidada' })
-  @ApiResponse({ status: 422, description: 'Error de validación de dominio' })
+  @ApiOperation({
+    summary: 'Liquidar parcial o totalmente una deuda/préstamo',
+    description:
+      'Crea una transacción de liquidación vinculada a la deuda/préstamo original. ' +
+      'DEBT → genera un EXPENSE (pago de deuda). LOAN → genera un INCOME (cobro de préstamo). ' +
+      'El monto debe ser ≤ remainingAmount. Al liquidar completamente, el status cambia a SETTLED.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la transacción DEBT/LOAN a liquidar',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Liquidación creada. Retorna la transacción de liquidación (EXPENSE o INCOME)',
+    type: TransactionResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Transacción o cuenta no encontrada' })
+  @ApiResponse({ status: 409, description: 'La deuda/préstamo ya fue liquidada completamente' })
+  @ApiResponse({ status: 422, description: 'No es DEBT/LOAN, o monto excede saldo pendiente' })
   async settle(
     @CurrentUser() payload: JwtPayload,
     @Param('id') id: string,
@@ -79,7 +108,12 @@ export class TransactionsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar transacciones del usuario con filtros opcionales' })
+  @ApiOperation({
+    summary: 'Listar transacciones del usuario con filtros opcionales',
+    description:
+      'Retorna transacciones ordenadas por fecha descendente. ' +
+      'Soporta filtros por cuenta, categoría, tipo, status y rango de fechas.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de transacciones',
@@ -98,11 +132,12 @@ export class TransactionsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una transacción por ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Transacción encontrada',
-    type: TransactionResponseDto,
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la transacción',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
+  @ApiResponse({ status: 200, description: 'Transacción encontrada', type: TransactionResponseDto })
   @ApiResponse({ status: 403, description: 'La transacción pertenece a otro usuario' })
   @ApiResponse({ status: 404, description: 'Transacción no encontrada' })
   async findOne(
@@ -117,13 +152,28 @@ export class TransactionsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar una transacción (monto, descripción, categoría, fecha)' })
+  @ApiOperation({
+    summary: 'Actualizar una transacción',
+    description:
+      'Actualiza campos editables: monto, descripción, categoría, fecha, reference. ' +
+      'El tipo no es editable. Si se cambia el monto, el balance de la cuenta se recalcula automáticamente. ' +
+      'Las transacciones DEBT/LOAN con status=SETTLED no se pueden modificar.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la transacción',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({
     status: 200,
     description: 'Transacción actualizada',
     type: TransactionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Transacción no encontrada' })
+  @ApiResponse({
+    status: 409,
+    description: 'No se puede modificar una transacción ya liquidada (SETTLED)',
+  })
   async update(
     @CurrentUser() payload: JwtPayload,
     @Param('id') id: string,
@@ -138,8 +188,20 @@ export class TransactionsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Eliminar una transacción (soft delete, revierte el balance)' })
+  @ApiOperation({
+    summary: 'Eliminar una transacción (soft delete)',
+    description:
+      'Eliminación lógica que revierte el efecto en balance de la cuenta. ' +
+      'Si es DEBT/LOAN, también elimina todas las liquidaciones asociadas y revierte sus balances. ' +
+      'Si es una liquidación, revierte el remainingAmount de la deuda/préstamo original.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de la transacción',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiResponse({ status: 204, description: 'Transacción eliminada' })
+  @ApiResponse({ status: 403, description: 'La transacción pertenece a otro usuario' })
   @ApiResponse({ status: 404, description: 'Transacción no encontrada' })
   async remove(@CurrentUser() payload: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.deleteTransaction.execute(id, payload.sub);
