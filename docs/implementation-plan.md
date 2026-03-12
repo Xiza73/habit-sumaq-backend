@@ -81,7 +81,7 @@ pnpm add @nestjs/testing supertest @types/supertest -D
 - [x] `FindOrCreateUserUseCase` — busca por `googleId`, si no existe crea el registro
 - [x] `GetUserProfileUseCase`
 - [x] `UserResponseDto` con `fromDomain()`
-- [ ] Migración: `CreateUsersTable`
+- [x] Migración: `CreateUsersTable`
 - [x] Tests unitarios de `FindOrCreateUserUseCase`
 
 ### 1.2 Módulo Auth
@@ -107,7 +107,7 @@ POST /auth/logout            → Revoca refresh token
 GET  /auth/me                → Perfil del usuario autenticado
 ```
 
-**Criterio de completitud:** flujo completo end-to-end testeado manualmente + tests e2e de `/auth/me`.
+**Criterio de completitud:** flujo completo end-to-end testeado manualmente + tests e2e de `/auth/me`. ✅
 
 ---
 

@@ -41,7 +41,14 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
       .exec();
 
     // id = hashedToken — enables direct lookup in revoke()
-    return new RefreshToken(data.hashedToken, data.userId, data.hashedToken, data.expiresAt, null, createdAt);
+    return new RefreshToken(
+      data.hashedToken,
+      data.userId,
+      data.hashedToken,
+      data.expiresAt,
+      null,
+      createdAt,
+    );
   }
 
   async findByHashedToken(hashedToken: string): Promise<RefreshToken | null> {

@@ -3,8 +3,6 @@ import { createHash } from 'node:crypto';
 import { type ConfigService } from '@nestjs/config';
 import { type JwtService } from '@nestjs/jwt';
 
-import { DomainException } from '@common/exceptions/domain.exception';
-
 import { buildRefreshToken } from '../../domain/__tests__/refresh-token.factory';
 
 import { RotateRefreshTokenUseCase } from './rotate-refresh-token.use-case';
