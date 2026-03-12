@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -38,7 +38,10 @@ export class RotateRefreshTokenUseCase {
       expiresIn: this.config.get('jwt.accessExpiresIn') as never,
     });
 
-    const newRawToken = randomBytes(64).toString('hex');
+    const newRawToken = this.jwtService.sign(payload, {
+      secret: this.config.get<string>('jwt.refreshSecret'),
+      expiresIn: this.config.get('jwt.refreshExpiresIn') as never,
+    });
     const newHashedToken = createHash('sha256').update(newRawToken).digest('hex');
     const expiresAt = this.computeExpiry(this.config.get<string>('jwt.refreshExpiresIn', '7d'));
 

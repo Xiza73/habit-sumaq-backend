@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -38,7 +38,10 @@ export class GoogleLoginUseCase {
       expiresIn: this.config.get('jwt.accessExpiresIn') as never,
     });
 
-    const rawRefreshToken = randomBytes(64).toString('hex');
+    const rawRefreshToken = this.jwtService.sign(payload, {
+      secret: this.config.get<string>('jwt.refreshSecret'),
+      expiresIn: this.config.get('jwt.refreshExpiresIn') as never,
+    });
     const hashedToken = createHash('sha256').update(rawRefreshToken).digest('hex');
     const expiresAt = this.computeExpiry(this.config.get<string>('jwt.refreshExpiresIn', '7d'));
 
