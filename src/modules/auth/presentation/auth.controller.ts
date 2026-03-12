@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
@@ -77,13 +77,16 @@ export class AuthController {
 
   @Post('logout')
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Cerrar sesión y revocar refresh token' })
-  @ApiResponse({ status: 204, description: 'Sesión cerrada' })
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+  @ApiResponse({ status: 200, description: 'Sesión cerrada' })
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ApiResponseDto<null>> {
     const rawToken = (req.cookies as Record<string, string>)[REFRESH_COOKIE];
     await this.logoutUseCase.execute(rawToken);
     res.clearCookie(REFRESH_COOKIE);
+    return ApiResponseDto.ok(null, 'Sesión cerrada exitosamente');
   }
 
   @Get('me')
@@ -100,7 +103,7 @@ export class AuthController {
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
   }

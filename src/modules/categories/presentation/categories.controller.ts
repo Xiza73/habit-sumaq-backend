@@ -129,7 +129,6 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Eliminar una categoría (soft delete)',
     description:
@@ -140,10 +139,14 @@ export class CategoriesController {
     description: 'UUID de la categoría',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ status: 204, description: 'Categoría eliminada' })
+  @ApiResponse({ status: 200, description: 'Categoría eliminada' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada' })
   @ApiResponse({ status: 409, description: 'No se pueden eliminar categorías por defecto' })
-  async remove(@CurrentUser() payload: JwtPayload, @Param('id') id: string): Promise<void> {
+  async remove(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<ApiResponseDto<null>> {
     await this.deleteCategory.execute(id, payload.sub);
+    return ApiResponseDto.ok(null, 'Categoría eliminada exitosamente');
   }
 }

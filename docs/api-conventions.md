@@ -106,7 +106,7 @@ El campo `code` es un identificador opaco (ej. `ACC_001`). No expone nombres int
 |---|---|
 | Creación exitosa | `201 Created` |
 | Lectura/Update/Delete exitoso | `200 OK` |
-| Sin contenido (ej. logout) | `204 No Content` |
+| Operación sin datos de retorno (ej. delete, logout) | `200 OK` |
 | Error de validación (input inválido) | `400 Bad Request` |
 | No autenticado | `401 Unauthorized` |
 | Autenticado pero sin permiso | `403 Forbidden` |
