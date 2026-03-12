@@ -13,6 +13,7 @@ import { AccountsModule } from './modules/accounts/presentation/accounts.module'
 import { AuthModule } from './modules/auth/presentation/auth.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
 import { HealthModule } from './modules/health/health.module';
+import { TransactionsModule } from './modules/transactions/presentation/transactions.module';
 import { UsersModule } from './modules/users/presentation/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -25,6 +26,7 @@ import { AppService } from './app.service';
     AuthModule,
     AccountsModule,
     CategoriesModule,
+    TransactionsModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
     LoggerModule.forRoot({

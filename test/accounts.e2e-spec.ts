@@ -20,9 +20,9 @@ import { GetAccountByIdUseCase } from '../src/modules/accounts/application/use-c
 import { GetAccountsUseCase } from '../src/modules/accounts/application/use-cases/get-accounts.use-case';
 import { UpdateAccountUseCase } from '../src/modules/accounts/application/use-cases/update-account.use-case';
 import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
+import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { AccountType } from '../src/modules/accounts/domain/enums/account-type.enum';
 import { Currency } from '../src/modules/accounts/domain/enums/currency.enum';
-import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { AccountsController } from '../src/modules/accounts/presentation/accounts.controller';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 

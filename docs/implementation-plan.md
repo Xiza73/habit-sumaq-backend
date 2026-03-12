@@ -218,6 +218,50 @@ DELETE /categories/:id    → Soft delete
 
 ---
 
+## Fase 5 — Módulo Transactions
+
+**Objetivo:** CRUD de transacciones (ingresos, gastos, transferencias) con actualización automática de balances.
+
+### 5.1 Dominio
+
+- [x] `Transaction` domain entity con métodos `isTransfer()`, `isDeleted()`
+- [x] `TransactionType` enum (`INCOME | EXPENSE | TRANSFER`)
+- [x] `TransactionRepository` abstract class (con `existsByAccountId`)
+
+### 5.2 Aplicación
+
+- [x] `CreateTransactionUseCase` — valida cuentas, actualiza balances (debit/credit), soporta transferencias
+- [x] `GetTransactionsUseCase` (con filtros: account, category, type, dateFrom, dateTo)
+- [x] `GetTransactionByIdUseCase`
+- [x] `UpdateTransactionUseCase` — revierte balance antiguo y aplica nuevo cuando cambia el monto
+- [x] `DeleteTransactionUseCase` — soft delete, revierte el efecto en balance de cuentas
+
+### 5.3 Infraestructura
+
+- [x] `TransactionOrmEntity` (`numeric(15,2)` con transformer)
+- [x] `TransactionRepositoryImpl` (con filtros dinámicos via QueryBuilder)
+- [x] Migración: `CreateTransactionsTable` (FKs a users, accounts, categories; índices en userId, accountId, date)
+
+### 5.4 Endpoints
+
+```
+POST   /transactions        → Registrar transacción (ingreso/gasto/transferencia)
+GET    /transactions        → Listar transacciones con filtros (query: accountId, categoryId, type, dateFrom, dateTo)
+GET    /transactions/:id    → Obtener transacción por ID
+PATCH  /transactions/:id    → Actualizar monto, descripción, categoría, fecha
+DELETE /transactions/:id    → Soft delete (revierte balance)
+```
+
+### 5.5 Tests
+
+- [x] Tests unitarios: todos los use cases (29 tests)
+- [x] Tests de dominio: `Transaction` entity, `TransactionResponseDto.fromDomain()`
+- [x] Tests e2e: 16 tests (auth, CRUD, validación, errores de dominio)
+
+**Criterio de completitud:** todos los endpoints documentados en Swagger, cobertura >80% en use cases, balances actualizados correctamente. ✅
+
+---
+
 ## Orden de dependencias entre módulos
 
 ```
@@ -231,7 +275,7 @@ ConfigModule + DatabaseModule (Fase 0)
        ↓
 CategoriesModule (Fase 4)
        ↓
-[TransactionsModule — próxima versión]
+TransactionsModule (Fase 5)
 ```
 
 ---
@@ -253,7 +297,6 @@ Un módulo se considera listo cuando:
 Para mantener el foco, estas features quedan fuera del alcance actual:
 
 - Daily Planner
-- Transacciones (Fase 3 futura)
 - Notificaciones push
 - Multi-moneda con conversión
 - Exportación CSV

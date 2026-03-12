@@ -26,6 +26,7 @@ import { AccountsController } from './accounts.controller';
     DeleteAccountUseCase,
   ],
   exports: [
+    AccountRepository,
     CreateAccountUseCase,
     GetAccountsUseCase,
     GetAccountByIdUseCase,
