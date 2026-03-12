@@ -3,6 +3,10 @@ import { HttpStatus } from '@nestjs/common';
 import type { ErrorCodeKey } from './error-codes';
 
 export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
+  CATEGORY_NOT_FOUND: HttpStatus.NOT_FOUND,
+  CATEGORY_NAME_TAKEN: HttpStatus.CONFLICT,
+  CATEGORY_BELONGS_TO_OTHER_USER: HttpStatus.FORBIDDEN,
+  CANNOT_DELETE_DEFAULT_CATEGORY: HttpStatus.CONFLICT,
   ACCOUNT_NOT_FOUND: HttpStatus.NOT_FOUND,
   ACCOUNT_NAME_TAKEN: HttpStatus.CONFLICT,
   ACCOUNT_HAS_ACTIVE_TRANSACTIONS: HttpStatus.CONFLICT,

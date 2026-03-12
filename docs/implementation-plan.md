@@ -173,6 +173,51 @@ DELETE /accounts/:id          → Soft delete
 
 ---
 
+## Fase 4 — Módulo Categories
+
+**Objetivo:** CRUD de categorías de ingresos y gastos, prerequisito para Transactions.
+
+### 4.1 Dominio
+
+- [x] `Category` domain entity con métodos `updateProfile()`, `isDeleted()`
+- [x] `CategoryType` enum (`INCOME | EXPENSE`)
+- [x] `CategoryRepository` abstract class
+
+### 4.2 Aplicación
+
+- [x] `CreateCategoryUseCase`
+- [x] `GetCategoriesUseCase` (con filtro opcional por tipo)
+- [x] `GetCategoryByIdUseCase`
+- [x] `UpdateCategoryUseCase`
+- [x] `DeleteCategoryUseCase` (bloquea eliminación de categorías por defecto)
+
+### 4.3 Infraestructura
+
+- [x] `CategoryOrmEntity`
+- [x] `CategoryRepositoryImpl`
+- [x] Migración: `CreateCategoriesTable`
+
+### 4.4 Endpoints
+
+```
+POST   /categories        → Crear categoría
+GET    /categories        → Listar categorías (query: type)
+GET    /categories/:id    → Obtener categoría por ID
+PATCH  /categories/:id    → Actualizar nombre/color/ícono
+DELETE /categories/:id    → Soft delete
+```
+
+### 4.5 Tests
+
+- [x] Tests unitarios: todos los use cases
+- [x] Tests de dominio: `Category` entity
+- [x] Tests de DTO: `CategoryResponseDto.fromDomain()`
+- [ ] Tests e2e: flujo completo con base de datos real
+
+**Criterio de completitud:** todos los endpoints documentados en Swagger, cobertura >80% en use cases. ✅
+
+---
+
 ## Orden de dependencias entre módulos
 
 ```
@@ -183,6 +228,8 @@ ConfigModule + DatabaseModule (Fase 0)
    AuthModule (Fase 1.2)
        ↓
  AccountsModule (Fase 2)
+       ↓
+CategoriesModule (Fase 4)
        ↓
 [TransactionsModule — próxima versión]
 ```

@@ -1,24 +1,44 @@
 import { type INestApplication } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { Test } from '@nestjs/testing';
 
 import request from 'supertest';
-import { type App } from 'supertest/types';
 
-import { AppModule } from './../src/app.module';
+import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
+import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
+import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
+import { HealthController } from '../src/modules/health/health.controller';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('HealthController (e2e)', () => {
+  let app: INestApplication;
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [HealthController],
+      providers: [
+        { provide: APP_GUARD, useClass: JwtAuthGuard },
+        { provide: APP_FILTER, useClass: AllExceptionsFilter },
+        { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+      ],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api/v1');
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer()).get('/').expect(200).expect('Hello World!');
+  afterAll(() => app.close());
+
+  describe('GET /api/v1/health', () => {
+    it('should return 200 without authentication', () => {
+      return request(app.getHttpServer())
+        .get('/api/v1/health')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.success).toBe(true);
+          expect(body.data.status).toBe('ok');
+          expect(body.data.timestamp).toBeDefined();
+        });
+    });
   });
 });
