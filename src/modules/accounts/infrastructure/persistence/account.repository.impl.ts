@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { Account } from '../../domain/account.entity';
 import { AccountRepository } from '../../domain/account.repository';
@@ -38,6 +38,12 @@ export class AccountRepositoryImpl extends AccountRepository {
   async findById(id: string): Promise<Account | null> {
     const entity = await this.repo.findOne({ where: { id } });
     return entity ? this.toDomain(entity) : null;
+  }
+
+  async findByIds(ids: string[]): Promise<Account[]> {
+    if (ids.length === 0) return [];
+    const entities = await this.repo.find({ where: { id: In(ids) } });
+    return entities.map((e) => this.toDomain(e));
   }
 
   async save(account: Account): Promise<Account> {

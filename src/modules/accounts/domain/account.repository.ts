@@ -16,6 +16,7 @@ export abstract class AccountRepository {
   abstract findByUserId(userId: string, includeArchived?: boolean): Promise<Account[]>;
   abstract findByUserIdAndName(userId: string, name: string): Promise<Account | null>;
   abstract findById(id: string): Promise<Account | null>;
+  abstract findByIds(ids: string[]): Promise<Account[]>;
   abstract save(account: Account): Promise<Account>;
   abstract softDelete(id: string): Promise<void>;
 }

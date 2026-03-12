@@ -29,7 +29,7 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
   }
 
   async save(settings: UserSettings): Promise<UserSettings> {
-    await this.ormRepo.save({
+    const saved = await this.ormRepo.save({
       id: settings.id,
       userId: settings.userId,
       language: settings.language,
@@ -39,10 +39,7 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       startOfWeek: settings.startOfWeek,
       updatedAt: settings.updatedAt,
     });
-    const updated = await this.ormRepo.findOneOrFail({
-      where: { id: settings.id },
-    });
-    return this.toDomain(updated);
+    return this.toDomain(saved as UserSettingsOrmEntity);
   }
 
   private toDomain(orm: UserSettingsOrmEntity): UserSettings {

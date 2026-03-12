@@ -28,10 +28,28 @@ export class DeleteTransactionUseCase {
     // If it's a DEBT/LOAN, cascade delete all settlements and reverse their balances
     if (tx.isDebtOrLoan()) {
       const settlements = await this.txRepo.findByRelatedTransactionId(tx.id);
-      for (const s of settlements) {
-        await this.reverseBalanceEffect(s);
-        await this.txRepo.softDelete(s.id);
+
+      if (settlements.length > 0) {
+        // Batch-load all affected accounts to avoid N+1
+        const accountIds = new Set<string>();
+        for (const s of settlements) {
+          accountIds.add(s.accountId);
+          if (s.destinationAccountId) accountIds.add(s.destinationAccountId);
+        }
+        const accounts = await this.accountRepo.findByIds([...accountIds]);
+        const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+        for (const s of settlements) {
+          this.reverseBalanceEffectInMemory(s, accountMap);
+        }
+
+        // Save all modified accounts and soft-delete all settlements
+        await Promise.all([
+          ...accounts.map((a) => this.accountRepo.save(a)),
+          ...settlements.map((s) => this.txRepo.softDelete(s.id)),
+        ]);
       }
+
       // DEBT/LOAN itself never affected balance, just soft delete
       await this.txRepo.softDelete(id);
       return;
@@ -57,21 +75,41 @@ export class DeleteTransactionUseCase {
     amount: number;
     destinationAccountId: string | null;
   }): Promise<void> {
-    const account = await this.accountRepo.findById(tx.accountId);
+    const ids = [tx.accountId];
+    if (tx.type === TransactionType.TRANSFER && tx.destinationAccountId) {
+      ids.push(tx.destinationAccountId);
+    }
+
+    const accounts = await this.accountRepo.findByIds(ids);
+    const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+    this.reverseBalanceEffectInMemory(tx, accountMap);
+
+    await Promise.all(accounts.map((a) => this.accountRepo.save(a)));
+  }
+
+  private reverseBalanceEffectInMemory(
+    tx: {
+      type: TransactionType;
+      accountId: string;
+      amount: number;
+      destinationAccountId: string | null;
+    },
+    accountMap: Map<string, { credit(amount: number): void; debit(amount: number): void }>,
+  ): void {
+    const account = accountMap.get(tx.accountId);
     if (account) {
       if (tx.type === TransactionType.EXPENSE || tx.type === TransactionType.TRANSFER) {
         account.credit(tx.amount);
       } else if (tx.type === TransactionType.INCOME) {
         account.debit(tx.amount);
       }
-      await this.accountRepo.save(account);
     }
 
     if (tx.type === TransactionType.TRANSFER && tx.destinationAccountId) {
-      const destAccount = await this.accountRepo.findById(tx.destinationAccountId);
+      const destAccount = accountMap.get(tx.destinationAccountId);
       if (destAccount) {
         destAccount.debit(tx.amount);
-        await this.accountRepo.save(destAccount);
       }
     }
   }

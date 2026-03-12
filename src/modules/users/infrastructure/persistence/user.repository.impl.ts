@@ -34,15 +34,14 @@ export class UserRepositoryImpl extends UserRepository {
   }
 
   async save(user: User): Promise<User> {
-    await this.ormRepo.save({
+    const saved = await this.ormRepo.save({
       id: user.id,
       name: user.name,
       avatarUrl: user.avatarUrl,
       isActive: user.isActive,
       updatedAt: user.updatedAt,
     });
-    const updated = await this.ormRepo.findOneOrFail({ where: { id: user.id } });
-    return this.toDomain(updated);
+    return this.toDomain(saved as UserOrmEntity);
   }
 
   private toDomain(orm: UserOrmEntity): User {

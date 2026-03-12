@@ -53,6 +53,7 @@ describe('TransactionsController (e2e)', () => {
     findByUserId: jest.fn(),
     findByUserIdAndName: jest.fn(),
     findById: jest.fn(),
+    findByIds: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };

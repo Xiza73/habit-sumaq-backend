@@ -32,6 +32,7 @@ describe('SettleTransactionUseCase', () => {
       findByUserId: jest.fn(),
       findByUserIdAndName: jest.fn(),
       findById: jest.fn(),
+      findByIds: jest.fn(),
       save: jest.fn().mockImplementation((a) => Promise.resolve(a)),
       softDelete: jest.fn(),
     } as jest.Mocked<AccountRepository>;

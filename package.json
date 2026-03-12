@@ -18,6 +18,8 @@
     "migration:revert": "pnpm run typeorm migration:revert",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
+    "test:name": "jest -t",
+    "test:file": "jest --",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

@@ -43,7 +43,14 @@ export class UpdateTransactionUseCase {
       tx.remainingAmount = (tx.remainingAmount ?? 0) + diff;
       if (tx.remainingAmount < 0) tx.remainingAmount = 0;
     } else if (amountChanged) {
-      const account = await this.accountRepo.findById(tx.accountId);
+      const isTransfer = tx.type === TransactionType.TRANSFER && tx.destinationAccountId;
+
+      // Load source and destination accounts in parallel
+      const [account, destAccount] = await Promise.all([
+        this.accountRepo.findById(tx.accountId),
+        isTransfer ? this.accountRepo.findById(tx.destinationAccountId!) : Promise.resolve(null),
+      ]);
+
       if (!account) {
         throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta asociada no encontrada');
       }
@@ -63,17 +70,16 @@ export class UpdateTransactionUseCase {
         account.credit(newAmount);
       }
 
-      await this.accountRepo.save(account);
-
       // For transfers, also adjust destination account
-      if (tx.type === TransactionType.TRANSFER && tx.destinationAccountId) {
-        const destAccount = await this.accountRepo.findById(tx.destinationAccountId);
-        if (destAccount) {
-          destAccount.debit(tx.amount); // reverse old credit
-          destAccount.credit(newAmount); // apply new credit
-          await this.accountRepo.save(destAccount);
-        }
+      if (destAccount) {
+        destAccount.debit(tx.amount); // reverse old credit
+        destAccount.credit(newAmount); // apply new credit
       }
+
+      await Promise.all([
+        this.accountRepo.save(account),
+        destAccount ? this.accountRepo.save(destAccount) : Promise.resolve(undefined),
+      ]);
     }
 
     if (dto.amount !== undefined) tx.amount = dto.amount;

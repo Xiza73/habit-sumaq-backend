@@ -31,6 +31,7 @@ describe('DeleteTransactionUseCase', () => {
       findByUserId: jest.fn(),
       findByUserIdAndName: jest.fn(),
       findById: jest.fn(),
+      findByIds: jest.fn(),
       save: jest.fn().mockImplementation((a) => Promise.resolve(a)),
       softDelete: jest.fn(),
     } as jest.Mocked<AccountRepository>;
@@ -48,7 +49,7 @@ describe('DeleteTransactionUseCase', () => {
     const account = buildAccount({ id: 'acc-1', userId, balance: 200 });
 
     txRepo.findById.mockResolvedValue(tx);
-    accountRepo.findById.mockResolvedValue(account);
+    accountRepo.findByIds.mockResolvedValue([account]);
 
     await useCase.execute(tx.id, userId);
 
@@ -67,7 +68,7 @@ describe('DeleteTransactionUseCase', () => {
     const account = buildAccount({ id: 'acc-1', userId, balance: 500 });
 
     txRepo.findById.mockResolvedValue(tx);
-    accountRepo.findById.mockResolvedValue(account);
+    accountRepo.findByIds.mockResolvedValue([account]);
 
     await useCase.execute(tx.id, userId);
 
@@ -86,11 +87,7 @@ describe('DeleteTransactionUseCase', () => {
     const dest = buildAccount({ id: 'acc-2', userId, balance: 200, currency: Currency.PEN });
 
     txRepo.findById.mockResolvedValue(tx);
-    accountRepo.findById.mockImplementation((id) => {
-      if (id === 'acc-1') return Promise.resolve(source);
-      if (id === 'acc-2') return Promise.resolve(dest);
-      return Promise.resolve(null);
-    });
+    accountRepo.findByIds.mockResolvedValue([source, dest]);
 
     await useCase.execute(tx.id, userId);
 
@@ -126,15 +123,23 @@ describe('DeleteTransactionUseCase', () => {
       amount: 60,
       relatedTransactionId: 'debt-1',
     });
+    const settlement2 = buildTransaction({
+      id: 'settle-2',
+      userId,
+      accountId: 'acc-1',
+      type: TransactionType.EXPENSE,
+      amount: 20,
+      relatedTransactionId: 'debt-1',
+    });
     const account = buildAccount({ id: 'acc-1', userId, balance: 200 });
 
     txRepo.findById.mockResolvedValue(debt);
-    txRepo.findByRelatedTransactionId.mockResolvedValue([settlement]);
-    accountRepo.findById.mockResolvedValue(account);
+    txRepo.findByRelatedTransactionId.mockResolvedValue([settlement, settlement2]);
+    accountRepo.findByIds.mockResolvedValue([account]);
 
     await useCase.execute('debt-1', userId);
 
-    expect(account.balance).toBe(260); // 200 + 60 (reversed expense)
+    expect(account.balance).toBe(280); // 200 + 60 + 20 (reversed expense)
     expect(txRepo.softDelete).toHaveBeenCalledWith('settle-1');
     expect(txRepo.softDelete).toHaveBeenCalledWith('debt-1');
   });
@@ -163,7 +168,7 @@ describe('DeleteTransactionUseCase', () => {
       if (id === 'debt-1') return Promise.resolve(debt);
       return Promise.resolve(null);
     });
-    accountRepo.findById.mockResolvedValue(account);
+    accountRepo.findByIds.mockResolvedValue([account]);
 
     await useCase.execute('settle-1', userId);
 

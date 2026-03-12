@@ -22,15 +22,23 @@ export class CreateTransactionUseCase {
   ) {}
 
   async execute(userId: string, dto: CreateTransactionDto): Promise<Transaction> {
-    const account = await this.accountRepo.findById(dto.accountId);
+    const isDebtOrLoan = dto.type === TransactionType.DEBT || dto.type === TransactionType.LOAN;
+    const isTransfer = dto.type === TransactionType.TRANSFER;
+
+    // For transfers, load both accounts in parallel to avoid sequential queries
+    const [account, destAccount] = await Promise.all([
+      this.accountRepo.findById(dto.accountId),
+      isTransfer && dto.destinationAccountId
+        ? this.accountRepo.findById(dto.destinationAccountId)
+        : Promise.resolve(null),
+    ]);
+
     if (!account) {
       throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta origen no encontrada');
     }
     if (account.userId !== userId) {
       throw new DomainException('ACCOUNT_BELONGS_TO_OTHER_USER', 'No tienes acceso a esta cuenta');
     }
-
-    const isDebtOrLoan = dto.type === TransactionType.DEBT || dto.type === TransactionType.LOAN;
 
     if (isDebtOrLoan) {
       if (!dto.reference) {
@@ -40,7 +48,7 @@ export class CreateTransactionUseCase {
         );
       }
       // DEBT/LOAN do NOT affect balance
-    } else if (dto.type === TransactionType.TRANSFER) {
+    } else if (isTransfer) {
       if (!dto.destinationAccountId) {
         throw new DomainException(
           'TRANSFER_DESTINATION_REQUIRED',
@@ -54,7 +62,6 @@ export class CreateTransactionUseCase {
         );
       }
 
-      const destAccount = await this.accountRepo.findById(dto.destinationAccountId);
       if (!destAccount) {
         throw new DomainException('DESTINATION_ACCOUNT_NOT_FOUND', 'Cuenta destino no encontrada');
       }
@@ -73,8 +80,7 @@ export class CreateTransactionUseCase {
 
       account.debit(dto.amount);
       destAccount.credit(dto.amount);
-      await this.accountRepo.save(account);
-      await this.accountRepo.save(destAccount);
+      await Promise.all([this.accountRepo.save(account), this.accountRepo.save(destAccount)]);
     } else if (dto.type === TransactionType.EXPENSE) {
       account.debit(dto.amount);
       await this.accountRepo.save(account);
