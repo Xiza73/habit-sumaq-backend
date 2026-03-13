@@ -11,8 +11,17 @@ export interface TransactionFilters {
   dateTo?: Date;
 }
 
+export interface PaginatedTransactions {
+  items: Transaction[];
+  total: number;
+}
+
 export abstract class TransactionRepository {
-  abstract findByUserId(userId: string, filters?: TransactionFilters): Promise<Transaction[]>;
+  abstract findByUserId(
+    userId: string,
+    filters?: TransactionFilters,
+    pagination?: { page: number; limit: number },
+  ): Promise<PaginatedTransactions>;
   abstract findById(id: string): Promise<Transaction | null>;
   abstract findByRelatedTransactionId(relatedTransactionId: string): Promise<Transaction[]>;
   abstract save(transaction: Transaction): Promise<Transaction>;

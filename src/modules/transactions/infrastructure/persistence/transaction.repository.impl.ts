@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 
 import { Transaction } from '../../domain/transaction.entity';
 import {
+  type PaginatedTransactions,
   type TransactionFilters,
   TransactionRepository,
 } from '../../domain/transaction.repository';
@@ -20,7 +21,11 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     super();
   }
 
-  async findByUserId(userId: string, filters?: TransactionFilters): Promise<Transaction[]> {
+  async findByUserId(
+    userId: string,
+    filters?: TransactionFilters,
+    pagination?: { page: number; limit: number },
+  ): Promise<PaginatedTransactions> {
     const qb = this.repo.createQueryBuilder('tx').where('tx.userId = :userId', { userId });
 
     if (filters?.accountId) {
@@ -44,8 +49,12 @@ export class TransactionRepositoryImpl extends TransactionRepository {
 
     qb.orderBy('tx.date', 'DESC');
 
-    const entities = await qb.getMany();
-    return entities.map((e) => this.toDomain(e));
+    const page = pagination?.page ?? 1;
+    const limit = pagination?.limit ?? 20;
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [entities, total] = await qb.getManyAndCount();
+    return { items: entities.map((e) => this.toDomain(e)), total };
   }
 
   async findById(id: string): Promise<Transaction | null> {

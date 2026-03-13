@@ -3,10 +3,12 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsOptional, IsUUID } from 'class-validator';
 
+import { PaginationDto } from '@common/dto/pagination.dto';
+
 import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 
-export class GetTransactionsQueryDto {
+export class GetTransactionsQueryDto extends PaginationDto {
   @ApiPropertyOptional({
     description: 'Filtrar por cuenta origen',
     example: '550e8400-e29b-41d4-a716-446655440000',

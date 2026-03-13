@@ -21,38 +21,59 @@ describe('GetTransactionsUseCase', () => {
     useCase = new GetTransactionsUseCase(txRepo);
   });
 
-  it('should return all transactions for a user', async () => {
+  it('should return paginated transactions for a user', async () => {
     const txs = [buildTransaction(), buildTransaction()];
-    txRepo.findByUserId.mockResolvedValue(txs);
+    txRepo.findByUserId.mockResolvedValue({ items: txs, total: 2 });
 
-    const result = await useCase.execute('user-1', {});
+    const result = await useCase.execute('user-1', { page: 1, limit: 20 });
 
-    expect(result).toHaveLength(2);
-    expect(txRepo.findByUserId).toHaveBeenCalledWith('user-1', {
-      accountId: undefined,
-      categoryId: undefined,
-      type: undefined,
-      status: undefined,
-      dateFrom: undefined,
-      dateTo: undefined,
-    });
+    expect(result.items).toHaveLength(2);
+    expect(result.meta).toEqual({ page: 1, limit: 20, total: 2, totalPages: 1 });
+    expect(txRepo.findByUserId).toHaveBeenCalledWith(
+      'user-1',
+      {
+        accountId: undefined,
+        categoryId: undefined,
+        type: undefined,
+        status: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+      },
+      { page: 1, limit: 20 },
+    );
   });
 
-  it('should pass filters to the repository', async () => {
-    txRepo.findByUserId.mockResolvedValue([]);
+  it('should pass filters and pagination to the repository', async () => {
+    txRepo.findByUserId.mockResolvedValue({ items: [], total: 0 });
 
-    await useCase.execute('user-1', {
+    const result = await useCase.execute('user-1', {
       accountId: 'acc-1',
       type: TransactionType.EXPENSE,
+      page: 2,
+      limit: 10,
     });
 
-    expect(txRepo.findByUserId).toHaveBeenCalledWith('user-1', {
-      accountId: 'acc-1',
-      categoryId: undefined,
-      type: TransactionType.EXPENSE,
-      status: undefined,
-      dateFrom: undefined,
-      dateTo: undefined,
-    });
+    expect(result.items).toHaveLength(0);
+    expect(result.meta).toEqual({ page: 2, limit: 10, total: 0, totalPages: 0 });
+    expect(txRepo.findByUserId).toHaveBeenCalledWith(
+      'user-1',
+      {
+        accountId: 'acc-1',
+        categoryId: undefined,
+        type: TransactionType.EXPENSE,
+        status: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+      },
+      { page: 2, limit: 10 },
+    );
+  });
+
+  it('should calculate totalPages correctly', async () => {
+    txRepo.findByUserId.mockResolvedValue({ items: [buildTransaction()], total: 45 });
+
+    const result = await useCase.execute('user-1', { page: 1, limit: 20 });
+
+    expect(result.meta.totalPages).toBe(3);
   });
 });

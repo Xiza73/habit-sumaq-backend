@@ -246,7 +246,7 @@ DELETE /categories/:id    → Soft delete
 
 ```
 POST   /transactions        → Registrar transacción (ingreso/gasto/transferencia)
-GET    /transactions        → Listar transacciones con filtros (query: accountId, categoryId, type, dateFrom, dateTo)
+GET    /transactions        → Listar transacciones paginadas con filtros (query: page, limit, accountId, categoryId, type, status, dateFrom, dateTo)
 GET    /transactions/:id    → Obtener transacción por ID
 PATCH  /transactions/:id    → Actualizar monto, descripción, categoría, fecha
 DELETE /transactions/:id    → Soft delete (revierte balance)

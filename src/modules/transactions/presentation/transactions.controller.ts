@@ -111,22 +111,23 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'Listar transacciones del usuario con filtros opcionales',
     description:
-      'Retorna transacciones ordenadas por fecha descendente. ' +
+      'Retorna transacciones paginadas y ordenadas por fecha descendente. ' +
       'Soporta filtros por cuenta, categoría, tipo, status y rango de fechas.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de transacciones',
+    description: 'Lista paginada de transacciones',
     type: [TransactionResponseDto],
   })
   async findAll(
     @CurrentUser() payload: JwtPayload,
     @Query() query: GetTransactionsQueryDto,
   ): Promise<ApiResponseDto<TransactionResponseDto[]>> {
-    const transactions = await this.getTransactions.execute(payload.sub, query);
+    const { items, meta } = await this.getTransactions.execute(payload.sub, query);
     return ApiResponseDto.ok(
-      transactions.map(TransactionResponseDto.fromDomain.bind(TransactionResponseDto)),
+      items.map(TransactionResponseDto.fromDomain.bind(TransactionResponseDto)),
       'Transacciones obtenidas exitosamente',
+      meta,
     );
   }
 

@@ -340,7 +340,7 @@ describe('TransactionsController (e2e)', () => {
   describe('GET /api/v1/transactions', () => {
     it('should return 200 with the list of transactions', async () => {
       const txs = [buildTransaction({ userId: USER_ID }), buildTransaction({ userId: USER_ID })];
-      mockTxRepo.findByUserId.mockResolvedValue(txs);
+      mockTxRepo.findByUserId.mockResolvedValue({ items: txs, total: 2 });
 
       return request(app.getHttpServer())
         .get('/api/v1/transactions')
@@ -349,11 +349,12 @@ describe('TransactionsController (e2e)', () => {
         .expect(({ body }) => {
           expect(body.success).toBe(true);
           expect(body.data).toHaveLength(2);
+          expect(body.meta).toEqual({ page: 1, limit: 20, total: 2, totalPages: 1 });
         });
     });
 
     it('should return 200 with empty list', async () => {
-      mockTxRepo.findByUserId.mockResolvedValue([]);
+      mockTxRepo.findByUserId.mockResolvedValue({ items: [], total: 0 });
 
       return request(app.getHttpServer())
         .get('/api/v1/transactions')
