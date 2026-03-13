@@ -122,7 +122,7 @@ describe('UpdateTransactionUseCase', () => {
     await expect(useCase.execute(tx.id, userId, { amount: 50 })).rejects.toThrow(DomainException);
   });
 
-  it('should throw CANNOT_UPDATE_SETTLED_TRANSACTION for settled DEBT', async () => {
+  it('should throw CANNOT_UPDATE_SETTLED_TRANSACTION for non-amount edit on settled DEBT', async () => {
     const tx = buildTransaction({
       userId,
       type: TransactionType.DEBT,
@@ -145,7 +145,7 @@ describe('UpdateTransactionUseCase', () => {
     expect(result.reference).toBe('Pedro');
   });
 
-  it('should update remainingAmount proportionally when amount changes on DEBT', async () => {
+  it('should update remainingAmount preserving settled portion when amount increases on DEBT', async () => {
     const tx = buildTransaction({
       userId,
       type: TransactionType.DEBT,
@@ -157,9 +157,95 @@ describe('UpdateTransactionUseCase', () => {
 
     const result = await useCase.execute(tx.id, userId, { amount: 120 });
 
-    // remainingAmount: 60 + (120 - 100) = 80
+    // settled = 100 - 60 = 40, new remaining = 120 - 40 = 80
     expect(result.remainingAmount).toBe(80);
     expect(result.amount).toBe(120);
-    expect(accountRepo.findById).not.toHaveBeenCalled(); // no balance effect
+    expect(accountRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('should settle DEBT when reduced to exactly the settled amount', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.DEBT,
+      amount: 100,
+      remainingAmount: 60,
+      status: TransactionStatus.PENDING,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    // settled = 40, new amount = 40 → remaining = 0 → SETTLED
+    const result = await useCase.execute(tx.id, userId, { amount: 40 });
+
+    expect(result.remainingAmount).toBe(0);
+    expect(result.amount).toBe(40);
+    expect(result.status).toBe(TransactionStatus.SETTLED);
+  });
+
+  it('should throw AMOUNT_BELOW_SETTLED when new amount is less than settled portion', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.DEBT,
+      amount: 50,
+      remainingAmount: 10,
+      status: TransactionStatus.PENDING,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    // settled = 50 - 10 = 40, trying to set amount to 20 < 40
+    await expect(useCase.execute(tx.id, userId, { amount: 20 })).rejects.toThrow(
+      'El nuevo monto no puede ser menor que lo ya liquidado (40)',
+    );
+  });
+
+  it('should reopen settled DEBT as PENDING when amount is increased', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.DEBT,
+      amount: 50,
+      remainingAmount: 0,
+      status: TransactionStatus.SETTLED,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    // settled = 50, new amount = 80 → remaining = 30 → PENDING
+    const result = await useCase.execute(tx.id, userId, { amount: 80 });
+
+    expect(result.remainingAmount).toBe(30);
+    expect(result.amount).toBe(80);
+    expect(result.status).toBe(TransactionStatus.PENDING);
+  });
+
+  it('should reopen settled LOAN as PENDING when amount is increased', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.LOAN,
+      amount: 100,
+      remainingAmount: 0,
+      status: TransactionStatus.SETTLED,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    // settled = 100, new amount = 150 → remaining = 50 → PENDING
+    const result = await useCase.execute(tx.id, userId, { amount: 150 });
+
+    expect(result.remainingAmount).toBe(50);
+    expect(result.amount).toBe(150);
+    expect(result.status).toBe(TransactionStatus.PENDING);
+  });
+
+  it('should throw AMOUNT_BELOW_SETTLED for LOAN the same way', async () => {
+    const tx = buildTransaction({
+      userId,
+      type: TransactionType.LOAN,
+      amount: 200,
+      remainingAmount: 50,
+      status: TransactionStatus.PENDING,
+    });
+    txRepo.findById.mockResolvedValue(tx);
+
+    // settled = 200 - 50 = 150, trying to set amount to 100 < 150
+    await expect(useCase.execute(tx.id, userId, { amount: 100 })).rejects.toThrow(
+      'El nuevo monto no puede ser menor que lo ya liquidado (150)',
+    );
   });
 });

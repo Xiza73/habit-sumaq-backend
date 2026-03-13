@@ -1,16 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { Type } from 'class-transformer';
-import {
-  IsDate,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsDate, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class SettleTransactionDto {
   @ApiProperty({
@@ -32,7 +23,6 @@ export class SettleTransactionDto {
   })
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(255)
   description?: string | null;
 

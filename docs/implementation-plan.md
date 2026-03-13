@@ -300,6 +300,7 @@ POST /transactions/:id/settle → Liquidar parcial/total una deuda o préstamo
 - [x] `TRANSACTION_ALREADY_SETTLED` (409)
 - [x] `CANNOT_UPDATE_SETTLED_TRANSACTION` (409)
 - [x] `SETTLEMENT_AMOUNT_EXCEEDS_REMAINING` (422)
+- [x] `AMOUNT_BELOW_SETTLED` (422)
 
 ### 5.1.6 Tests
 

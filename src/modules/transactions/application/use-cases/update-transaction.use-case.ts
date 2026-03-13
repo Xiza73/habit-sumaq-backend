@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
 
+import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
 import { TransactionRepository } from '../../domain/transaction.repository';
 
@@ -28,20 +29,25 @@ export class UpdateTransactionUseCase {
       );
     }
 
-    if (tx.isDebtOrLoan() && tx.isSettled()) {
+    const amountChanged = dto.amount !== undefined && dto.amount !== tx.amount;
+
+    if (tx.isDebtOrLoan() && tx.isSettled() && !amountChanged) {
       throw new DomainException(
         'CANNOT_UPDATE_SETTLED_TRANSACTION',
         'No se puede modificar una transacción liquidada',
       );
     }
 
-    const amountChanged = dto.amount !== undefined && dto.amount !== tx.amount;
-
     if (amountChanged && tx.isDebtOrLoan()) {
-      // For DEBT/LOAN: update remainingAmount proportionally
-      const diff = dto.amount! - tx.amount;
-      tx.remainingAmount = (tx.remainingAmount ?? 0) + diff;
-      if (tx.remainingAmount < 0) tx.remainingAmount = 0;
+      const settledAmount = tx.amount - (tx.remainingAmount ?? 0);
+      if (dto.amount! < settledAmount) {
+        throw new DomainException(
+          'AMOUNT_BELOW_SETTLED',
+          `El nuevo monto no puede ser menor que lo ya liquidado (${settledAmount})`,
+        );
+      }
+      tx.remainingAmount = dto.amount! - settledAmount;
+      tx.status = tx.remainingAmount <= 0 ? TransactionStatus.SETTLED : TransactionStatus.PENDING;
     } else if (amountChanged) {
       const isTransfer = tx.type === TransactionType.TRANSFER && tx.destinationAccountId;
 
