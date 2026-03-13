@@ -331,32 +331,33 @@ Un módulo se considera listo cuando:
 
 ### 6.1 Dominio
 
-- [ ] `Habit` domain entity con métodos `archive()`, `unarchive()`, `updateProfile()`, `isDeleted()`
-- [ ] `HabitLog` domain entity con métodos `updateCount()`, `isCompleted()`
-- [ ] `HabitFrequency` enum (`DAILY | WEEKLY`)
-- [ ] `HabitRepository` abstract class
-- [ ] `HabitLogRepository` abstract class
+- [x] `Habit` domain entity con métodos `archive()`, `unarchive()`, `updateProfile()`, `isDeleted()`
+- [x] `HabitLog` domain entity con métodos `updateCount()`, `isCompleted()`
+- [x] `HabitFrequency` enum (`DAILY | WEEKLY`)
+- [x] `HabitRepository` abstract class
+- [x] `HabitLogRepository` abstract class
 
 ### 6.2 Aplicación
 
-- [ ] `CreateHabitUseCase` — valida nombre único por usuario
-- [ ] `GetHabitsUseCase` — lista hábitos activos con stats (streak, completionRate, todayLog)
-- [ ] `GetHabitByIdUseCase` — detalle con historial de logs reciente
-- [ ] `UpdateHabitUseCase` — actualizar nombre, descripción, targetCount, color, icon
-- [ ] `ArchiveHabitUseCase` — archivar/desarchivar
-- [ ] `DeleteHabitUseCase` — soft delete (cascade soft delete de logs)
-- [ ] `LogHabitUseCase` — crear o actualizar log del día (upsert por habitId+date)
-- [ ] `GetHabitLogsUseCase` — historial de logs con filtros (dateFrom, dateTo)
-- [ ] `GetDailySummaryUseCase` — resumen del día: todos los hábitos con su log de hoy
+- [x] `CreateHabitUseCase` — valida nombre único por usuario
+- [x] `GetHabitsUseCase` — lista hábitos activos con stats (streak, completionRate, todayLog)
+- [x] `GetHabitByIdUseCase` — detalle con historial de logs reciente
+- [x] `UpdateHabitUseCase` — actualizar nombre, descripción, targetCount, color, icon
+- [x] `ArchiveHabitUseCase` — archivar/desarchivar
+- [x] `DeleteHabitUseCase` — soft delete (cascade delete de logs)
+- [x] `LogHabitUseCase` — crear o actualizar log del día (upsert por habitId+date)
+- [x] `GetHabitLogsUseCase` — historial de logs con filtros (dateFrom, dateTo)
+- [x] `GetDailySummaryUseCase` — resumen del día: todos los hábitos con su log de hoy
+- [x] `StatsCalculator` — lógica pura de streaks y completionRate (daily + weekly)
 
 ### 6.3 Infraestructura
 
-- [ ] `HabitOrmEntity`
-- [ ] `HabitLogOrmEntity` (unique constraint: habitId + date)
-- [ ] `HabitRepositoryImpl`
-- [ ] `HabitLogRepositoryImpl`
-- [ ] Migración: `CreateHabitsTable`
-- [ ] Migración: `CreateHabitLogsTable`
+- [x] `HabitOrmEntity`
+- [x] `HabitLogOrmEntity` (unique constraint: habitId + date)
+- [x] `HabitRepositoryImpl`
+- [x] `HabitLogRepositoryImpl`
+- [x] Migración: `CreateHabitsTable`
+- [x] Migración: `CreateHabitLogsTable`
 
 ### 6.4 Endpoints
 
@@ -375,20 +376,21 @@ GET    /habits/:id/logs     → Historial de logs (query: dateFrom, dateTo, page
 
 ### 6.5 Error codes
 
-- [ ] `HABIT_NOT_FOUND` (404)
-- [ ] `HABIT_NAME_TAKEN` (409)
-- [ ] `HABIT_ARCHIVED` (422)
-- [ ] `HABIT_LOG_FUTURE_DATE` (422)
-- [ ] `INVALID_TARGET_COUNT` (422)
+- [x] `HABIT_NOT_FOUND` (404)
+- [x] `HABIT_NAME_TAKEN` (409)
+- [x] `HABIT_ARCHIVED` (422)
+- [x] `HABIT_LOG_FUTURE_DATE` (422)
+- [x] `INVALID_TARGET_COUNT` (422)
+- [x] `HABIT_BELONGS_TO_OTHER_USER` (403)
 
 ### 6.6 Tests
 
-- [ ] Tests de dominio: `Habit` entity, `HabitLog` entity
-- [ ] Tests unitarios: todos los use cases
-- [ ] Tests de DTO: response DTOs `fromDomain()`
+- [x] Tests de dominio: `Habit` entity (11 tests), `HabitLog` entity (5 tests)
+- [x] Tests unitarios: todos los use cases + StatsCalculator (50 tests)
+- [x] Tests de DTO: `HabitResponseDto` (6 tests), `HabitLogResponseDto` (3 tests)
 - [ ] Tests e2e: CRUD hábitos, logs, streaks, errores de dominio
 
-**Criterio de completitud:** endpoints documentados en Swagger, cobertura >80% en use cases, streaks calculados correctamente.
+**Criterio de completitud:** 255 unit tests passing (76 del módulo Habits), tsc clean, lint clean. ✅
 
 ---
 
