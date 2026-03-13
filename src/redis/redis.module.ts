@@ -14,6 +14,7 @@ import { REDIS_CLIENT } from './redis.constants';
         new Redis({
           host: config.getOrThrow<string>('redis.host'),
           port: config.getOrThrow<number>('redis.port'),
+          password: config.get<string>('redis.password'),
           lazyConnect: true,
         }),
     },
