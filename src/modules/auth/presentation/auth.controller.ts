@@ -85,7 +85,12 @@ export class AuthController {
   ): Promise<ApiResponseDto<null>> {
     const rawToken = (req.cookies as Record<string, string>)[REFRESH_COOKIE];
     await this.logoutUseCase.execute(rawToken);
-    res.clearCookie(REFRESH_COOKIE);
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.clearCookie(REFRESH_COOKIE, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+    });
     return ApiResponseDto.ok(null, 'Sesión cerrada exitosamente');
   }
 
@@ -100,10 +105,11 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string): void {
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
   }
