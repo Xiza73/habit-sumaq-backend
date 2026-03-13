@@ -313,7 +313,86 @@ POST /transactions/:id/settle → Liquidar parcial/total una deuda o préstamo
 
 ---
 
-## Orden de dependencias entre módulos
+## Criterios de "listo para producción" por módulo
+
+Un módulo se considera listo cuando:
+1. Todos sus use cases tienen tests unitarios
+2. Sus endpoints críticos tienen tests e2e
+3. Está documentado en Swagger
+4. Usa migraciones reales (no synchronize)
+5. No expone entidades ORM directamente (siempre DTOs de respuesta)
+6. Los errores de dominio se traducen a HTTP responses correctas
+
+---
+
+## Fase 6 — Módulo Habits (Habit Tracker)
+
+**Objetivo:** seguimiento de hábitos diarios/semanales con streaks y estadísticas.
+
+### 6.1 Dominio
+
+- [ ] `Habit` domain entity con métodos `archive()`, `unarchive()`, `updateProfile()`, `isDeleted()`
+- [ ] `HabitLog` domain entity con métodos `updateCount()`, `isCompleted()`
+- [ ] `HabitFrequency` enum (`DAILY | WEEKLY`)
+- [ ] `HabitRepository` abstract class
+- [ ] `HabitLogRepository` abstract class
+
+### 6.2 Aplicación
+
+- [ ] `CreateHabitUseCase` — valida nombre único por usuario
+- [ ] `GetHabitsUseCase` — lista hábitos activos con stats (streak, completionRate, todayLog)
+- [ ] `GetHabitByIdUseCase` — detalle con historial de logs reciente
+- [ ] `UpdateHabitUseCase` — actualizar nombre, descripción, targetCount, color, icon
+- [ ] `ArchiveHabitUseCase` — archivar/desarchivar
+- [ ] `DeleteHabitUseCase` — soft delete (cascade soft delete de logs)
+- [ ] `LogHabitUseCase` — crear o actualizar log del día (upsert por habitId+date)
+- [ ] `GetHabitLogsUseCase` — historial de logs con filtros (dateFrom, dateTo)
+- [ ] `GetDailySummaryUseCase` — resumen del día: todos los hábitos con su log de hoy
+
+### 6.3 Infraestructura
+
+- [ ] `HabitOrmEntity`
+- [ ] `HabitLogOrmEntity` (unique constraint: habitId + date)
+- [ ] `HabitRepositoryImpl`
+- [ ] `HabitLogRepositoryImpl`
+- [ ] Migración: `CreateHabitsTable`
+- [ ] Migración: `CreateHabitLogsTable`
+
+### 6.4 Endpoints
+
+```
+POST   /habits              → Crear hábito
+GET    /habits              → Listar hábitos con stats (query: includeArchived)
+GET    /habits/daily        → Resumen diario (todos los hábitos + log de hoy)
+GET    /habits/:id          → Detalle de hábito con stats
+PATCH  /habits/:id          → Actualizar hábito
+PATCH  /habits/:id/archive  → Archivar/desarchivar
+DELETE /habits/:id          → Soft delete
+
+POST   /habits/:id/logs     → Registrar/actualizar log del día
+GET    /habits/:id/logs     → Historial de logs (query: dateFrom, dateTo, page, limit)
+```
+
+### 6.5 Error codes
+
+- [ ] `HABIT_NOT_FOUND` (404)
+- [ ] `HABIT_NAME_TAKEN` (409)
+- [ ] `HABIT_ARCHIVED` (422)
+- [ ] `HABIT_LOG_FUTURE_DATE` (422)
+- [ ] `INVALID_TARGET_COUNT` (422)
+
+### 6.6 Tests
+
+- [ ] Tests de dominio: `Habit` entity, `HabitLog` entity
+- [ ] Tests unitarios: todos los use cases
+- [ ] Tests de DTO: response DTOs `fromDomain()`
+- [ ] Tests e2e: CRUD hábitos, logs, streaks, errores de dominio
+
+**Criterio de completitud:** endpoints documentados en Swagger, cobertura >80% en use cases, streaks calculados correctamente.
+
+---
+
+## Orden de dependencias entre módulos (actualizado)
 
 ```
 ConfigModule + DatabaseModule (Fase 0)
@@ -327,19 +406,11 @@ ConfigModule + DatabaseModule (Fase 0)
 CategoriesModule (Fase 4)
        ↓
 TransactionsModule (Fase 5)
+
+  UsersModule (Fase 1.1)
+       ↓
+  HabitsModule (Fase 6)    ← independiente del módulo financiero
 ```
-
----
-
-## Criterios de "listo para producción" por módulo
-
-Un módulo se considera listo cuando:
-1. Todos sus use cases tienen tests unitarios
-2. Sus endpoints críticos tienen tests e2e
-3. Está documentado en Swagger
-4. Usa migraciones reales (no synchronize)
-5. No expone entidades ORM directamente (siempre DTOs de respuesta)
-6. Los errores de dominio se traducen a HTTP responses correctas
 
 ---
 
@@ -353,3 +424,4 @@ Para mantener el foco, estas features quedan fuera del alcance actual:
 - Exportación CSV
 - Roles y permisos granulares
 - Presupuestos por categoría
+- Vinculación hábitos ↔ transacciones (post-Fase 6)

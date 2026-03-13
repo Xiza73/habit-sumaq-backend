@@ -86,6 +86,39 @@ src/
 │   │       ├── users.controller.ts
 │   │       └── users.module.ts
 │   │
+│   ├── habits/                    # Habit Tracker (segundo módulo de negocio)
+│   │   ├── domain/
+│   │   │   ├── habit.entity.ts
+│   │   │   ├── habit-log.entity.ts
+│   │   │   ├── habit.repository.ts
+│   │   │   └── habit-log.repository.ts
+│   │   ├── application/
+│   │   │   ├── use-cases/
+│   │   │   │   ├── create-habit.use-case.ts
+│   │   │   │   ├── get-habits.use-case.ts
+│   │   │   │   ├── get-habit-by-id.use-case.ts
+│   │   │   │   ├── update-habit.use-case.ts
+│   │   │   │   ├── archive-habit.use-case.ts
+│   │   │   │   ├── delete-habit.use-case.ts
+│   │   │   │   ├── log-habit.use-case.ts
+│   │   │   │   ├── get-habit-logs.use-case.ts
+│   │   │   │   └── get-daily-summary.use-case.ts
+│   │   │   └── dto/
+│   │   │       ├── create-habit.dto.ts
+│   │   │       ├── update-habit.dto.ts
+│   │   │       ├── log-habit.dto.ts
+│   │   │       ├── habit-response.dto.ts
+│   │   │       └── habit-log-response.dto.ts
+│   │   ├── infrastructure/
+│   │   │   └── persistence/
+│   │   │       ├── habit.orm-entity.ts
+│   │   │       ├── habit-log.orm-entity.ts
+│   │   │       ├── habit.repository.impl.ts
+│   │   │       └── habit-log.repository.impl.ts
+│   │   └── presentation/
+│   │       ├── habits.controller.ts
+│   │       └── habits.module.ts
+│   │
 │   └── accounts/                  # Cuentas financieras (primer módulo de negocio)
 │       ├── domain/
 │       │   ├── account.entity.ts
