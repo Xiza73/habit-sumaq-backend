@@ -34,8 +34,8 @@ export class GetTransactionsUseCase {
       { page, limit },
     );
 
-    const items: Transaction[] = result.items as Transaction[];
-    const total: number = result.total as number;
+    const items: Transaction[] = result.items;
+    const total: number = result.total;
 
     return {
       items,

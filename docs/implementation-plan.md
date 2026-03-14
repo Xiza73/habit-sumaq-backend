@@ -313,7 +313,88 @@ POST /transactions/:id/settle → Liquidar parcial/total una deuda o préstamo
 
 ---
 
-## Orden de dependencias entre módulos
+## Criterios de "listo para producción" por módulo
+
+Un módulo se considera listo cuando:
+1. Todos sus use cases tienen tests unitarios
+2. Sus endpoints críticos tienen tests e2e
+3. Está documentado en Swagger
+4. Usa migraciones reales (no synchronize)
+5. No expone entidades ORM directamente (siempre DTOs de respuesta)
+6. Los errores de dominio se traducen a HTTP responses correctas
+
+---
+
+## Fase 6 — Módulo Habits (Habit Tracker)
+
+**Objetivo:** seguimiento de hábitos diarios/semanales con streaks y estadísticas.
+
+### 6.1 Dominio
+
+- [x] `Habit` domain entity con métodos `archive()`, `unarchive()`, `updateProfile()`, `isDeleted()`
+- [x] `HabitLog` domain entity con métodos `updateCount()`, `isCompleted()`
+- [x] `HabitFrequency` enum (`DAILY | WEEKLY`)
+- [x] `HabitRepository` abstract class
+- [x] `HabitLogRepository` abstract class
+
+### 6.2 Aplicación
+
+- [x] `CreateHabitUseCase` — valida nombre único por usuario
+- [x] `GetHabitsUseCase` — lista hábitos activos con stats (streak, completionRate, todayLog)
+- [x] `GetHabitByIdUseCase` — detalle con historial de logs reciente
+- [x] `UpdateHabitUseCase` — actualizar nombre, descripción, targetCount, color, icon
+- [x] `ArchiveHabitUseCase` — archivar/desarchivar
+- [x] `DeleteHabitUseCase` — soft delete (cascade delete de logs)
+- [x] `LogHabitUseCase` — crear o actualizar log del día (upsert por habitId+date)
+- [x] `GetHabitLogsUseCase` — historial de logs con filtros (dateFrom, dateTo)
+- [x] `GetDailySummaryUseCase` — resumen del día: todos los hábitos con su log de hoy
+- [x] `StatsCalculator` — lógica pura de streaks y completionRate (daily + weekly)
+
+### 6.3 Infraestructura
+
+- [x] `HabitOrmEntity`
+- [x] `HabitLogOrmEntity` (unique constraint: habitId + date)
+- [x] `HabitRepositoryImpl`
+- [x] `HabitLogRepositoryImpl`
+- [x] Migración: `CreateHabitsTable`
+- [x] Migración: `CreateHabitLogsTable`
+
+### 6.4 Endpoints
+
+```
+POST   /habits              → Crear hábito
+GET    /habits              → Listar hábitos con stats (query: includeArchived)
+GET    /habits/daily        → Resumen diario (todos los hábitos + log de hoy)
+GET    /habits/:id          → Detalle de hábito con stats
+PATCH  /habits/:id          → Actualizar hábito
+PATCH  /habits/:id/archive  → Archivar/desarchivar
+DELETE /habits/:id          → Soft delete
+
+POST   /habits/:id/logs     → Registrar/actualizar log del día
+GET    /habits/:id/logs     → Historial de logs (query: dateFrom, dateTo, page, limit)
+```
+
+### 6.5 Error codes
+
+- [x] `HABIT_NOT_FOUND` (404)
+- [x] `HABIT_NAME_TAKEN` (409)
+- [x] `HABIT_ARCHIVED` (422)
+- [x] `HABIT_LOG_FUTURE_DATE` (422)
+- [x] `INVALID_TARGET_COUNT` (422)
+- [x] `HABIT_BELONGS_TO_OTHER_USER` (403)
+
+### 6.6 Tests
+
+- [x] Tests de dominio: `Habit` entity (11 tests), `HabitLog` entity (5 tests)
+- [x] Tests unitarios: todos los use cases + StatsCalculator (50 tests)
+- [x] Tests de DTO: `HabitResponseDto` (6 tests), `HabitLogResponseDto` (3 tests)
+- [ ] Tests e2e: CRUD hábitos, logs, streaks, errores de dominio
+
+**Criterio de completitud:** 255 unit tests passing (76 del módulo Habits), tsc clean, lint clean. ✅
+
+---
+
+## Orden de dependencias entre módulos (actualizado)
 
 ```
 ConfigModule + DatabaseModule (Fase 0)
@@ -327,19 +408,11 @@ ConfigModule + DatabaseModule (Fase 0)
 CategoriesModule (Fase 4)
        ↓
 TransactionsModule (Fase 5)
+
+  UsersModule (Fase 1.1)
+       ↓
+  HabitsModule (Fase 6)    ← independiente del módulo financiero
 ```
-
----
-
-## Criterios de "listo para producción" por módulo
-
-Un módulo se considera listo cuando:
-1. Todos sus use cases tienen tests unitarios
-2. Sus endpoints críticos tienen tests e2e
-3. Está documentado en Swagger
-4. Usa migraciones reales (no synchronize)
-5. No expone entidades ORM directamente (siempre DTOs de respuesta)
-6. Los errores de dominio se traducen a HTTP responses correctas
 
 ---
 
@@ -353,3 +426,4 @@ Para mantener el foco, estas features quedan fuera del alcance actual:
 - Exportación CSV
 - Roles y permisos granulares
 - Presupuestos por categoría
+- Vinculación hábitos ↔ transacciones (post-Fase 6)

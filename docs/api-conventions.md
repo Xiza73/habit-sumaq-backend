@@ -344,6 +344,12 @@ export const ERROR_CODES = {
   // Domain value objects
   INVALID_MONEY_AMOUNT:                   'VAL_001',
   CURRENCY_MISMATCH:                      'VAL_002',
+  // Habits
+  HABIT_NOT_FOUND:                        'HAB_001',
+  HABIT_NAME_TAKEN:                       'HAB_002',
+  HABIT_ARCHIVED:                         'HAB_003',
+  HABIT_LOG_FUTURE_DATE:                  'HAB_004',
+  INVALID_TARGET_COUNT:                   'HAB_005',
   // Validation
   VALIDATION_ERROR:                       'GEN_001',
 } as const;
@@ -442,6 +448,28 @@ export class AccountsController {
   create(...) {}
 }
 ```
+
+### Habits
+
+```
+POST   /api/v1/habits              → Crear hábito
+GET    /api/v1/habits              → Listar hábitos con stats (query: includeArchived)
+GET    /api/v1/habits/daily        → Resumen diario (hábitos + log de hoy)
+GET    /api/v1/habits/:id          → Detalle de hábito con stats
+PATCH  /api/v1/habits/:id          → Actualizar hábito
+PATCH  /api/v1/habits/:id/archive  → Archivar/desarchivar
+DELETE /api/v1/habits/:id          → Soft delete
+
+POST   /api/v1/habits/:id/logs     → Registrar/actualizar log del día (count se limita a targetCount)
+GET    /api/v1/habits/:id/logs     → Historial de logs (query: dateFrom, dateTo, page, limit)
+```
+
+**Campos de respuesta con stats (`GET /habits`, `GET /habits/daily`, `GET /habits/:id`):**
+- `currentStreak`, `longestStreak`, `completionRate`, `todayLog` — estadísticas del hábito.
+- `periodCount` — conteo acumulado en el período actual (día para DAILY, semana ISO lunes-domingo para WEEKLY).
+- `periodCompleted` — `true` si `periodCount >= targetCount`. Útil para que el frontend sepa si la meta del período se cumplió, especialmente para hábitos semanales donde `todayLog` puede ser `null` o `0` pero la semana ya está completa.
+
+---
 
 Swagger disponible en: `GET /docs`
 JSON spec en: `GET /docs-json`

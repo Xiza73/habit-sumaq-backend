@@ -190,3 +190,118 @@ Mejora de UX: el usuario puede personalizar la apariencia de cada cuenta desde l
 | `JwtPayload` | Contenido del JWT: `{ sub: userId, email, iat, exp }` |
 | `Money` | Value object que combina monto y moneda |
 | `DomainException` | Error lanzado por violación de invariante de dominio |
+
+---
+
+## Módulo Habit Tracker
+
+### Habit
+
+Representa un hábito que el usuario quiere construir o mantener.
+
+```typescript
+Habit {
+  id: UUID
+  userId: UUID              // FK → User
+  name: string              // "Tomar 8 vasos de agua", "Ejercicio 30min"
+  description: string | null
+  frequency: HabitFrequency // daily | weekly
+  targetCount: number       // Cantidad objetivo por período (ej: 8 vasos, 3 veces/semana)
+  color: string | null      // Color hex para UI: "#2196F3"
+  icon: string | null       // Nombre de ícono: "water", "dumbbell"
+  isArchived: boolean       // Ocultar sin borrar
+  createdAt: Date
+  updatedAt: Date
+  deletedAt: Date | null
+}
+```
+
+**Reglas de negocio:**
+- Un usuario no puede tener dos hábitos activos con el mismo nombre.
+- `targetCount` debe ser ≥ 1.
+- Un hábito archivado no aparece en la vista diaria, pero mantiene su historial.
+- Soft delete mantiene el historial de logs asociados.
+
+**HabitFrequency:**
+| Tipo | Descripción |
+|---|---|
+| `daily` | Se completa cada día |
+| `weekly` | Se completa X veces por semana |
+
+---
+
+### HabitLog
+
+Registro de cumplimiento de un hábito en una fecha específica.
+
+```typescript
+HabitLog {
+  id: UUID
+  habitId: UUID             // FK → Habit
+  userId: UUID              // FK → User (denormalizado para queries eficientes)
+  date: string              // Solo fecha, formato YYYY-MM-DD (string para evitar conversión de zona horaria)
+  count: number             // Cantidad realizada, limitada a targetCount (ej: 5 vasos de 8)
+  completed: boolean        // true si count >= habit.targetCount
+  note: string | null       // Nota opcional del día
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+**Reglas de negocio:**
+- Solo puede existir un log por hábito por fecha (unique: habitId + date).
+- `count` debe ser ≥ 0 y se limita automáticamente al `targetCount` del hábito (no puede excederlo).
+- `completed` se calcula automáticamente: `count >= habit.targetCount`.
+- No se puede crear un log para un hábito archivado o eliminado.
+- No se puede crear un log para una fecha futura.
+- El campo `date` se maneja como string `YYYY-MM-DD` en toda la cadena (DTO → dominio → ORM → PostgreSQL) para evitar desplazamientos por zona horaria que ocurrían al usar `Date`.
+
+---
+
+### Valores computados (no persistidos)
+
+```typescript
+HabitWithStats {
+  ...Habit
+  currentStreak: number     // Días/semanas consecutivos completados hasta hoy
+  longestStreak: number     // Máximo streak histórico
+  completionRate: number    // % de días/semanas completados en los últimos 30 días
+  todayLog: HabitLog | null // Log de hoy (si existe)
+  periodCount: number       // Conteo acumulado en el período actual (día para DAILY, semana para WEEKLY)
+  periodCompleted: boolean  // true si periodCount >= targetCount
+}
+```
+
+**Reglas de cálculo:**
+- **currentStreak**: se recorre hacia atrás desde hoy. Si hoy no está completado, el streak es 0 (o se cuenta desde ayer si el día aún no termina — configurable).
+- **longestStreak**: máximo histórico de días consecutivos completados.
+- **completionRate (daily)**: días completados / últimos 30 días.
+- **completionRate (weekly)**: semanas con ≥ targetCount logs completados / últimas 4 semanas.
+- **periodCount (daily)**: `todayLog.count` (conteo de hoy).
+- **periodCount (weekly)**: suma de `count` de todos los logs de la semana actual (lunes a domingo).
+- **periodCompleted**: `periodCount >= targetCount`. Permite al frontend saber si la meta del período ya se cumplió, incluso si `todayLog` es null o tiene count 0.
+
+---
+
+### Invariantes de dominio (Habit Tracker)
+
+| # | Regla | Módulo |
+|---|---|---|
+| 6 | Un usuario no puede tener dos hábitos activos con el mismo nombre | Habit |
+| 7 | targetCount debe ser ≥ 1 | Habit |
+| 8 | Solo un log por hábito por fecha | HabitLog |
+| 9 | No se puede registrar un log para fecha futura | HabitLog |
+| 10 | No se puede registrar un log en un hábito archivado o eliminado | HabitLog |
+
+---
+
+### Glosario del dominio (Habit Tracker)
+
+| Término | Definición |
+|---|---|
+| `Habit` | Hábito recurrente que el usuario quiere mantener |
+| `HabitLog` | Registro de cumplimiento de un hábito en una fecha |
+| `HabitFrequency` | Frecuencia del hábito: diario o semanal |
+| `targetCount` | Cantidad objetivo que define "completado" en un período |
+| `currentStreak` | Racha actual de períodos consecutivos completados |
+| `completionRate` | Porcentaje de cumplimiento en los últimos 30 días |

@@ -1,0 +1,23 @@
+export class HabitLog {
+  constructor(
+    readonly id: string,
+    readonly habitId: string,
+    readonly userId: string,
+    public date: string,
+    public count: number,
+    public completed: boolean,
+    public note: string | null,
+    readonly createdAt: Date,
+    public updatedAt: Date,
+  ) {}
+
+  updateCount(count: number, targetCount: number): void {
+    this.count = Math.min(count, targetCount);
+    this.completed = count >= targetCount;
+    this.updatedAt = new Date();
+  }
+
+  isCompleted(): boolean {
+    return this.completed;
+  }
+}

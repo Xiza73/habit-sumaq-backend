@@ -12,6 +12,7 @@ import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
+import { HabitsModule } from './modules/habits/presentation/habits.module';
 import { HealthModule } from './modules/health/health.module';
 import { TransactionsModule } from './modules/transactions/presentation/transactions.module';
 import { UsersModule } from './modules/users/presentation/users.module';
@@ -27,6 +28,7 @@ import { AppService } from './app.service';
     AccountsModule,
     CategoriesModule,
     TransactionsModule,
+    HabitsModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
     LoggerModule.forRoot({
