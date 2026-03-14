@@ -131,6 +131,16 @@ export class StatsCalculator {
     return `${year}-${month}-${day}`;
   }
 
+  /** Returns the Monday of the ISO week for the given date as YYYY-MM-DD */
+  static toWeekStart(date: Date): string {
+    const d = new Date(date);
+    const day = d.getDay();
+    // getDay: 0=Sun, 1=Mon ... 6=Sat → offset to Monday
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    return StatsCalculator.toDateString(d);
+  }
+
   private static toWeekKey(date: Date | string): string {
     const d = new Date(typeof date === 'string' ? date + 'T12:00:00' : date);
     d.setHours(0, 0, 0, 0);

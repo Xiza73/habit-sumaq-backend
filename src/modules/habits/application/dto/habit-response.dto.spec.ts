@@ -61,21 +61,25 @@ describe('HabitResponseDto', () => {
       const habit = buildHabit();
       const todayLog = buildHabitLog({ count: 5, completed: false });
 
-      const dto = HabitResponseDto.fromDomainWithStats(habit, 3, 10, 0.75, todayLog);
+      const dto = HabitResponseDto.fromDomainWithStats(habit, 3, 10, 0.75, todayLog, 5, false);
 
       expect(dto.currentStreak).toBe(3);
       expect(dto.longestStreak).toBe(10);
       expect(dto.completionRate).toBe(0.75);
       expect(dto.todayLog).toBeDefined();
       expect(dto.todayLog!.count).toBe(5);
+      expect(dto.periodCount).toBe(5);
+      expect(dto.periodCompleted).toBe(false);
     });
 
     it('should set todayLog to null when no log exists', () => {
       const habit = buildHabit();
 
-      const dto = HabitResponseDto.fromDomainWithStats(habit, 0, 0, 0, null);
+      const dto = HabitResponseDto.fromDomainWithStats(habit, 0, 0, 0, null, 0, false);
 
       expect(dto.todayLog).toBeNull();
+      expect(dto.periodCount).toBe(0);
+      expect(dto.periodCompleted).toBe(false);
     });
   });
 });

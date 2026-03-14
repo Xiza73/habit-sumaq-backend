@@ -53,6 +53,18 @@ export class HabitResponseDto {
   @ApiPropertyOptional({ description: 'Log de hoy (si existe)', nullable: true })
   todayLog?: HabitLogResponseDto | null;
 
+  @ApiPropertyOptional({
+    example: 5,
+    description: 'Conteo acumulado en el período actual (día para DAILY, semana para WEEKLY)',
+  })
+  periodCount?: number;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Si la meta del período actual ya se cumplió',
+  })
+  periodCompleted?: boolean;
+
   static fromDomain(habit: Habit): HabitResponseDto {
     const dto = new HabitResponseDto();
     dto.id = habit.id;
@@ -75,12 +87,16 @@ export class HabitResponseDto {
     longestStreak: number,
     completionRate: number,
     todayLog: HabitLog | null,
+    periodCount: number,
+    periodCompleted: boolean,
   ): HabitResponseDto {
     const dto = HabitResponseDto.fromDomain(habit);
     dto.currentStreak = currentStreak;
     dto.longestStreak = longestStreak;
     dto.completionRate = completionRate;
     dto.todayLog = todayLog ? HabitLogResponseDto.fromDomain(todayLog) : null;
+    dto.periodCount = periodCount;
+    dto.periodCompleted = periodCompleted;
     return dto;
   }
 }

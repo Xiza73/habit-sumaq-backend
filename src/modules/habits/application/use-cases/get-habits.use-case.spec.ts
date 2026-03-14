@@ -27,6 +27,7 @@ describe('GetHabitsUseCase', () => {
       findCompletedByHabitIdSince: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
+      findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
     } as jest.Mocked<HabitLogRepository>;
 
     useCase = new GetHabitsUseCase(habitRepo, habitLogRepo);

@@ -69,6 +69,21 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
     return entities.map((e) => this.toDomain(e));
   }
 
+  async findByHabitIdAndDateRange(
+    habitId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<HabitLog[]> {
+    const entities = await this.repo
+      .createQueryBuilder('log')
+      .where('log.habitId = :habitId', { habitId })
+      .andWhere('log.date >= :dateFrom', { dateFrom })
+      .andWhere('log.date <= :dateTo', { dateTo })
+      .orderBy('log.date', 'ASC')
+      .getMany();
+    return entities.map((e) => this.toDomain(e));
+  }
+
   async save(log: HabitLog): Promise<HabitLog> {
     const entity = this.repo.create({
       id: log.id,
