@@ -460,9 +460,14 @@ PATCH  /api/v1/habits/:id          → Actualizar hábito
 PATCH  /api/v1/habits/:id/archive  → Archivar/desarchivar
 DELETE /api/v1/habits/:id          → Soft delete
 
-POST   /api/v1/habits/:id/logs     → Registrar/actualizar log del día
+POST   /api/v1/habits/:id/logs     → Registrar/actualizar log del día (count se limita a targetCount)
 GET    /api/v1/habits/:id/logs     → Historial de logs (query: dateFrom, dateTo, page, limit)
 ```
+
+**Campos de respuesta con stats (`GET /habits`, `GET /habits/daily`, `GET /habits/:id`):**
+- `currentStreak`, `longestStreak`, `completionRate`, `todayLog` — estadísticas del hábito.
+- `periodCount` — conteo acumulado en el período actual (día para DAILY, semana ISO lunes-domingo para WEEKLY).
+- `periodCompleted` — `true` si `periodCount >= targetCount`. Útil para que el frontend sepa si la meta del período se cumplió, especialmente para hábitos semanales donde `todayLog` puede ser `null` o `0` pero la semana ya está completa.
 
 ---
 

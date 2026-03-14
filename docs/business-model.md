@@ -239,8 +239,8 @@ HabitLog {
   id: UUID
   habitId: UUID             // FK → Habit
   userId: UUID              // FK → User (denormalizado para queries eficientes)
-  date: Date                // Solo fecha (sin hora), YYYY-MM-DD
-  count: number             // Cantidad realizada (ej: 5 vasos de 8)
+  date: string              // Solo fecha, formato YYYY-MM-DD (string para evitar conversión de zona horaria)
+  count: number             // Cantidad realizada, limitada a targetCount (ej: 5 vasos de 8)
   completed: boolean        // true si count >= habit.targetCount
   note: string | null       // Nota opcional del día
   createdAt: Date
@@ -250,10 +250,11 @@ HabitLog {
 
 **Reglas de negocio:**
 - Solo puede existir un log por hábito por fecha (unique: habitId + date).
-- `count` debe ser ≥ 0.
+- `count` debe ser ≥ 0 y se limita automáticamente al `targetCount` del hábito (no puede excederlo).
 - `completed` se calcula automáticamente: `count >= habit.targetCount`.
 - No se puede crear un log para un hábito archivado o eliminado.
 - No se puede crear un log para una fecha futura.
+- El campo `date` se maneja como string `YYYY-MM-DD` en toda la cadena (DTO → dominio → ORM → PostgreSQL) para evitar desplazamientos por zona horaria que ocurrían al usar `Date`.
 
 ---
 
@@ -266,6 +267,8 @@ HabitWithStats {
   longestStreak: number     // Máximo streak histórico
   completionRate: number    // % de días/semanas completados en los últimos 30 días
   todayLog: HabitLog | null // Log de hoy (si existe)
+  periodCount: number       // Conteo acumulado en el período actual (día para DAILY, semana para WEEKLY)
+  periodCompleted: boolean  // true si periodCount >= targetCount
 }
 ```
 
@@ -274,6 +277,9 @@ HabitWithStats {
 - **longestStreak**: máximo histórico de días consecutivos completados.
 - **completionRate (daily)**: días completados / últimos 30 días.
 - **completionRate (weekly)**: semanas con ≥ targetCount logs completados / últimas 4 semanas.
+- **periodCount (daily)**: `todayLog.count` (conteo de hoy).
+- **periodCount (weekly)**: suma de `count` de todos los logs de la semana actual (lunes a domingo).
+- **periodCompleted**: `periodCount >= targetCount`. Permite al frontend saber si la meta del período ya se cumplió, incluso si `todayLog` es null o tiene count 0.
 
 ---
 
