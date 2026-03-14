@@ -1,12 +1,12 @@
 import { DomainException } from '@common/exceptions/domain.exception';
 
-import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 import { buildHabit } from '../../domain/__tests__/habit.factory';
+import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 
 import { GetHabitLogsUseCase } from './get-habit-logs.use-case';
 
-import type { HabitLogRepository } from '../../domain/habit-log.repository';
 import type { HabitRepository } from '../../domain/habit.repository';
+import type { HabitLogRepository } from '../../domain/habit-log.repository';
 
 describe('GetHabitLogsUseCase', () => {
   let useCase: GetHabitLogsUseCase;
@@ -64,8 +64,8 @@ describe('GetHabitLogsUseCase', () => {
 
     expect(habitLogRepo.findByHabitId).toHaveBeenCalledWith(
       habitId,
-      new Date('2026-03-01'),
-      new Date('2026-03-31'),
+      '2026-03-01',
+      '2026-03-31',
       1,
       20,
     );
@@ -74,17 +74,17 @@ describe('GetHabitLogsUseCase', () => {
   it('should throw HABIT_NOT_FOUND when habit does not exist', async () => {
     habitRepo.findById.mockResolvedValue(null);
 
-    await expect(
-      useCase.execute(habitId, userId, { page: 1, limit: 20 }),
-    ).rejects.toThrow(DomainException);
+    await expect(useCase.execute(habitId, userId, { page: 1, limit: 20 })).rejects.toThrow(
+      DomainException,
+    );
   });
 
   it('should throw HABIT_BELONGS_TO_OTHER_USER when userId mismatch', async () => {
     const habit = buildHabit({ id: habitId, userId: 'other-user' });
     habitRepo.findById.mockResolvedValue(habit);
 
-    await expect(
-      useCase.execute(habitId, userId, { page: 1, limit: 20 }),
-    ).rejects.toThrow('Este hábito no te pertenece');
+    await expect(useCase.execute(habitId, userId, { page: 1, limit: 20 })).rejects.toThrow(
+      'Este hábito no te pertenece',
+    );
   });
 });

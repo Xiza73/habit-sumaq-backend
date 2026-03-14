@@ -1,6 +1,6 @@
-import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
-import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 import { buildHabit } from '../../domain/__tests__/habit.factory';
+import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
+import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
 
 import { HabitResponseDto } from './habit-response.dto';
 

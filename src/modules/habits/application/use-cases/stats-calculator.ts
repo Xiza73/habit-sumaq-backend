@@ -123,16 +123,16 @@ export class StatsCalculator {
     return { currentStreak, longestStreak, completionRate };
   }
 
-  static toDateString(date: Date): string {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+  static toDateString(date: Date | string): string {
+    if (typeof date === 'string') return date;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
 
-  private static toWeekKey(date: Date): string {
-    const d = new Date(date);
+  private static toWeekKey(date: Date | string): string {
+    const d = new Date(typeof date === 'string' ? date + 'T12:00:00' : date);
     d.setHours(0, 0, 0, 0);
     // Set to nearest Thursday (ISO week algorithm)
     d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));

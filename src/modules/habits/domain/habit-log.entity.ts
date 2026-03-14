@@ -3,7 +3,7 @@ export class HabitLog {
     readonly id: string,
     readonly habitId: string,
     readonly userId: string,
-    public date: Date,
+    public date: string,
     public count: number,
     public completed: boolean,
     public note: string | null,

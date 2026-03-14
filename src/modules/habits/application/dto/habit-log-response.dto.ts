@@ -10,7 +10,7 @@ export class HabitLogResponseDto {
   habitId: string;
 
   @ApiProperty({ example: '2026-03-13' })
-  date: Date;
+  date: string;
 
   @ApiProperty({ example: 5 })
   count: number;

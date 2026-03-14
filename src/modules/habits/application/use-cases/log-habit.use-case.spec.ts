@@ -1,13 +1,11 @@
-import { DomainException } from '@common/exceptions/domain.exception';
-
-import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 import { buildHabit } from '../../domain/__tests__/habit.factory';
-import { StatsCalculator } from './stats-calculator';
+import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 
 import { LogHabitUseCase } from './log-habit.use-case';
+import { StatsCalculator } from './stats-calculator';
 
-import type { HabitLogRepository } from '../../domain/habit-log.repository';
 import type { HabitRepository } from '../../domain/habit.repository';
+import type { HabitLogRepository } from '../../domain/habit-log.repository';
 import type { LogHabitDto } from '../dto/log-habit.dto';
 
 describe('LogHabitUseCase', () => {

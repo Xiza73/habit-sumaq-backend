@@ -25,7 +25,14 @@ describe('Habit Entity', () => {
     it('should update frequency when provided', () => {
       const habit = buildHabit({ frequency: HabitFrequency.DAILY });
 
-      habit.updateProfile('Test', undefined, HabitFrequency.WEEKLY, undefined, undefined, undefined);
+      habit.updateProfile(
+        'Test',
+        undefined,
+        HabitFrequency.WEEKLY,
+        undefined,
+        undefined,
+        undefined,
+      );
 
       expect(habit.frequency).toBe(HabitFrequency.WEEKLY);
     });

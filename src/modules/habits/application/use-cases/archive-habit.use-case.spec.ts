@@ -53,8 +53,6 @@ describe('ArchiveHabitUseCase', () => {
     const habit = buildHabit({ id: habitId, userId: 'other-user' });
     mockRepo.findById.mockResolvedValue(habit);
 
-    await expect(useCase.execute(habitId, userId)).rejects.toThrow(
-      'Este hábito no te pertenece',
-    );
+    await expect(useCase.execute(habitId, userId)).rejects.toThrow('Este hábito no te pertenece');
   });
 });

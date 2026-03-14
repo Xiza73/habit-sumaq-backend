@@ -17,7 +17,7 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
     super();
   }
 
-  async findByHabitIdAndDate(habitId: string, date: Date): Promise<HabitLog | null> {
+  async findByHabitIdAndDate(habitId: string, date: string): Promise<HabitLog | null> {
     const entity = await this.repo.findOne({
       where: { habitId, date },
     });
@@ -26,8 +26,8 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
 
   async findByHabitId(
     habitId: string,
-    dateFrom?: Date,
-    dateTo?: Date,
+    dateFrom?: string,
+    dateTo?: string,
     page = 1,
     limit = 20,
   ): Promise<{ data: HabitLog[]; total: number }> {
@@ -51,14 +51,14 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
     };
   }
 
-  async findByUserIdAndDate(userId: string, date: Date): Promise<HabitLog[]> {
+  async findByUserIdAndDate(userId: string, date: string): Promise<HabitLog[]> {
     const entities = await this.repo.find({
       where: { userId, date },
     });
     return entities.map((e) => this.toDomain(e));
   }
 
-  async findCompletedByHabitIdSince(habitId: string, since: Date): Promise<HabitLog[]> {
+  async findCompletedByHabitIdSince(habitId: string, since: string): Promise<HabitLog[]> {
     const entities = await this.repo
       .createQueryBuilder('log')
       .where('log.habitId = :habitId', { habitId })

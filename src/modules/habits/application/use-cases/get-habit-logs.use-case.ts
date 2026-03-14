@@ -28,9 +28,12 @@ export class GetHabitLogsUseCase {
       throw new DomainException('HABIT_BELONGS_TO_OTHER_USER', 'Este hábito no te pertenece');
     }
 
-    const dateFrom = query.dateFrom ? new Date(query.dateFrom) : undefined;
-    const dateTo = query.dateTo ? new Date(query.dateTo) : undefined;
-
-    return this.habitLogRepo.findByHabitId(habitId, dateFrom, dateTo, query.page, query.limit);
+    return this.habitLogRepo.findByHabitId(
+      habitId,
+      query.dateFrom,
+      query.dateTo,
+      query.page,
+      query.limit,
+    );
   }
 }

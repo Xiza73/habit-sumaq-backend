@@ -32,7 +32,7 @@ export class HabitLogOrmEntity {
   user: UserOrmEntity;
 
   @Column({ type: 'date' })
-  date: Date;
+  date: string;
 
   @Column({ type: 'smallint', default: 0 })
   count: number;

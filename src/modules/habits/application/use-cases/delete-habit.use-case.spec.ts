@@ -4,8 +4,8 @@ import { buildHabit } from '../../domain/__tests__/habit.factory';
 
 import { DeleteHabitUseCase } from './delete-habit.use-case';
 
-import type { HabitLogRepository } from '../../domain/habit-log.repository';
 import type { HabitRepository } from '../../domain/habit.repository';
+import type { HabitLogRepository } from '../../domain/habit-log.repository';
 
 describe('DeleteHabitUseCase', () => {
   let useCase: DeleteHabitUseCase;
@@ -50,9 +50,11 @@ describe('DeleteHabitUseCase', () => {
     const habit = buildHabit({ id: habitId, userId });
     habitRepo.findById.mockResolvedValue(habit);
     habitLogRepo.softDeleteByHabitId.mockImplementation(async () => {
+      await Promise.resolve();
       callOrder.push('logs');
     });
     habitRepo.softDelete.mockImplementation(async () => {
+      await Promise.resolve();
       callOrder.push('habit');
     });
 
@@ -71,9 +73,7 @@ describe('DeleteHabitUseCase', () => {
     const habit = buildHabit({ id: habitId, userId: 'other-user' });
     habitRepo.findById.mockResolvedValue(habit);
 
-    await expect(useCase.execute(habitId, userId)).rejects.toThrow(
-      'Este hábito no te pertenece',
-    );
+    await expect(useCase.execute(habitId, userId)).rejects.toThrow('Este hábito no te pertenece');
     expect(habitLogRepo.softDeleteByHabitId).not.toHaveBeenCalled();
     expect(habitRepo.softDelete).not.toHaveBeenCalled();
   });

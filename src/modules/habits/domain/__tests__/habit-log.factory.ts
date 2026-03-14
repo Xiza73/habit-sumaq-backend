@@ -7,7 +7,7 @@ export function buildHabitLog(
     id: string;
     habitId: string;
     userId: string;
-    date: Date;
+    date: string;
     count: number;
     completed: boolean;
     note: string | null;
@@ -19,7 +19,7 @@ export function buildHabitLog(
     overrides.id ?? randomUUID(),
     overrides.habitId ?? 'habit-test-id',
     overrides.userId ?? 'user-test-id',
-    overrides.date ?? new Date('2026-03-13'),
+    overrides.date ?? '2026-03-13',
     overrides.count ?? 0,
     overrides.completed ?? false,
     overrides.note !== undefined ? overrides.note : null,

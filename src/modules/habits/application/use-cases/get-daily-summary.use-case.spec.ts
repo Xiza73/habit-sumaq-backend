@@ -2,8 +2,8 @@ import { buildHabit } from '../../domain/__tests__/habit.factory';
 
 import { GetDailySummaryUseCase } from './get-daily-summary.use-case';
 
-import type { HabitLogRepository } from '../../domain/habit-log.repository';
 import type { HabitRepository } from '../../domain/habit.repository';
+import type { HabitLogRepository } from '../../domain/habit-log.repository';
 
 describe('GetDailySummaryUseCase', () => {
   let useCase: GetDailySummaryUseCase;

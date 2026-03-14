@@ -25,12 +25,14 @@ export class GetHabitByIdUseCase {
     }
 
     const today = new Date();
+    const todayStr = StatsCalculator.toDateString(today);
     const since = new Date(today);
     since.setDate(since.getDate() - 30);
+    const sinceStr = StatsCalculator.toDateString(since);
 
     const [logs, todayLog] = await Promise.all([
-      this.habitLogRepo.findCompletedByHabitIdSince(habit.id, since),
-      this.habitLogRepo.findByHabitIdAndDate(habit.id, today),
+      this.habitLogRepo.findCompletedByHabitIdSince(habit.id, sinceStr),
+      this.habitLogRepo.findByHabitIdAndDate(habit.id, todayStr),
     ]);
 
     const { currentStreak, longestStreak, completionRate } = StatsCalculator.calculate(

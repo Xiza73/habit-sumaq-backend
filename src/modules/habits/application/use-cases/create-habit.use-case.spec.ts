@@ -1,7 +1,7 @@
 import { DomainException } from '@common/exceptions/domain.exception';
 
-import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
 import { buildHabit } from '../../domain/__tests__/habit.factory';
+import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
 
 import { CreateHabitUseCase } from './create-habit.use-case';
 

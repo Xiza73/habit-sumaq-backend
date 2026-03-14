@@ -1,12 +1,12 @@
 import { DomainException } from '@common/exceptions/domain.exception';
 
-import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 import { buildHabit } from '../../domain/__tests__/habit.factory';
+import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 
 import { GetHabitByIdUseCase } from './get-habit-by-id.use-case';
 
-import type { HabitLogRepository } from '../../domain/habit-log.repository';
 import type { HabitRepository } from '../../domain/habit.repository';
+import type { HabitLogRepository } from '../../domain/habit-log.repository';
 
 describe('GetHabitByIdUseCase', () => {
   let useCase: GetHabitByIdUseCase;
@@ -74,8 +74,6 @@ describe('GetHabitByIdUseCase', () => {
     const habit = buildHabit({ id: habitId, userId: 'other-user' });
     habitRepo.findById.mockResolvedValue(habit);
 
-    await expect(useCase.execute(habitId, userId)).rejects.toThrow(
-      'Este hábito no te pertenece',
-    );
+    await expect(useCase.execute(habitId, userId)).rejects.toThrow('Este hábito no te pertenece');
   });
 });

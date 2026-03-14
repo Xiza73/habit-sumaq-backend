@@ -36,9 +36,9 @@ export class LogHabitUseCase {
       );
     }
 
-    const logDate = new Date(dto.date);
+    const logDate = dto.date;
     const todayStr = StatsCalculator.toDateString(new Date());
-    if (dto.date > todayStr) {
+    if (logDate > todayStr) {
       throw new DomainException(
         'HABIT_LOG_FUTURE_DATE',
         'No se puede registrar un log para una fecha futura',
