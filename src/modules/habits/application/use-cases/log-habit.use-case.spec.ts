@@ -77,6 +77,18 @@ describe('LogHabitUseCase', () => {
     expect(result.note).toBe('Updated!');
   });
 
+  it('should cap count at targetCount when count exceeds it', async () => {
+    const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+    habitRepo.findById.mockResolvedValue(habit);
+    habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+    const dto: LogHabitDto = { date: todayStr, count: 15 };
+    const result = await useCase.execute(habitId, userId, dto);
+
+    expect(result.count).toBe(8);
+    expect(result.completed).toBe(true);
+  });
+
   it('should throw HABIT_NOT_FOUND when habit does not exist', async () => {
     habitRepo.findById.mockResolvedValue(null);
 

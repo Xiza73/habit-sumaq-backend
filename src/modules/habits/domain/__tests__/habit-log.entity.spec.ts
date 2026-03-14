@@ -20,12 +20,12 @@ describe('HabitLog Entity', () => {
       expect(log.completed).toBe(false);
     });
 
-    it('should set completed to true when count exceeds targetCount', () => {
+    it('should cap count at targetCount when count exceeds it', () => {
       const log = buildHabitLog({ count: 0, completed: false });
 
       log.updateCount(10, 8);
 
-      expect(log.count).toBe(10);
+      expect(log.count).toBe(8);
       expect(log.completed).toBe(true);
     });
 

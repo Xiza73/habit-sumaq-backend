@@ -12,7 +12,7 @@ export class HabitLog {
   ) {}
 
   updateCount(count: number, targetCount: number): void {
-    this.count = count;
+    this.count = Math.min(count, targetCount);
     this.completed = count >= targetCount;
     this.updatedAt = new Date();
   }

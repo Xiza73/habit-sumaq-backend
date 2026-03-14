@@ -45,7 +45,8 @@ export class LogHabitUseCase {
       );
     }
 
-    const completed = dto.count >= habit.targetCount;
+    const cappedCount = Math.min(dto.count, habit.targetCount);
+    const completed = cappedCount >= habit.targetCount;
 
     // Upsert: update existing log or create new one
     const existingLog = await this.habitLogRepo.findByHabitIdAndDate(habitId, logDate);
@@ -62,7 +63,7 @@ export class LogHabitUseCase {
       habitId,
       userId,
       logDate,
-      dto.count,
+      cappedCount,
       completed,
       dto.note ?? null,
       now,
