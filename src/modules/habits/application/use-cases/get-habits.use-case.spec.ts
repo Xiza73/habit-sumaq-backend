@@ -41,7 +41,7 @@ describe('GetHabitsUseCase', () => {
     habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
-    const result = await useCase.execute(userId, {});
+    const result = await useCase.execute(userId, {}, 'UTC');
 
     expect(result).toHaveLength(2);
     expect(result[0].currentStreak).toBeDefined();
@@ -51,7 +51,7 @@ describe('GetHabitsUseCase', () => {
   it('should return empty array when user has no habits', async () => {
     habitRepo.findByUserId.mockResolvedValue([]);
 
-    const result = await useCase.execute(userId, {});
+    const result = await useCase.execute(userId, {}, 'UTC');
 
     expect(result).toHaveLength(0);
   });
@@ -59,7 +59,7 @@ describe('GetHabitsUseCase', () => {
   it('should pass includeArchived to repository', async () => {
     habitRepo.findByUserId.mockResolvedValue([]);
 
-    await useCase.execute(userId, { includeArchived: true });
+    await useCase.execute(userId, { includeArchived: true }, 'UTC');
 
     expect(habitRepo.findByUserId).toHaveBeenCalledWith(userId, true);
   });

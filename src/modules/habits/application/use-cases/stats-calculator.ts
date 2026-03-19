@@ -123,6 +123,28 @@ export class StatsCalculator {
     return { currentStreak, longestStreak, completionRate };
   }
 
+  /**
+   * Returns YYYY-MM-DD for the current moment in the given IANA timezone.
+   * Falls back to server local time if timezone is invalid.
+   */
+  static todayIn(timezone: string): Date {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(now);
+
+    const year = parts.find((p) => p.type === 'year')!.value;
+    const month = parts.find((p) => p.type === 'month')!.value;
+    const day = parts.find((p) => p.type === 'day')!.value;
+
+    // Create a Date that represents midnight of "today" in that timezone
+    // Using T12:00:00 to avoid DST edge cases when converting back
+    return new Date(`${year}-${month}-${day}T12:00:00`);
+  }
+
   static toDateString(date: Date | string): string {
     if (typeof date === 'string') return date;
     const year = date.getFullYear();

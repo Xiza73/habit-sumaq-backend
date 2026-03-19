@@ -43,7 +43,7 @@ describe('GetHabitByIdUseCase', () => {
     habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
-    const result = await useCase.execute(habitId, userId);
+    const result = await useCase.execute(habitId, userId, 'UTC');
 
     expect(result.id).toBe(habitId);
     expect(result.currentStreak).toBeDefined();
@@ -59,7 +59,7 @@ describe('GetHabitByIdUseCase', () => {
     habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(todayLog);
 
-    const result = await useCase.execute(habitId, userId);
+    const result = await useCase.execute(habitId, userId, 'UTC');
 
     expect(result.todayLog).toBeDefined();
     expect(result.todayLog!.count).toBe(3);
@@ -68,13 +68,13 @@ describe('GetHabitByIdUseCase', () => {
   it('should throw HABIT_NOT_FOUND when habit does not exist', async () => {
     habitRepo.findById.mockResolvedValue(null);
 
-    await expect(useCase.execute(habitId, userId)).rejects.toThrow(DomainException);
+    await expect(useCase.execute(habitId, userId, 'UTC')).rejects.toThrow(DomainException);
   });
 
   it('should throw HABIT_BELONGS_TO_OTHER_USER when userId mismatch', async () => {
     const habit = buildHabit({ id: habitId, userId: 'other-user' });
     habitRepo.findById.mockResolvedValue(habit);
 
-    await expect(useCase.execute(habitId, userId)).rejects.toThrow('Este hábito no te pertenece');
+    await expect(useCase.execute(habitId, userId, 'UTC')).rejects.toThrow('Este hábito no te pertenece');
   });
 });

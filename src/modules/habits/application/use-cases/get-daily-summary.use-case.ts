@@ -16,10 +16,10 @@ export class GetDailySummaryUseCase {
     private readonly habitLogRepo: HabitLogRepository,
   ) {}
 
-  async execute(userId: string): Promise<HabitResponseDto[]> {
+  async execute(userId: string, timezone: string): Promise<HabitResponseDto[]> {
     // Only active (non-archived) habits
     const habits = await this.habitRepo.findByUserId(userId, false);
-    const today = new Date();
+    const today = StatsCalculator.todayIn(timezone);
 
     return Promise.all(habits.map((habit) => this.buildWithStats(habit, today)));
   }

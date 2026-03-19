@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { ClientTimezone } from '@common/decorators/client-timezone.decorator';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
@@ -78,8 +79,9 @@ export class HabitsController {
   async findAll(
     @CurrentUser() payload: JwtPayload,
     @Query() query: GetHabitsQueryDto,
+    @ClientTimezone() timezone: string,
   ): Promise<ApiResponseDto<HabitResponseDto[]>> {
-    const habits = await this.getHabits.execute(payload.sub, query);
+    const habits = await this.getHabits.execute(payload.sub, query, timezone);
     return ApiResponseDto.ok(habits, 'Hábitos obtenidos exitosamente');
   }
 
@@ -91,8 +93,11 @@ export class HabitsController {
       'Ideal para la vista principal del día.',
   })
   @ApiResponse({ status: 200, description: 'Resumen diario', type: [HabitResponseDto] })
-  async daily(@CurrentUser() payload: JwtPayload): Promise<ApiResponseDto<HabitResponseDto[]>> {
-    const habits = await this.getDailySummary.execute(payload.sub);
+  async daily(
+    @CurrentUser() payload: JwtPayload,
+    @ClientTimezone() timezone: string,
+  ): Promise<ApiResponseDto<HabitResponseDto[]>> {
+    const habits = await this.getDailySummary.execute(payload.sub, timezone);
     return ApiResponseDto.ok(habits, 'Resumen diario obtenido exitosamente');
   }
 
@@ -109,8 +114,9 @@ export class HabitsController {
   async findOne(
     @CurrentUser() payload: JwtPayload,
     @Param('id') id: string,
+    @ClientTimezone() timezone: string,
   ): Promise<ApiResponseDto<HabitResponseDto>> {
-    const habit = await this.getHabitById.execute(id, payload.sub);
+    const habit = await this.getHabitById.execute(id, payload.sub, timezone);
     return ApiResponseDto.ok(habit, 'Hábito obtenido exitosamente');
   }
 
@@ -208,8 +214,9 @@ export class HabitsController {
     @CurrentUser() payload: JwtPayload,
     @Param('id') id: string,
     @Body() dto: LogHabitDto,
+    @ClientTimezone() timezone: string,
   ): Promise<ApiResponseDto<HabitLogResponseDto>> {
-    const habitLog = await this.logHabit.execute(id, payload.sub, dto);
+    const habitLog = await this.logHabit.execute(id, payload.sub, dto, timezone);
     return ApiResponseDto.ok(
       HabitLogResponseDto.fromDomain(habitLog),
       'Log registrado exitosamente',

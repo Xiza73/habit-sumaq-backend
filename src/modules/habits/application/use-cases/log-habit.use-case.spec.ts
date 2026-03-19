@@ -44,7 +44,7 @@ describe('LogHabitUseCase', () => {
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const dto: LogHabitDto = { date: todayStr, count: 5 };
-    const result = await useCase.execute(habitId, userId, dto);
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
 
     expect(result.count).toBe(5);
     expect(result.completed).toBe(false);
@@ -59,7 +59,7 @@ describe('LogHabitUseCase', () => {
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const dto: LogHabitDto = { date: todayStr, count: 8 };
-    const result = await useCase.execute(habitId, userId, dto);
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
 
     expect(result.completed).toBe(true);
   });
@@ -71,7 +71,7 @@ describe('LogHabitUseCase', () => {
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(existingLog);
 
     const dto: LogHabitDto = { date: todayStr, count: 8, note: 'Updated!' };
-    const result = await useCase.execute(habitId, userId, dto);
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
 
     expect(result.count).toBe(8);
     expect(result.completed).toBe(true);
@@ -84,7 +84,7 @@ describe('LogHabitUseCase', () => {
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const dto: LogHabitDto = { date: todayStr, count: 15 };
-    const result = await useCase.execute(habitId, userId, dto);
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
 
     expect(result.count).toBe(8);
     expect(result.completed).toBe(true);
@@ -94,7 +94,7 @@ describe('LogHabitUseCase', () => {
     habitRepo.findById.mockResolvedValue(null);
 
     const dto: LogHabitDto = { date: todayStr, count: 1 };
-    await expect(useCase.execute(habitId, userId, dto)).rejects.toThrow('Hábito no encontrado');
+    await expect(useCase.execute(habitId, userId, dto, 'UTC')).rejects.toThrow('Hábito no encontrado');
   });
 
   it('should throw HABIT_BELONGS_TO_OTHER_USER when userId mismatch', async () => {
@@ -102,7 +102,7 @@ describe('LogHabitUseCase', () => {
     habitRepo.findById.mockResolvedValue(habit);
 
     const dto: LogHabitDto = { date: todayStr, count: 1 };
-    await expect(useCase.execute(habitId, userId, dto)).rejects.toThrow(
+    await expect(useCase.execute(habitId, userId, dto, 'UTC')).rejects.toThrow(
       'Este hábito no te pertenece',
     );
   });
@@ -112,7 +112,7 @@ describe('LogHabitUseCase', () => {
     habitRepo.findById.mockResolvedValue(habit);
 
     const dto: LogHabitDto = { date: todayStr, count: 1 };
-    await expect(useCase.execute(habitId, userId, dto)).rejects.toThrow(
+    await expect(useCase.execute(habitId, userId, dto, 'UTC')).rejects.toThrow(
       'No se puede registrar un log en un hábito archivado',
     );
   });
@@ -122,7 +122,7 @@ describe('LogHabitUseCase', () => {
     habitRepo.findById.mockResolvedValue(habit);
 
     const dto: LogHabitDto = { date: '2099-12-31', count: 1 };
-    await expect(useCase.execute(habitId, userId, dto)).rejects.toThrow(
+    await expect(useCase.execute(habitId, userId, dto, 'UTC')).rejects.toThrow(
       'No se puede registrar un log para una fecha futura',
     );
   });
@@ -133,7 +133,7 @@ describe('LogHabitUseCase', () => {
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const dto: LogHabitDto = { date: '2026-01-01', count: 1 };
-    const result = await useCase.execute(habitId, userId, dto);
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
 
     expect(result.completed).toBe(true);
     expect(habitLogRepo.save).toHaveBeenCalledTimes(1);

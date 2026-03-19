@@ -16,7 +16,7 @@ export class GetHabitByIdUseCase {
     private readonly habitLogRepo: HabitLogRepository,
   ) {}
 
-  async execute(id: string, userId: string): Promise<HabitResponseDto> {
+  async execute(id: string, userId: string, timezone: string): Promise<HabitResponseDto> {
     const habit = await this.habitRepo.findById(id);
     if (!habit) {
       throw new DomainException('HABIT_NOT_FOUND', 'Hábito no encontrado');
@@ -25,7 +25,7 @@ export class GetHabitByIdUseCase {
       throw new DomainException('HABIT_BELONGS_TO_OTHER_USER', 'Este hábito no te pertenece');
     }
 
-    const today = new Date();
+    const today = StatsCalculator.todayIn(timezone);
     const todayStr = StatsCalculator.toDateString(today);
     const since = new Date(today);
     since.setDate(since.getDate() - 30);
