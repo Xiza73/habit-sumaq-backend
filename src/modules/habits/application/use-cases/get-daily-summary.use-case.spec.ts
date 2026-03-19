@@ -38,7 +38,7 @@ describe('GetDailySummaryUseCase', () => {
     habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
-    const result = await useCase.execute(userId);
+    const result = await useCase.execute(userId, 'UTC');
 
     expect(result).toHaveLength(1);
     expect(result[0].currentStreak).toBeDefined();
@@ -48,7 +48,7 @@ describe('GetDailySummaryUseCase', () => {
   it('should return empty array when no active habits', async () => {
     habitRepo.findByUserId.mockResolvedValue([]);
 
-    const result = await useCase.execute(userId);
+    const result = await useCase.execute(userId, 'UTC');
 
     expect(result).toHaveLength(0);
   });

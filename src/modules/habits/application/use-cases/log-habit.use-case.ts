@@ -21,7 +21,7 @@ export class LogHabitUseCase {
     private readonly habitLogRepo: HabitLogRepository,
   ) {}
 
-  async execute(habitId: string, userId: string, dto: LogHabitDto): Promise<HabitLog> {
+  async execute(habitId: string, userId: string, dto: LogHabitDto, timezone: string): Promise<HabitLog> {
     const habit = await this.habitRepo.findById(habitId);
     if (!habit) {
       throw new DomainException('HABIT_NOT_FOUND', 'Hábito no encontrado');
@@ -37,7 +37,7 @@ export class LogHabitUseCase {
     }
 
     const logDate = dto.date;
-    const todayStr = StatsCalculator.toDateString(new Date());
+    const todayStr = StatsCalculator.toDateString(StatsCalculator.todayIn(timezone));
     if (logDate > todayStr) {
       throw new DomainException(
         'HABIT_LOG_FUTURE_DATE',
