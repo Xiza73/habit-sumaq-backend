@@ -16,16 +16,21 @@ export class GetDailySummaryUseCase {
     private readonly habitLogRepo: HabitLogRepository,
   ) {}
 
-  async execute(userId: string, timezone: string): Promise<HabitResponseDto[]> {
+  async execute(userId: string, timezone: string, date?: string): Promise<HabitResponseDto[]> {
     // Only active (non-archived) habits
     const habits = await this.habitRepo.findByUserId(userId, false);
     const today = StatsCalculator.todayIn(timezone);
+    const referenceDate = date ? new Date(`${date}T12:00:00`) : today;
 
-    return Promise.all(habits.map((habit) => this.buildWithStats(habit, today)));
+    return Promise.all(habits.map((habit) => this.buildWithStats(habit, referenceDate, today)));
   }
 
-  private async buildWithStats(habit: Habit, today: Date): Promise<HabitResponseDto> {
-    const todayStr = StatsCalculator.toDateString(today);
+  private async buildWithStats(
+    habit: Habit,
+    referenceDate: Date,
+    today: Date,
+  ): Promise<HabitResponseDto> {
+    const refStr = StatsCalculator.toDateString(referenceDate);
     const since = new Date(today);
     since.setDate(since.getDate() - 30);
     const sinceStr = StatsCalculator.toDateString(since);
@@ -33,14 +38,14 @@ export class GetDailySummaryUseCase {
     const isWeekly = habit.frequency === HabitFrequency.WEEKLY;
 
     const weekStartStr: string | undefined = isWeekly
-      ? StatsCalculator.toWeekStart(today)
+      ? StatsCalculator.toWeekStart(referenceDate)
       : undefined;
 
-    const [logs, todayLog, weekLogs] = await Promise.all([
+    const [logs, dateLog, weekLogs] = await Promise.all([
       this.habitLogRepo.findCompletedByHabitIdSince(habit.id, sinceStr),
-      this.habitLogRepo.findByHabitIdAndDate(habit.id, todayStr),
+      this.habitLogRepo.findByHabitIdAndDate(habit.id, refStr),
       isWeekly
-        ? this.habitLogRepo.findByHabitIdAndDateRange(habit.id, weekStartStr!, todayStr)
+        ? this.habitLogRepo.findByHabitIdAndDateRange(habit.id, weekStartStr!, refStr)
         : Promise.resolve([]),
     ]);
 
@@ -52,7 +57,7 @@ export class GetDailySummaryUseCase {
 
     const periodCount = isWeekly
       ? weekLogs.reduce((sum, l) => sum + l.count, 0)
-      : (todayLog?.count ?? 0);
+      : (dateLog?.count ?? 0);
     const periodCompleted = periodCount >= habit.targetCount;
 
     return HabitResponseDto.fromDomainWithStats(
@@ -60,7 +65,7 @@ export class GetDailySummaryUseCase {
       currentStreak,
       longestStreak,
       completionRate,
-      todayLog,
+      dateLog,
       periodCount,
       periodCompleted,
     );

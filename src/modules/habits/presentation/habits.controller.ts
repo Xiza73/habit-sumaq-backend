@@ -17,6 +17,7 @@ import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
 import { CreateHabitDto } from '../application/dto/create-habit.dto';
+import { GetDailyQueryDto } from '../application/dto/get-daily-query.dto';
 import { GetHabitLogsQueryDto } from '../application/dto/get-habit-logs-query.dto';
 import { GetHabitsQueryDto } from '../application/dto/get-habits-query.dto';
 import { HabitLogResponseDto } from '../application/dto/habit-log-response.dto';
@@ -89,15 +90,17 @@ export class HabitsController {
   @ApiOperation({
     summary: 'Resumen diario de hábitos',
     description:
-      'Retorna solo hábitos activos (no archivados) con su log de hoy y estadísticas. ' +
-      'Ideal para la vista principal del día.',
+      'Retorna solo hábitos activos (no archivados) con su log y estadísticas. ' +
+      'Usar ?date=YYYY-MM-DD para obtener el resumen de una fecha específica. ' +
+      'Si se omite, usa la fecha actual.',
   })
   @ApiResponse({ status: 200, description: 'Resumen diario', type: [HabitResponseDto] })
   async daily(
     @CurrentUser() payload: JwtPayload,
+    @Query() query: GetDailyQueryDto,
     @ClientTimezone() timezone: string,
   ): Promise<ApiResponseDto<HabitResponseDto[]>> {
-    const habits = await this.getDailySummary.execute(payload.sub, timezone);
+    const habits = await this.getDailySummary.execute(payload.sub, timezone, query.date);
     return ApiResponseDto.ok(habits, 'Resumen diario obtenido exitosamente');
   }
 
