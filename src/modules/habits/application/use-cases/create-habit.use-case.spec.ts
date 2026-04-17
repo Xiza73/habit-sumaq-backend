@@ -1,16 +1,29 @@
+import { Test } from '@nestjs/testing';
+
+import { getLoggerToken } from 'nestjs-pino';
+
 import { DomainException } from '@common/exceptions/domain.exception';
 
 import { buildHabit } from '../../domain/__tests__/habit.factory';
 import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
+import { HabitRepository } from '../../domain/habit.repository';
 
 import { CreateHabitUseCase } from './create-habit.use-case';
 
-import type { HabitRepository } from '../../domain/habit.repository';
 import type { CreateHabitDto } from '../dto/create-habit.dto';
 
 describe('CreateHabitUseCase', () => {
   let useCase: CreateHabitUseCase;
   let mockRepo: jest.Mocked<HabitRepository>;
+  let mockLogger: {
+    info: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+    debug: jest.Mock;
+    trace: jest.Mock;
+    fatal: jest.Mock;
+    setContext: jest.Mock;
+  };
   const userId = 'user-1';
 
   const dto: CreateHabitDto = {
@@ -22,7 +35,7 @@ describe('CreateHabitUseCase', () => {
     icon: 'water',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockRepo = {
       findByUserId: jest.fn(),
       findByUserIdAndName: jest.fn(),
@@ -31,7 +44,25 @@ describe('CreateHabitUseCase', () => {
       softDelete: jest.fn(),
     } as jest.Mocked<HabitRepository>;
 
-    useCase = new CreateHabitUseCase(mockRepo);
+    mockLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      trace: jest.fn(),
+      fatal: jest.fn(),
+      setContext: jest.fn(),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        CreateHabitUseCase,
+        { provide: HabitRepository, useValue: mockRepo },
+        { provide: getLoggerToken(CreateHabitUseCase.name), useValue: mockLogger },
+      ],
+    }).compile();
+
+    useCase = moduleRef.get(CreateHabitUseCase);
   });
 
   it('should create a habit successfully', async () => {
@@ -78,5 +109,59 @@ describe('CreateHabitUseCase', () => {
       'Ya existe un hábito llamado "Tomar agua"',
     );
     expect(mockRepo.save).not.toHaveBeenCalled();
+  });
+
+  describe('structured logging', () => {
+    it('should log habit.created with non-PII fields on success', async () => {
+      mockRepo.findByUserIdAndName.mockResolvedValue(null);
+
+      const result = await useCase.execute(userId, dto);
+
+      expect(mockLogger.info).toHaveBeenCalledTimes(1);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'habit.created', habitId: result.id, userId }),
+        'habit.created',
+      );
+
+      const [payload] = mockLogger.info.mock.calls[0] as [Record<string, unknown>, string];
+      expect(payload).not.toHaveProperty('name');
+      expect(payload).not.toHaveProperty('description');
+      expect(payload).not.toHaveProperty('email');
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('should log habit.create.conflict on duplicate name', async () => {
+      mockRepo.findByUserIdAndName.mockResolvedValue(buildHabit({ name: dto.name }));
+
+      await expect(useCase.execute(userId, dto)).rejects.toThrow(DomainException);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'habit.create.conflict', userId }),
+        'habit.create.conflict',
+      );
+
+      const [payload] = mockLogger.warn.mock.calls[0] as [Record<string, unknown>, string];
+      expect(payload).not.toHaveProperty('habitName');
+      expect(payload).not.toHaveProperty('name');
+      expect(mockLogger.info).not.toHaveBeenCalled();
+    });
+
+    it('should log habit.create.invalid_target when domain rejects targetCount', async () => {
+      mockRepo.findByUserIdAndName.mockResolvedValue(null);
+
+      const invalidDto: CreateHabitDto = { ...dto, targetCount: 0 };
+
+      await expect(useCase.execute(userId, invalidDto)).rejects.toThrow(DomainException);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'habit.create.invalid_target',
+          userId,
+          targetCount: 0,
+        }),
+        'habit.create.invalid_target',
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
   });
 });
