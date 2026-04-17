@@ -135,7 +135,11 @@ export class TransactionsController {
     @CurrentUser() payload: JwtPayload,
     @Body() dto: SettleByReferenceDto,
   ): Promise<ApiResponseDto<BulkSettleResponseDto>> {
-    const result = await this.bulkSettleByReference.execute(payload.sub, dto.reference);
+    const result = await this.bulkSettleByReference.execute(
+      payload.sub,
+      dto.reference,
+      dto.currency,
+    );
     return ApiResponseDto.ok(result, 'Liquidación en bloque completada');
   }
 
