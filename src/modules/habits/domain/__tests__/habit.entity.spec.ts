@@ -1,8 +1,28 @@
+import { DomainException } from '@common/exceptions/domain.exception';
+
 import { HabitFrequency } from '../enums/habit-frequency.enum';
 
 import { buildHabit } from './habit.factory';
 
 describe('Habit Entity', () => {
+  describe('constructor — assertTargetCount invariant', () => {
+    it('should throw INVALID_TARGET_COUNT when targetCount is 0', () => {
+      expect(() => buildHabit({ targetCount: 0 })).toThrow(DomainException);
+    });
+
+    it('should throw INVALID_TARGET_COUNT when targetCount is negative', () => {
+      expect(() => buildHabit({ targetCount: -3 })).toThrow(DomainException);
+    });
+
+    it('should throw INVALID_TARGET_COUNT when targetCount is not an integer', () => {
+      expect(() => buildHabit({ targetCount: 1.5 })).toThrow(DomainException);
+    });
+
+    it('should accept targetCount of 1 (boundary)', () => {
+      expect(() => buildHabit({ targetCount: 1 })).not.toThrow();
+    });
+  });
+
   describe('updateProfile()', () => {
     it('should update name and updatedAt', () => {
       const habit = buildHabit({ name: 'Old name' });
@@ -43,6 +63,24 @@ describe('Habit Entity', () => {
       habit.updateProfile('Test', undefined, undefined, 10, undefined, undefined);
 
       expect(habit.targetCount).toBe(10);
+    });
+
+    it('should throw INVALID_TARGET_COUNT when targetCount is 0 and leave value unchanged', () => {
+      const habit = buildHabit({ targetCount: 3 });
+
+      expect(() =>
+        habit.updateProfile('Test', undefined, undefined, 0, undefined, undefined),
+      ).toThrow(DomainException);
+      expect(habit.targetCount).toBe(3);
+    });
+
+    it('should not assert targetCount when undefined (no-op path)', () => {
+      const habit = buildHabit({ targetCount: 5 });
+
+      expect(() =>
+        habit.updateProfile('Test', undefined, undefined, undefined, undefined, undefined),
+      ).not.toThrow();
+      expect(habit.targetCount).toBe(5);
     });
 
     it('should update color and icon when provided', () => {
