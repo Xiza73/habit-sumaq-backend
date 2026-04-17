@@ -17,6 +17,8 @@ describe('GetTransactionByIdUseCase', () => {
       save: jest.fn(),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
+      aggregateDebtsByReference: jest.fn(),
+      findPendingDebtOrLoanByNormalizedReference: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
     useCase = new GetTransactionByIdUseCase(txRepo);

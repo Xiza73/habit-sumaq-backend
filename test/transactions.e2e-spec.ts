@@ -17,8 +17,10 @@ import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.f
 import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { Currency } from '../src/modules/accounts/domain/enums/currency.enum';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
+import { BulkSettleByReferenceUseCase } from '../src/modules/transactions/application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateTransactionUseCase } from '../src/modules/transactions/application/use-cases/create-transaction.use-case';
 import { DeleteTransactionUseCase } from '../src/modules/transactions/application/use-cases/delete-transaction.use-case';
+import { GetDebtsSummaryUseCase } from '../src/modules/transactions/application/use-cases/get-debts-summary.use-case';
 import { GetTransactionByIdUseCase } from '../src/modules/transactions/application/use-cases/get-transaction-by-id.use-case';
 import { GetTransactionsUseCase } from '../src/modules/transactions/application/use-cases/get-transactions.use-case';
 import { SettleTransactionUseCase } from '../src/modules/transactions/application/use-cases/settle-transaction.use-case';
@@ -47,6 +49,8 @@ describe('TransactionsController (e2e)', () => {
     save: jest.fn(),
     softDelete: jest.fn(),
     existsByAccountId: jest.fn(),
+    aggregateDebtsByReference: jest.fn(),
+    findPendingDebtOrLoanByNormalizedReference: jest.fn(),
   };
 
   const mockAccountRepo: jest.Mocked<AccountRepository> = {
@@ -77,6 +81,8 @@ describe('TransactionsController (e2e)', () => {
         UpdateTransactionUseCase,
         DeleteTransactionUseCase,
         SettleTransactionUseCase,
+        GetDebtsSummaryUseCase,
+        BulkSettleByReferenceUseCase,
         { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: AccountRepository, useValue: mockAccountRepo },
         JwtAccessStrategy,
@@ -517,6 +523,162 @@ describe('TransactionsController (e2e)', () => {
         .delete(`/api/v1/transactions/${tx.id}`)
         .set('Authorization', `Bearer ${token}`)
         .expect(403);
+    });
+  });
+
+  // ─── GET /transactions/debts-summary ─────────────────────────────────────────
+
+  describe('GET /api/v1/transactions/debts-summary', () => {
+    it('should return 200 with an empty array when the user has no DEBT/LOAN', async () => {
+      mockTxRepo.aggregateDebtsByReference.mockResolvedValue([]);
+
+      return request(app.getHttpServer())
+        .get('/api/v1/transactions/debts-summary')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.success).toBe(true);
+          expect(body.data).toEqual([]);
+        });
+    });
+
+    it('should return 200 with aggregated rows from the repository', async () => {
+      mockTxRepo.aggregateDebtsByReference.mockResolvedValue([
+        {
+          reference: 'juan',
+          displayName: 'Juan',
+          pendingDebt: 500,
+          pendingLoan: 300,
+          netOwed: -200,
+          pendingCount: 3,
+          settledCount: 1,
+        },
+      ]);
+
+      return request(app.getHttpServer())
+        .get('/api/v1/transactions/debts-summary')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data).toHaveLength(1);
+          expect(body.data[0].displayName).toBe('Juan');
+          expect(body.data[0].netOwed).toBe(-200);
+        });
+    });
+
+    it('should forward the status query param to the repository', async () => {
+      mockTxRepo.aggregateDebtsByReference.mockResolvedValue([]);
+
+      await request(app.getHttpServer())
+        .get('/api/v1/transactions/debts-summary?status=all')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(mockTxRepo.aggregateDebtsByReference).toHaveBeenCalledWith(USER_ID, 'all');
+    });
+
+    it('should return 400 when status is not a valid enum value', () => {
+      return request(app.getHttpServer())
+        .get('/api/v1/transactions/debts-summary?status=nonsense')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return 401 without a token', () => {
+      return request(app.getHttpServer()).get('/api/v1/transactions/debts-summary').expect(401);
+    });
+  });
+
+  // ─── GET /transactions?search=... ────────────────────────────────────────────
+
+  describe('GET /api/v1/transactions (search)', () => {
+    it('should forward the search query param to the repository filters', async () => {
+      mockTxRepo.findByUserId.mockResolvedValue({ items: [], total: 0 });
+
+      await request(app.getHttpServer())
+        .get('/api/v1/transactions?search=Juán')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(mockTxRepo.findByUserId).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({ search: 'Juán' }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  // ─── POST /transactions/settle-by-reference ──────────────────────────────────
+
+  describe('POST /api/v1/transactions/settle-by-reference', () => {
+    it('should return 200 count=0 when no pending tx match (idempotent)', async () => {
+      mockTxRepo.findPendingDebtOrLoanByNormalizedReference.mockResolvedValue([]);
+
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Ghost' })
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data).toEqual({ settledIds: [], totalSettled: 0, count: 0 });
+        });
+    });
+
+    it('should mark all matching pending tx as SETTLED and return the summary', async () => {
+      const tx1 = buildTransaction({
+        id: 'tx-1',
+        userId: USER_ID,
+        type: TransactionType.DEBT,
+        amount: 500,
+        remainingAmount: 500,
+        status: TransactionStatus.PENDING,
+        reference: 'Juan',
+      });
+      const tx2 = buildTransaction({
+        id: 'tx-2',
+        userId: USER_ID,
+        type: TransactionType.LOAN,
+        amount: 300,
+        remainingAmount: 200,
+        status: TransactionStatus.PENDING,
+        reference: 'Juan',
+      });
+      mockTxRepo.findPendingDebtOrLoanByNormalizedReference.mockResolvedValue([tx1, tx2]);
+      mockTxRepo.save.mockImplementation((tx) => Promise.resolve(tx));
+
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan' })
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data.count).toBe(2);
+          expect(body.data.totalSettled).toBe(700);
+          expect(body.data.settledIds).toEqual(['tx-1', 'tx-2']);
+        });
+    });
+
+    it('should return 400 when reference is missing', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({})
+        .expect(400);
+    });
+
+    it('should return 400 when reference is empty string', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: '' })
+        .expect(400);
+    });
+
+    it('should return 401 without a token', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .send({ reference: 'Juan' })
+        .expect(401);
     });
   });
 });

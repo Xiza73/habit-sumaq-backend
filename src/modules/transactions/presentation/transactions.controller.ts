@@ -15,13 +15,19 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
+import { BulkSettleResponseDto } from '../application/dto/bulk-settle-response.dto';
 import { CreateTransactionDto } from '../application/dto/create-transaction.dto';
+import { DebtsSummaryResponseDto } from '../application/dto/debts-summary-response.dto';
+import { GetDebtsSummaryQueryDto } from '../application/dto/get-debts-summary-query.dto';
 import { GetTransactionsQueryDto } from '../application/dto/get-transactions-query.dto';
+import { SettleByReferenceDto } from '../application/dto/settle-by-reference.dto';
 import { SettleTransactionDto } from '../application/dto/settle-transaction.dto';
 import { TransactionResponseDto } from '../application/dto/transaction-response.dto';
 import { UpdateTransactionDto } from '../application/dto/update-transaction.dto';
+import { BulkSettleByReferenceUseCase } from '../application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateTransactionUseCase } from '../application/use-cases/create-transaction.use-case';
 import { DeleteTransactionUseCase } from '../application/use-cases/delete-transaction.use-case';
+import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
 import { GetTransactionByIdUseCase } from '../application/use-cases/get-transaction-by-id.use-case';
 import { GetTransactionsUseCase } from '../application/use-cases/get-transactions.use-case';
 import { SettleTransactionUseCase } from '../application/use-cases/settle-transaction.use-case';
@@ -40,6 +46,8 @@ export class TransactionsController {
     private readonly updateTransaction: UpdateTransactionUseCase,
     private readonly deleteTransaction: DeleteTransactionUseCase,
     private readonly settleTransaction: SettleTransactionUseCase,
+    private readonly getDebtsSummary: GetDebtsSummaryUseCase,
+    private readonly bulkSettleByReference: BulkSettleByReferenceUseCase,
   ) {}
 
   @Post()
@@ -107,6 +115,30 @@ export class TransactionsController {
     );
   }
 
+  @Post('settle-by-reference')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Liquidar en bloque todas las deudas/préstamos pendientes por referencia',
+    description:
+      'Marca como SETTLED todas las DEBT/LOAN pendientes cuya `reference` matchee la provista ' +
+      '(LOWER + unaccent). NO crea transacciones de liquidación (EXPENSE/INCOME) ni afecta ' +
+      'balances — cierra el libro cuando ya arreglaste informalmente. Para liquidar con efecto ' +
+      'contable, usá POST /transactions/:id/settle. Idempotente: retorna count=0 si no hay ' +
+      'pendientes.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen de la operación',
+    type: BulkSettleResponseDto,
+  })
+  async settleByReference(
+    @CurrentUser() payload: JwtPayload,
+    @Body() dto: SettleByReferenceDto,
+  ): Promise<ApiResponseDto<BulkSettleResponseDto>> {
+    const result = await this.bulkSettleByReference.execute(payload.sub, dto.reference);
+    return ApiResponseDto.ok(result, 'Liquidación en bloque completada');
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Listar transacciones del usuario con filtros opcionales',
@@ -129,6 +161,29 @@ export class TransactionsController {
       'Transacciones obtenidas exitosamente',
       meta,
     );
+  }
+
+  @Get('debts-summary')
+  @ApiOperation({
+    summary: 'Resumen de deudas/préstamos agrupado por referencia (persona)',
+    description:
+      'Agrupa transacciones DEBT/LOAN por referencia normalizada (case + accent insensitive). ' +
+      'Devuelve los saldos pendientes (`pendingDebt`, `pendingLoan`) y el neto (`netOwed`). ' +
+      'Por defecto (status=pending) solo incluye referencias con al menos una transacción ' +
+      'pendiente. Usar ?status=all para incluir liquidadas; ?status=settled para solo ' +
+      'referencias ya saldadas.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen ordenado por pendingLoan DESC, luego pendingDebt DESC',
+    type: [DebtsSummaryResponseDto],
+  })
+  async findDebtsSummary(
+    @CurrentUser() payload: JwtPayload,
+    @Query() query: GetDebtsSummaryQueryDto,
+  ): Promise<ApiResponseDto<DebtsSummaryResponseDto[]>> {
+    const summary = await this.getDebtsSummary.execute(payload.sub, query.status);
+    return ApiResponseDto.ok(summary, 'Resumen obtenido exitosamente');
   }
 
   @Get(':id')

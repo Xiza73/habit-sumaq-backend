@@ -25,6 +25,8 @@ describe('UpdateTransactionUseCase', () => {
       save: jest.fn().mockImplementation((tx) => Promise.resolve(tx)),
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
+      aggregateDebtsByReference: jest.fn(),
+      findPendingDebtOrLoanByNormalizedReference: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
     accountRepo = {
