@@ -3,6 +3,16 @@ import { randomUUID } from 'node:crypto';
 import { HabitFrequency } from '../enums/habit-frequency.enum';
 import { Habit } from '../habit.entity';
 
+/**
+ * Fábrica de test para la entidad `Habit`.
+ *
+ * ⚠️ `targetCount` pasa por el invariante de dominio `Habit.assertTargetCount`
+ * en el constructor. Valores inválidos (`< 1`, negativos, no enteros) lanzan
+ * `DomainException('INVALID_TARGET_COUNT')`. Esto es intencional: los tests
+ * que verifiquen el invariante pueden usar esta fábrica con valores inválidos
+ * y esperar el throw. Los tests que necesiten un `Habit` válido deben omitir
+ * el override o pasar un entero `>= 1`.
+ */
 export function buildHabit(
   overrides: Partial<{
     id: string;
