@@ -175,6 +175,35 @@ export function createTestDataSource(): Promise<DataSource> {
 
 Testean el flujo HTTP completo: request → controller → use case → repositorio → DB → response.
 
+### Endpoint de test para Playwright — `POST /auth/test-login`
+
+Para que la suite e2e del frontend (Playwright) pueda autenticarse sin pasar
+por el flujo OAuth real de Google, existe el endpoint `POST /api/v1/auth/test-login`.
+Emite un JWT válido para un usuario `test-<email>` y setea la cookie
+`refresh_token` como HttpOnly igual que el login normal.
+
+**Triple guarda — cualquier fallo devuelve 404:**
+
+1. `NODE_ENV !== 'production'`.
+2. `TEST_AUTH_ENABLED=true`.
+3. Header `x-test-auth-secret` coincide con `TEST_AUTH_SECRET` (≥ 32 chars).
+
+Habilitar en local o CI antes de correr Playwright:
+
+```bash
+TEST_AUTH_ENABLED=true TEST_AUTH_SECRET=<32-o-mas-chars> pnpm start:dev
+```
+
+El boot falla con un error de Zod `.superRefine` si:
+- `TEST_AUTH_ENABLED=true` y `TEST_AUTH_SECRET` está ausente o tiene menos de 32 chars.
+- `TEST_AUTH_ENABLED=true` y `NODE_ENV=production` (guarda defensiva redundante).
+
+Ver [`api-conventions.md`](api-conventions.md#post-apiv1authtest-login-testing-only)
+para más detalle del contrato.
+
+---
+
+
 ```typescript
 // test/accounts.e2e-spec.ts
 describe('/accounts (e2e)', () => {

@@ -172,6 +172,25 @@ POST /api/v1/auth/logout           → Revoca refresh token
 GET  /api/v1/auth/me               → Perfil del usuario autenticado
 ```
 
+#### `POST /api/v1/auth/test-login` (testing-only)
+
+Endpoint **oculto** diseñado exclusivamente para que la suite e2e de Playwright
+obtenga un JWT válido sin depender del flujo real de Google OAuth.
+
+**Triple guarda:** cualquier fallo retorna `404 Not Found` — nunca `401`/`403`
+— para no revelar la existencia del endpoint a un atacante.
+
+1. `NODE_ENV !== 'production'` (además bloqueado por Zod `.superRefine` al boot).
+2. `testAuth.enabled === true` (flag env `TEST_AUTH_ENABLED`).
+3. Header `x-test-auth-secret` coincide con `TEST_AUTH_SECRET` (compara con
+   `crypto.timingSafeEqual` + guard de longitud).
+
+**No aparece en Swagger** (`@ApiExcludeEndpoint()`). El proceso rehúsa arrancar
+si `TEST_AUTH_ENABLED=true` con secret ausente o de menos de 32 caracteres, o si
+`TEST_AUTH_ENABLED=true` en `NODE_ENV=production`.
+
+**Nunca habilitar en producción.** Ver `.env.example` para el formato.
+
 ### Users
 
 ```
