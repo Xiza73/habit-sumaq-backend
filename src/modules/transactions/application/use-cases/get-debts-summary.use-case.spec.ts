@@ -19,6 +19,7 @@ describe('GetDebtsSummaryUseCase', () => {
       softDelete: jest.fn(),
       existsByAccountId: jest.fn(),
       aggregateDebtsByReference: jest.fn(),
+      findPendingDebtOrLoanByNormalizedReference: jest.fn(),
     } as unknown as jest.Mocked<TransactionRepository>;
 
     useCase = new GetDebtsSummaryUseCase(mockRepo);

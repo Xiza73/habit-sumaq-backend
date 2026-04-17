@@ -58,4 +58,14 @@ export abstract class TransactionRepository {
     userId: string,
     statusFilter: DebtsSummaryStatusFilter,
   ): Promise<DebtsSummaryRow[]>;
+  /**
+   * Fetch all pending DEBT/LOAN transactions whose reference matches the given
+   * value after normalization (LOWER + unaccent). Used by the bulk-settle flow
+   * so a single `reference` input (e.g. "Juan") collects every pending row for
+   * that person across casings ("juan", "Juán", "JUAN").
+   */
+  abstract findPendingDebtOrLoanByNormalizedReference(
+    userId: string,
+    reference: string,
+  ): Promise<Transaction[]>;
 }

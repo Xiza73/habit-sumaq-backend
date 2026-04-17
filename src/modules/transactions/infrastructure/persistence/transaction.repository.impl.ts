@@ -172,6 +172,20 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     });
   }
 
+  async findPendingDebtOrLoanByNormalizedReference(
+    userId: string,
+    reference: string,
+  ): Promise<Transaction[]> {
+    const entities = await this.repo
+      .createQueryBuilder('tx')
+      .where('tx.userId = :userId', { userId })
+      .andWhere(`tx.type IN ('DEBT', 'LOAN')`)
+      .andWhere(`tx.status = 'PENDING'`)
+      .andWhere('LOWER(unaccent(tx.reference)) = LOWER(unaccent(:reference))', { reference })
+      .getMany();
+    return entities.map((e) => this.toDomain(e));
+  }
+
   private toDomain(entity: TransactionOrmEntity): Transaction {
     return new Transaction(
       entity.id,
