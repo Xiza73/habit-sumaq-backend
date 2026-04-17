@@ -110,6 +110,43 @@ describe('LogHabitUseCase', () => {
     expect(result.note).toBe('Updated!');
   });
 
+  it('should preserve existing note on upsert when dto.note is undefined', async () => {
+    const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+    const existingLog = buildHabitLog({
+      habitId,
+      userId,
+      count: 3,
+      completed: false,
+      note: 'Nota original',
+    });
+    habitRepo.findById.mockResolvedValue(habit);
+    habitLogRepo.findByHabitIdAndDate.mockResolvedValue(existingLog);
+
+    const dto: LogHabitDto = { date: todayStr, count: 6 };
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
+
+    expect(result.count).toBe(6);
+    expect(result.note).toBe('Nota original');
+  });
+
+  it('should clear existing note on upsert when dto.note is null', async () => {
+    const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+    const existingLog = buildHabitLog({
+      habitId,
+      userId,
+      count: 3,
+      completed: false,
+      note: 'Nota a borrar',
+    });
+    habitRepo.findById.mockResolvedValue(habit);
+    habitLogRepo.findByHabitIdAndDate.mockResolvedValue(existingLog);
+
+    const dto: LogHabitDto = { date: todayStr, count: 6, note: null };
+    const result = await useCase.execute(habitId, userId, dto, 'UTC');
+
+    expect(result.note).toBeNull();
+  });
+
   it('should cap count at targetCount when count exceeds it', async () => {
     const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
     habitRepo.findById.mockResolvedValue(habit);
