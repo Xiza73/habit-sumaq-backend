@@ -1,6 +1,26 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
+
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  NotFoundException,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiExcludeEndpoint,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '@common/decorators/current-user.decorator';
@@ -10,9 +30,11 @@ import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 import { UserResponseDto } from '../../users/application/dto/user-response.dto';
 import { GetUserProfileUseCase } from '../../users/application/use-cases/get-user-profile.use-case';
 import { AuthTokensDto } from '../application/dto/auth-response.dto';
+import { TestLoginDto } from '../application/dto/test-login.dto';
 import { GoogleLoginUseCase } from '../application/use-cases/google-login.use-case';
 import { LogoutUseCase } from '../application/use-cases/logout.use-case';
 import { RotateRefreshTokenUseCase } from '../application/use-cases/rotate-refresh-token.use-case';
+import { TestLoginUseCase } from '../application/use-cases/test-login.use-case';
 
 import type { User } from '../../users/domain/user.entity';
 import type { JwtPayload, JwtRefreshPayload } from '../application/dto/jwt-payload.dto';
@@ -28,6 +50,8 @@ export class AuthController {
     private readonly rotateRefreshToken: RotateRefreshTokenUseCase,
     private readonly logoutUseCase: LogoutUseCase,
     private readonly getUserProfile: GetUserProfileUseCase,
+    private readonly testLoginUseCase: TestLoginUseCase,
+    private readonly config: ConfigService,
   ) {}
 
   @Get('google')
@@ -104,6 +128,21 @@ export class AuthController {
     return ApiResponseDto.ok(UserResponseDto.fromDomain(user), 'Perfil obtenido exitosamente');
   }
 
+  @Post('test-login')
+  @Public()
+  @SkipThrottle()
+  @ApiExcludeEndpoint()
+  async testLogin(
+    @Headers('x-test-auth-secret') providedSecret: string | undefined,
+    @Body() dto: TestLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ApiResponseDto<AuthTokensDto>> {
+    this.assertTestAuthSecret(providedSecret);
+    const { accessToken, rawRefreshToken } = await this.testLoginUseCase.execute(dto.email);
+    this.setRefreshCookie(res, rawRefreshToken);
+    return ApiResponseDto.ok({ accessToken }, 'Test login exitoso');
+  }
+
   private setRefreshCookie(res: Response, token: string): void {
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie(REFRESH_COOKIE, token, {
@@ -112,5 +151,15 @@ export class AuthController {
       sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
+  }
+
+  private assertTestAuthSecret(provided: string | undefined): void {
+    const expected = this.config.get<string>('testAuth.secret');
+    if (!provided || !expected) throw new NotFoundException();
+
+    const providedBuf = Buffer.from(provided);
+    const expectedBuf = Buffer.from(expected);
+    if (providedBuf.length !== expectedBuf.length) throw new NotFoundException();
+    if (!timingSafeEqual(providedBuf, expectedBuf)) throw new NotFoundException();
   }
 }
