@@ -33,3 +33,8 @@ export const redisConfig = registerAs('redis', () => ({
   port: Number(process.env.REDIS_PORT ?? 6379),
   password: process.env.REDIS_PASSWORD,
 }));
+
+export const testAuthConfig = registerAs('testAuth', () => ({
+  enabled: process.env.TEST_AUTH_ENABLED === 'true',
+  secret: process.env.TEST_AUTH_SECRET,
+}));
