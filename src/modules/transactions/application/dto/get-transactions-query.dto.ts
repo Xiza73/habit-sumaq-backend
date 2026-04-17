@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { IsDate, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 import { PaginationDto } from '@common/dto/pagination.dto';
 
@@ -58,4 +58,14 @@ export class GetTransactionsQueryDto extends PaginationDto {
   @Type(() => Date)
   @IsDate()
   dateTo?: Date;
+
+  @ApiPropertyOptional({
+    description:
+      'Búsqueda case + accent insensitive sobre description y reference (coincidencia parcial)',
+    example: 'juan',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 }

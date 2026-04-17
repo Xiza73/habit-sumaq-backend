@@ -30,6 +30,7 @@ export class GetTransactionsUseCase {
         status: query.status,
         dateFrom: query.dateFrom,
         dateTo: query.dateTo,
+        search: query.search,
       },
       { page, limit },
     );

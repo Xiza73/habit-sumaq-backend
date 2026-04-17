@@ -39,6 +39,7 @@ describe('GetTransactionsUseCase', () => {
         status: undefined,
         dateFrom: undefined,
         dateTo: undefined,
+        search: undefined,
       },
       { page: 1, limit: 20 },
     );
@@ -65,8 +66,21 @@ describe('GetTransactionsUseCase', () => {
         status: undefined,
         dateFrom: undefined,
         dateTo: undefined,
+        search: undefined,
       },
       { page: 2, limit: 10 },
+    );
+  });
+
+  it('should forward the search query to the repository', async () => {
+    txRepo.findByUserId.mockResolvedValue({ items: [], total: 0 });
+
+    await useCase.execute('user-1', { page: 1, limit: 20, search: 'Juán' });
+
+    expect(txRepo.findByUserId).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ search: 'Juán' }),
+      { page: 1, limit: 20 },
     );
   });
 

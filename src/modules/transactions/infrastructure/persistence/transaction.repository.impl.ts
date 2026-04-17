@@ -48,6 +48,15 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     if (filters?.dateTo) {
       qb.andWhere('tx.date <= :dateTo', { dateTo: filters.dateTo });
     }
+    if (filters?.search && filters.search.trim() !== '') {
+      // ILIKE + unaccent on description and reference so "Juán"/"juan"/"JUAN"
+      // all match. Bracketed OR so it doesn't leak into unrelated WHERE clauses.
+      qb.andWhere(
+        `(LOWER(unaccent(COALESCE(tx.description, ''))) LIKE LOWER(unaccent(:search))
+          OR LOWER(unaccent(COALESCE(tx.reference, ''))) LIKE LOWER(unaccent(:search)))`,
+        { search: `%${filters.search.trim()}%` },
+      );
+    }
 
     qb.orderBy('tx.date', 'DESC');
 

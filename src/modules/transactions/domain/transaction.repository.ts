@@ -9,6 +9,8 @@ export interface TransactionFilters {
   status?: TransactionStatus;
   dateFrom?: Date;
   dateTo?: Date;
+  /** Substring match (case + accent insensitive) across description and reference. */
+  search?: string;
 }
 
 export interface PaginatedTransactions {
