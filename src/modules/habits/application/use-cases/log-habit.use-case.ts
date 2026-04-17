@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 
@@ -14,11 +16,11 @@ import type { LogHabitDto } from '../dto/log-habit.dto';
 
 @Injectable()
 export class LogHabitUseCase {
-  private readonly logger = new Logger(LogHabitUseCase.name);
-
   constructor(
     private readonly habitRepo: HabitRepository,
     private readonly habitLogRepo: HabitLogRepository,
+    @InjectPinoLogger(LogHabitUseCase.name)
+    private readonly logger: PinoLogger,
   ) {}
 
   async execute(
@@ -35,6 +37,10 @@ export class LogHabitUseCase {
       throw new DomainException('HABIT_BELONGS_TO_OTHER_USER', 'Este hábito no te pertenece');
     }
     if (habit.isArchived) {
+      this.logger.warn(
+        { event: 'habit.log.archived_habit', habitId, userId },
+        'habit.log.archived_habit',
+      );
       throw new DomainException(
         'HABIT_ARCHIVED',
         'No se puede registrar un log en un hábito archivado',
@@ -44,6 +50,10 @@ export class LogHabitUseCase {
     const logDate = dto.date;
     const todayStr = StatsCalculator.toDateString(StatsCalculator.todayIn(timezone));
     if (logDate > todayStr) {
+      this.logger.warn(
+        { event: 'habit.log.future_date', habitId, userId, date: dto.date },
+        'habit.log.future_date',
+      );
       throw new DomainException(
         'HABIT_LOG_FUTURE_DATE',
         'No se puede registrar un log para una fecha futura',
@@ -59,7 +69,18 @@ export class LogHabitUseCase {
     if (existingLog) {
       existingLog.updateCount(dto.count, habit.targetCount);
       if (dto.note !== undefined) existingLog.note = dto.note ?? null;
-      return this.habitLogRepo.save(existingLog);
+      const updated = await this.habitLogRepo.save(existingLog);
+      this.logger.info(
+        {
+          event: 'habit.log.updated',
+          habitLogId: updated.id,
+          habitId,
+          userId,
+          date: dto.date,
+        },
+        'habit.log.updated',
+      );
+      return updated;
     }
 
     const now = new Date();
@@ -76,9 +97,15 @@ export class LogHabitUseCase {
     );
 
     const saved = await this.habitLogRepo.save(log);
-    this.logger.log(
-      { habitLogId: saved.id, habitId, userId, date: dto.date },
-      'Habit log registrado',
+    this.logger.info(
+      {
+        event: 'habit.logged',
+        habitLogId: saved.id,
+        habitId,
+        userId,
+        date: dto.date,
+      },
+      'habit.logged',
     );
     return saved;
   }
