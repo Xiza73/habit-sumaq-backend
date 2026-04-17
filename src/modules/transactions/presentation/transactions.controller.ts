@@ -15,13 +15,16 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
+import { BulkSettleResponseDto } from '../application/dto/bulk-settle-response.dto';
 import { CreateTransactionDto } from '../application/dto/create-transaction.dto';
 import { DebtsSummaryResponseDto } from '../application/dto/debts-summary-response.dto';
 import { GetDebtsSummaryQueryDto } from '../application/dto/get-debts-summary-query.dto';
 import { GetTransactionsQueryDto } from '../application/dto/get-transactions-query.dto';
+import { SettleByReferenceDto } from '../application/dto/settle-by-reference.dto';
 import { SettleTransactionDto } from '../application/dto/settle-transaction.dto';
 import { TransactionResponseDto } from '../application/dto/transaction-response.dto';
 import { UpdateTransactionDto } from '../application/dto/update-transaction.dto';
+import { BulkSettleByReferenceUseCase } from '../application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateTransactionUseCase } from '../application/use-cases/create-transaction.use-case';
 import { DeleteTransactionUseCase } from '../application/use-cases/delete-transaction.use-case';
 import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
@@ -44,6 +47,7 @@ export class TransactionsController {
     private readonly deleteTransaction: DeleteTransactionUseCase,
     private readonly settleTransaction: SettleTransactionUseCase,
     private readonly getDebtsSummary: GetDebtsSummaryUseCase,
+    private readonly bulkSettleByReference: BulkSettleByReferenceUseCase,
   ) {}
 
   @Post()
@@ -109,6 +113,30 @@ export class TransactionsController {
       TransactionResponseDto.fromDomain(settlement),
       'Liquidación registrada exitosamente',
     );
+  }
+
+  @Post('settle-by-reference')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Liquidar en bloque todas las deudas/préstamos pendientes por referencia',
+    description:
+      'Marca como SETTLED todas las DEBT/LOAN pendientes cuya `reference` matchee la provista ' +
+      '(LOWER + unaccent). NO crea transacciones de liquidación (EXPENSE/INCOME) ni afecta ' +
+      'balances — cierra el libro cuando ya arreglaste informalmente. Para liquidar con efecto ' +
+      'contable, usá POST /transactions/:id/settle. Idempotente: retorna count=0 si no hay ' +
+      'pendientes.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen de la operación',
+    type: BulkSettleResponseDto,
+  })
+  async settleByReference(
+    @CurrentUser() payload: JwtPayload,
+    @Body() dto: SettleByReferenceDto,
+  ): Promise<ApiResponseDto<BulkSettleResponseDto>> {
+    const result = await this.bulkSettleByReference.execute(payload.sub, dto.reference);
+    return ApiResponseDto.ok(result, 'Liquidación en bloque completada');
   }
 
   @Get()
