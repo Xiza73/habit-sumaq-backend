@@ -7,6 +7,7 @@ import { UsersModule } from '../../users/presentation/users.module';
 import { GoogleLoginUseCase } from '../application/use-cases/google-login.use-case';
 import { LogoutUseCase } from '../application/use-cases/logout.use-case';
 import { RotateRefreshTokenUseCase } from '../application/use-cases/rotate-refresh-token.use-case';
+import { TestLoginUseCase } from '../application/use-cases/test-login.use-case';
 import { RefreshTokenRepository } from '../domain/refresh-token.repository';
 import { RefreshTokenRepositoryImpl } from '../infrastructure/persistence/refresh-token.repository.impl';
 import { GoogleStrategy } from '../infrastructure/strategies/google.strategy';
@@ -27,6 +28,7 @@ import { AuthController } from './auth.controller';
     GoogleLoginUseCase,
     RotateRefreshTokenUseCase,
     LogoutUseCase,
+    TestLoginUseCase,
     GoogleStrategy,
     JwtAccessStrategy,
     JwtRefreshStrategy,

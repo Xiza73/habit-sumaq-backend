@@ -87,4 +87,24 @@ describe('UpdateHabitUseCase', () => {
     );
     expect(mockRepo.save).not.toHaveBeenCalled();
   });
+
+  it('should propagate INVALID_TARGET_COUNT from domain when targetCount < 1', async () => {
+    // @Min(1) on UpdateHabitDto catches this at the HTTP boundary (400).
+    // This test covers the defense-in-depth path: if the use case is
+    // called programmatically (from a script, job, or another module),
+    // Habit.updateProfile invokes assertTargetCount and throws, and the
+    // use case must propagate the error without swallowing it.
+    const habit = buildHabit({ id: habitId, userId, targetCount: 5 });
+    mockRepo.findById.mockResolvedValue(habit);
+    mockRepo.findByUserIdAndName.mockResolvedValue(null);
+
+    await expect(useCase.execute(habitId, userId, { targetCount: 0 })).rejects.toThrow(
+      DomainException,
+    );
+    await expect(useCase.execute(habitId, userId, { targetCount: 0 })).rejects.toMatchObject({
+      code: 'INVALID_TARGET_COUNT',
+    });
+    expect(mockRepo.save).not.toHaveBeenCalled();
+    expect(habit.targetCount).toBe(5);
+  });
 });

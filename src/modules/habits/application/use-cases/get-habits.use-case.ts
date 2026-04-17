@@ -17,7 +17,11 @@ export class GetHabitsUseCase {
     private readonly habitLogRepo: HabitLogRepository,
   ) {}
 
-  async execute(userId: string, query: GetHabitsQueryDto, timezone: string): Promise<HabitResponseDto[]> {
+  async execute(
+    userId: string,
+    query: GetHabitsQueryDto,
+    timezone: string,
+  ): Promise<HabitResponseDto[]> {
     const habits = await this.habitRepo.findByUserId(userId, query.includeArchived);
     const today = StatsCalculator.todayIn(timezone);
 
