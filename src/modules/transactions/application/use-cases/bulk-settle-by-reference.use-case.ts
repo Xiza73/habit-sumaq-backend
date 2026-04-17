@@ -22,8 +22,12 @@ export class BulkSettleByReferenceUseCase {
 
   constructor(private readonly txRepo: TransactionRepository) {}
 
-  async execute(userId: string, reference: string): Promise<BulkSettleResult> {
-    const pending = await this.txRepo.findPendingDebtOrLoanByNormalizedReference(userId, reference);
+  async execute(userId: string, reference: string, currency?: string): Promise<BulkSettleResult> {
+    const pending = await this.txRepo.findPendingDebtOrLoanByNormalizedReference(
+      userId,
+      reference,
+      currency,
+    );
 
     if (pending.length === 0) {
       return { settledIds: [], totalSettled: 0, count: 0 };
@@ -41,7 +45,7 @@ export class BulkSettleByReferenceUseCase {
     }
 
     this.logger.log(
-      `Bulk settle: userId=${userId} reference="${reference}" count=${pending.length} totalSettled=${totalSettled}`,
+      `Bulk settle: userId=${userId} reference="${reference}" currency=${currency ?? 'ALL'} count=${pending.length} totalSettled=${totalSettled}`,
     );
 
     return { settledIds, totalSettled, count: pending.length };

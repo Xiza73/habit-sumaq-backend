@@ -37,6 +37,7 @@ describe('GetDebtsSummaryUseCase', () => {
   it('returns the rows from the repository unchanged', async () => {
     const row: DebtsSummaryRow = {
       reference: 'juan',
+      currency: 'PEN',
       displayName: 'Juan',
       pendingDebt: 500,
       pendingLoan: 300,

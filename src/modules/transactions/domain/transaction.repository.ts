@@ -21,8 +21,14 @@ export interface PaginatedTransactions {
 export type DebtsSummaryStatusFilter = 'pending' | 'all' | 'settled';
 
 export interface DebtsSummaryRow {
-  /** Normalized reference — lowercase and accent-stripped. Grouping key. */
+  /** Normalized reference — lowercase and accent-stripped. Part of grouping key. */
   reference: string;
+  /**
+   * Currency code (PEN, USD, EUR, ...) of the account that holds these tx.
+   * Part of the grouping key — a person with debts in different currencies
+   * collapses into one row per currency, never mixed.
+   */
+  currency: string;
   /** Display name — the most recently written spelling of this reference. */
   displayName: string;
   /** Sum of remaining amounts for pending DEBT tx (what the user owes). */
@@ -63,9 +69,14 @@ export abstract class TransactionRepository {
    * value after normalization (LOWER + unaccent). Used by the bulk-settle flow
    * so a single `reference` input (e.g. "Juan") collects every pending row for
    * that person across casings ("juan", "Juán", "JUAN").
+   *
+   * If `currency` is provided, the result is further filtered to transactions
+   * whose account has that currency. Bulk settle always settles one currency
+   * bucket at a time so partial closeouts stay meaningful.
    */
   abstract findPendingDebtOrLoanByNormalizedReference(
     userId: string,
     reference: string,
+    currency?: string,
   ): Promise<Transaction[]>;
 }

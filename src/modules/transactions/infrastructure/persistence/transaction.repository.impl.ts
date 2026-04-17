@@ -116,15 +116,19 @@ export class TransactionRepositoryImpl extends TransactionRepository {
   ): Promise<DebtsSummaryRow[]> {
     const havingClause =
       statusFilter === 'pending'
-        ? `HAVING COUNT(*) FILTER (WHERE status = 'PENDING') > 0`
+        ? `HAVING COUNT(*) FILTER (WHERE tx.status = 'PENDING') > 0`
         : statusFilter === 'settled'
-          ? `HAVING COUNT(*) FILTER (WHERE status = 'PENDING') = 0
-             AND COUNT(*) FILTER (WHERE status = 'SETTLED') > 0`
+          ? `HAVING COUNT(*) FILTER (WHERE tx.status = 'PENDING') = 0
+             AND COUNT(*) FILTER (WHERE tx.status = 'SETTLED') > 0`
           : '';
 
+    // JOIN accounts to pull the currency. Grouping key is (normalized reference,
+    // currency) so Juan-in-PEN and Juan-in-USD collapse into separate rows —
+    // summing across currencies would be nonsense.
     const rows = await this.repo.manager.query<
       Array<{
         reference: string;
+        currency: string;
         display_name: string;
         pending_debt: string;
         pending_loan: string;
@@ -134,25 +138,29 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     >(
       `
       SELECT
-        LOWER(unaccent(reference)) AS reference,
-        (array_agg(reference ORDER BY "createdAt" DESC))[1] AS display_name,
+        LOWER(unaccent(tx.reference)) AS reference,
+        a.currency AS currency,
+        (array_agg(tx.reference ORDER BY tx."createdAt" DESC))[1] AS display_name,
         COALESCE(SUM(
-          CASE WHEN type = 'DEBT' AND status = 'PENDING' THEN "remainingAmount" ELSE 0 END
+          CASE WHEN tx.type = 'DEBT' AND tx.status = 'PENDING'
+               THEN tx."remainingAmount" ELSE 0 END
         ), 0) AS pending_debt,
         COALESCE(SUM(
-          CASE WHEN type = 'LOAN' AND status = 'PENDING' THEN "remainingAmount" ELSE 0 END
+          CASE WHEN tx.type = 'LOAN' AND tx.status = 'PENDING'
+               THEN tx."remainingAmount" ELSE 0 END
         ), 0) AS pending_loan,
-        COUNT(*) FILTER (WHERE status = 'PENDING') AS pending_count,
-        COUNT(*) FILTER (WHERE status = 'SETTLED') AS settled_count
-      FROM transactions
-      WHERE "userId" = $1
-        AND "deletedAt" IS NULL
-        AND type IN ('DEBT', 'LOAN')
-        AND reference IS NOT NULL
-        AND reference <> ''
-      GROUP BY LOWER(unaccent(reference))
+        COUNT(*) FILTER (WHERE tx.status = 'PENDING') AS pending_count,
+        COUNT(*) FILTER (WHERE tx.status = 'SETTLED') AS settled_count
+      FROM transactions tx
+      INNER JOIN accounts a ON a.id = tx."accountId"
+      WHERE tx."userId" = $1
+        AND tx."deletedAt" IS NULL
+        AND tx.type IN ('DEBT', 'LOAN')
+        AND tx.reference IS NOT NULL
+        AND tx.reference <> ''
+      GROUP BY LOWER(unaccent(tx.reference)), a.currency
       ${havingClause}
-      ORDER BY pending_loan DESC, pending_debt DESC, display_name ASC
+      ORDER BY pending_loan DESC, pending_debt DESC, display_name ASC, currency ASC
       `,
       [userId],
     );
@@ -162,6 +170,7 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       const pendingLoan = Number(r.pending_loan);
       return {
         reference: r.reference,
+        currency: r.currency,
         displayName: r.display_name,
         pendingDebt,
         pendingLoan,
@@ -175,14 +184,24 @@ export class TransactionRepositoryImpl extends TransactionRepository {
   async findPendingDebtOrLoanByNormalizedReference(
     userId: string,
     reference: string,
+    currency?: string,
   ): Promise<Transaction[]> {
-    const entities = await this.repo
+    const qb = this.repo
       .createQueryBuilder('tx')
       .where('tx.userId = :userId', { userId })
       .andWhere(`tx.type IN ('DEBT', 'LOAN')`)
       .andWhere(`tx.status = 'PENDING'`)
-      .andWhere('LOWER(unaccent(tx.reference)) = LOWER(unaccent(:reference))', { reference })
-      .getMany();
+      .andWhere('LOWER(unaccent(tx.reference)) = LOWER(unaccent(:reference))', { reference });
+
+    if (currency) {
+      // Narrow to a single currency bucket. Joining via the accounts table
+      // because currency lives there, not on the transaction row.
+      qb.innerJoin('accounts', 'a', 'a.id = tx.accountId').andWhere('a.currency = :currency', {
+        currency,
+      });
+    }
+
+    const entities = await qb.getMany();
     return entities.map((e) => this.toDomain(e));
   }
 

@@ -546,6 +546,7 @@ describe('TransactionsController (e2e)', () => {
       mockTxRepo.aggregateDebtsByReference.mockResolvedValue([
         {
           reference: 'juan',
+          currency: 'PEN',
           displayName: 'Juan',
           pendingDebt: 500,
           pendingLoan: 300,
@@ -679,6 +680,30 @@ describe('TransactionsController (e2e)', () => {
         .post('/api/v1/transactions/settle-by-reference')
         .send({ reference: 'Juan' })
         .expect(401);
+    });
+
+    it('should forward the currency filter from the body to the repository', async () => {
+      mockTxRepo.findPendingDebtOrLoanByNormalizedReference.mockResolvedValue([]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'USD' })
+        .expect(200);
+
+      expect(mockTxRepo.findPendingDebtOrLoanByNormalizedReference).toHaveBeenCalledWith(
+        USER_ID,
+        'Juan',
+        'USD',
+      );
+    });
+
+    it('should return 400 when currency is not a valid enum value', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/transactions/settle-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'XYZ' })
+        .expect(400);
     });
   });
 });

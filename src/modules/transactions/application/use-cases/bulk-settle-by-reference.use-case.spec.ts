@@ -73,6 +73,19 @@ describe('BulkSettleByReferenceUseCase', () => {
     expect(mockRepo.findPendingDebtOrLoanByNormalizedReference).toHaveBeenCalledWith(
       userId,
       'Juán',
+      undefined,
+    );
+  });
+
+  it('passes the currency filter to the repository when provided', async () => {
+    mockRepo.findPendingDebtOrLoanByNormalizedReference.mockResolvedValue([]);
+
+    await useCase.execute(userId, 'Juan', 'USD');
+
+    expect(mockRepo.findPendingDebtOrLoanByNormalizedReference).toHaveBeenCalledWith(
+      userId,
+      'Juan',
+      'USD',
     );
   });
 });
