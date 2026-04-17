@@ -546,6 +546,7 @@ describe('TransactionsController (e2e)', () => {
       mockTxRepo.aggregateDebtsByReference.mockResolvedValue([
         {
           reference: 'juan',
+          currency: 'PEN',
           displayName: 'Juan',
           pendingDebt: 500,
           pendingLoan: 300,
