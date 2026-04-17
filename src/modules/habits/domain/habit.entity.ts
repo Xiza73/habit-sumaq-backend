@@ -1,3 +1,5 @@
+import { DomainException } from '@common/exceptions/domain.exception';
+
 import type { HabitFrequency } from './enums/habit-frequency.enum';
 
 export class Habit {
@@ -14,7 +16,9 @@ export class Habit {
     readonly createdAt: Date,
     public updatedAt: Date,
     public deletedAt: Date | null,
-  ) {}
+  ) {
+    Habit.assertTargetCount(this.targetCount);
+  }
 
   updateProfile(
     name: string,
@@ -27,7 +31,10 @@ export class Habit {
     this.name = name;
     if (description !== undefined) this.description = description;
     if (frequency !== undefined) this.frequency = frequency;
-    if (targetCount !== undefined) this.targetCount = targetCount;
+    if (targetCount !== undefined) {
+      Habit.assertTargetCount(targetCount);
+      this.targetCount = targetCount;
+    }
     if (color !== undefined) this.color = color;
     if (icon !== undefined) this.icon = icon;
     this.updatedAt = new Date();
@@ -45,5 +52,14 @@ export class Habit {
 
   isDeleted(): boolean {
     return this.deletedAt !== null;
+  }
+
+  private static assertTargetCount(value: number): void {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new DomainException(
+        'INVALID_TARGET_COUNT',
+        'targetCount debe ser un entero mayor o igual a 1',
+      );
+    }
   }
 }

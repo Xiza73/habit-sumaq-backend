@@ -75,6 +75,8 @@ describe('GetHabitByIdUseCase', () => {
     const habit = buildHabit({ id: habitId, userId: 'other-user' });
     habitRepo.findById.mockResolvedValue(habit);
 
-    await expect(useCase.execute(habitId, userId, 'UTC')).rejects.toThrow('Este hábito no te pertenece');
+    await expect(useCase.execute(habitId, userId, 'UTC')).rejects.toThrow(
+      'Este hábito no te pertenece',
+    );
   });
 });
