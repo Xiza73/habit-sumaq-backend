@@ -21,7 +21,12 @@ export class LogHabitUseCase {
     private readonly habitLogRepo: HabitLogRepository,
   ) {}
 
-  async execute(habitId: string, userId: string, dto: LogHabitDto, timezone: string): Promise<HabitLog> {
+  async execute(
+    habitId: string,
+    userId: string,
+    dto: LogHabitDto,
+    timezone: string,
+  ): Promise<HabitLog> {
     const habit = await this.habitRepo.findById(habitId);
     if (!habit) {
       throw new DomainException('HABIT_NOT_FOUND', 'Hábito no encontrado');

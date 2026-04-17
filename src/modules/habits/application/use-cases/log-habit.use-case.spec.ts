@@ -94,7 +94,9 @@ describe('LogHabitUseCase', () => {
     habitRepo.findById.mockResolvedValue(null);
 
     const dto: LogHabitDto = { date: todayStr, count: 1 };
-    await expect(useCase.execute(habitId, userId, dto, 'UTC')).rejects.toThrow('Hábito no encontrado');
+    await expect(useCase.execute(habitId, userId, dto, 'UTC')).rejects.toThrow(
+      'Hábito no encontrado',
+    );
   });
 
   it('should throw HABIT_BELONGS_TO_OTHER_USER when userId mismatch', async () => {
