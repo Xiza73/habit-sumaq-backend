@@ -5,6 +5,8 @@ import { Repository } from 'typeorm';
 
 import { Transaction } from '../../domain/transaction.entity';
 import {
+  type DebtsSummaryRow,
+  type DebtsSummaryStatusFilter,
   type PaginatedTransactions,
   type TransactionFilters,
   TransactionRepository,
@@ -97,6 +99,68 @@ export class TransactionRepositoryImpl extends TransactionRepository {
   async existsByAccountId(accountId: string): Promise<boolean> {
     const count = await this.repo.count({ where: { accountId } });
     return count > 0;
+  }
+
+  async aggregateDebtsByReference(
+    userId: string,
+    statusFilter: DebtsSummaryStatusFilter,
+  ): Promise<DebtsSummaryRow[]> {
+    const havingClause =
+      statusFilter === 'pending'
+        ? `HAVING COUNT(*) FILTER (WHERE status = 'PENDING') > 0`
+        : statusFilter === 'settled'
+          ? `HAVING COUNT(*) FILTER (WHERE status = 'PENDING') = 0
+             AND COUNT(*) FILTER (WHERE status = 'SETTLED') > 0`
+          : '';
+
+    const rows = await this.repo.manager.query<
+      Array<{
+        reference: string;
+        display_name: string;
+        pending_debt: string;
+        pending_loan: string;
+        pending_count: string;
+        settled_count: string;
+      }>
+    >(
+      `
+      SELECT
+        LOWER(unaccent(reference)) AS reference,
+        (array_agg(reference ORDER BY "createdAt" DESC))[1] AS display_name,
+        COALESCE(SUM(
+          CASE WHEN type = 'DEBT' AND status = 'PENDING' THEN "remainingAmount" ELSE 0 END
+        ), 0) AS pending_debt,
+        COALESCE(SUM(
+          CASE WHEN type = 'LOAN' AND status = 'PENDING' THEN "remainingAmount" ELSE 0 END
+        ), 0) AS pending_loan,
+        COUNT(*) FILTER (WHERE status = 'PENDING') AS pending_count,
+        COUNT(*) FILTER (WHERE status = 'SETTLED') AS settled_count
+      FROM transactions
+      WHERE "userId" = $1
+        AND "deletedAt" IS NULL
+        AND type IN ('DEBT', 'LOAN')
+        AND reference IS NOT NULL
+        AND reference <> ''
+      GROUP BY LOWER(unaccent(reference))
+      ${havingClause}
+      ORDER BY pending_loan DESC, pending_debt DESC, display_name ASC
+      `,
+      [userId],
+    );
+
+    return rows.map((r) => {
+      const pendingDebt = Number(r.pending_debt);
+      const pendingLoan = Number(r.pending_loan);
+      return {
+        reference: r.reference,
+        displayName: r.display_name,
+        pendingDebt,
+        pendingLoan,
+        netOwed: pendingLoan - pendingDebt,
+        pendingCount: Number(r.pending_count),
+        settledCount: Number(r.settled_count),
+      };
+    });
   }
 
   private toDomain(entity: TransactionOrmEntity): Transaction {

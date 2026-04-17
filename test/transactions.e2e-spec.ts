@@ -47,6 +47,7 @@ describe('TransactionsController (e2e)', () => {
     save: jest.fn(),
     softDelete: jest.fn(),
     existsByAccountId: jest.fn(),
+    aggregateDebtsByReference: jest.fn(),
   };
 
   const mockAccountRepo: jest.Mocked<AccountRepository> = {
