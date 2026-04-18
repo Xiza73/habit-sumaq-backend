@@ -1,3 +1,7 @@
+import { type PinoLogger } from 'nestjs-pino';
+
+import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
+
 import { buildTransaction } from '../../domain/__tests__/transaction.factory';
 import { TransactionStatus } from '../../domain/enums/transaction-status.enum';
 import { TransactionType } from '../../domain/enums/transaction-type.enum';
@@ -8,6 +12,7 @@ import { BulkSettleByReferenceUseCase } from './bulk-settle-by-reference.use-cas
 describe('BulkSettleByReferenceUseCase', () => {
   let useCase: BulkSettleByReferenceUseCase;
   let mockRepo: jest.Mocked<TransactionRepository>;
+  let mockLogger: ReturnType<typeof buildMockPinoLogger>;
   const userId = 'user-1';
 
   beforeEach(() => {
@@ -22,7 +27,8 @@ describe('BulkSettleByReferenceUseCase', () => {
       findPendingDebtOrLoanByNormalizedReference: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
-    useCase = new BulkSettleByReferenceUseCase(mockRepo);
+    mockLogger = buildMockPinoLogger();
+    useCase = new BulkSettleByReferenceUseCase(mockRepo, mockLogger as unknown as PinoLogger);
   });
 
   it('returns count=0 and skips save when no pending tx match the reference', async () => {

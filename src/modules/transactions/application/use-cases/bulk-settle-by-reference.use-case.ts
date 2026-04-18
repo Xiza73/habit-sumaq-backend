@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { TransactionRepository } from '../../domain/transaction.repository';
 
@@ -18,9 +20,11 @@ export interface BulkSettleResult {
  */
 @Injectable()
 export class BulkSettleByReferenceUseCase {
-  private readonly logger = new Logger(BulkSettleByReferenceUseCase.name);
-
-  constructor(private readonly txRepo: TransactionRepository) {}
+  constructor(
+    private readonly txRepo: TransactionRepository,
+    @InjectPinoLogger(BulkSettleByReferenceUseCase.name)
+    private readonly logger: PinoLogger,
+  ) {}
 
   async execute(userId: string, reference: string, currency?: string): Promise<BulkSettleResult> {
     const pending = await this.txRepo.findPendingDebtOrLoanByNormalizedReference(
@@ -44,8 +48,15 @@ export class BulkSettleByReferenceUseCase {
       settledIds.push(tx.id);
     }
 
-    this.logger.log(
-      `Bulk settle: userId=${userId} reference="${reference}" currency=${currency ?? 'ALL'} count=${pending.length} totalSettled=${totalSettled}`,
+    this.logger.info(
+      {
+        event: 'transaction.bulk_settle',
+        userId,
+        currency: currency ?? 'ALL',
+        count: pending.length,
+        totalSettled,
+      },
+      'transaction.bulk_settle',
     );
 
     return { settledIds, totalSettled, count: pending.length };

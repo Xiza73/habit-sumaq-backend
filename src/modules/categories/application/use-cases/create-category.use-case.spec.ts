@@ -1,3 +1,6 @@
+import { type PinoLogger } from 'nestjs-pino';
+
+import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { DomainException } from '@common/exceptions/domain.exception';
 
 import { buildCategory } from '../../domain/__tests__/category.factory';
@@ -11,6 +14,7 @@ import type { CreateCategoryDto } from '../dto/create-category.dto';
 describe('CreateCategoryUseCase', () => {
   let useCase: CreateCategoryUseCase;
   let mockRepo: jest.Mocked<CategoryRepository>;
+  let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   const dto: CreateCategoryDto = {
     name: 'Comida',
@@ -25,7 +29,8 @@ describe('CreateCategoryUseCase', () => {
       save: jest.fn(),
       softDelete: jest.fn(),
     };
-    useCase = new CreateCategoryUseCase(mockRepo);
+    mockLogger = buildMockPinoLogger();
+    useCase = new CreateCategoryUseCase(mockRepo, mockLogger as unknown as PinoLogger);
   });
 
   describe('execute', () => {

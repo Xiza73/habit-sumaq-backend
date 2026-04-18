@@ -1,3 +1,6 @@
+import { type PinoLogger } from 'nestjs-pino';
+
+import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
@@ -15,6 +18,7 @@ describe('SettleTransactionUseCase', () => {
   let useCase: SettleTransactionUseCase;
   let txRepo: jest.Mocked<TransactionRepository>;
   let accountRepo: jest.Mocked<AccountRepository>;
+  let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   const userId = 'user-1';
 
@@ -39,7 +43,12 @@ describe('SettleTransactionUseCase', () => {
       softDelete: jest.fn(),
     } as jest.Mocked<AccountRepository>;
 
-    useCase = new SettleTransactionUseCase(txRepo, accountRepo);
+    mockLogger = buildMockPinoLogger();
+    useCase = new SettleTransactionUseCase(
+      txRepo,
+      accountRepo,
+      mockLogger as unknown as PinoLogger,
+    );
   });
 
   const settleDto: SettleTransactionDto = {

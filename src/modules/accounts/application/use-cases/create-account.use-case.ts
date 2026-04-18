@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 
@@ -11,13 +13,16 @@ import type { CreateAccountDto } from '../dto/create-account.dto';
 
 @Injectable()
 export class CreateAccountUseCase {
-  private readonly logger = new Logger(CreateAccountUseCase.name);
-
-  constructor(private readonly accountRepo: AccountRepository) {}
+  constructor(
+    private readonly accountRepo: AccountRepository,
+    @InjectPinoLogger(CreateAccountUseCase.name)
+    private readonly logger: PinoLogger,
+  ) {}
 
   async execute(userId: string, dto: CreateAccountDto): Promise<Account> {
     const existing = await this.accountRepo.findByUserIdAndName(userId, dto.name);
     if (existing) {
+      this.logger.warn({ event: 'account.create.conflict', userId }, 'account.create.conflict');
       throw new DomainException(
         'ACCOUNT_NAME_TAKEN',
         `Ya existe una cuenta con el nombre "${dto.name}"`,
@@ -40,7 +45,10 @@ export class CreateAccountUseCase {
     );
 
     const saved = await this.accountRepo.save(account);
-    this.logger.log(`Cuenta creada: id=${saved.id} userId=${userId} tipo=${dto.type}`);
+    this.logger.info(
+      { event: 'account.created', accountId: saved.id, userId, type: dto.type },
+      'account.created',
+    );
     return saved;
   }
 }

@@ -1,3 +1,6 @@
+import { type PinoLogger } from 'nestjs-pino';
+
+import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { DomainException } from '@common/exceptions/domain.exception';
 
 import { buildAccount } from '../../domain/__tests__/account.factory';
@@ -12,6 +15,7 @@ import type { CreateAccountDto } from '../dto/create-account.dto';
 describe('CreateAccountUseCase', () => {
   let useCase: CreateAccountUseCase;
   let mockRepo: jest.Mocked<AccountRepository>;
+  let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   const dto: CreateAccountDto = {
     name: 'Cuenta BCP',
@@ -28,7 +32,8 @@ describe('CreateAccountUseCase', () => {
       save: jest.fn(),
       softDelete: jest.fn(),
     };
-    useCase = new CreateAccountUseCase(mockRepo);
+    mockLogger = buildMockPinoLogger();
+    useCase = new CreateAccountUseCase(mockRepo, mockLogger as unknown as PinoLogger);
   });
 
   describe('execute', () => {

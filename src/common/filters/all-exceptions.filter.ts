@@ -4,8 +4,9 @@ import {
   type ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DOMAIN_HTTP_MAP } from '../errors/domain-error.map';
 import { ERROR_CODES } from '../errors/error-codes';
@@ -15,7 +16,10 @@ import type { Response } from 'express';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
+  constructor(
+    @InjectPinoLogger(AllExceptionsFilter.name)
+    private readonly logger: PinoLogger,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -23,7 +27,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (exception instanceof DomainException) {
       const status = DOMAIN_HTTP_MAP[exception.code] ?? HttpStatus.INTERNAL_SERVER_ERROR;
-      this.logger.warn({ errorCode: exception.code }, exception.message);
+      this.logger.warn(
+        { event: 'exception.domain', errorCode: exception.code, message: exception.message },
+        'exception.domain',
+      );
       response.status(status).json({
         success: false,
         data: null,
@@ -63,7 +70,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error(exception, 'Error no controlado');
+    this.logger.error({ event: 'exception.unhandled', err: exception }, 'exception.unhandled');
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       data: null,

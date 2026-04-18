@@ -1,6 +1,9 @@
 import { type ConfigService } from '@nestjs/config';
 import { type JwtService } from '@nestjs/jwt';
 
+import { type PinoLogger } from 'nestjs-pino';
+
+import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { DomainException } from '@common/exceptions/domain.exception';
 
 import { buildUser } from '../../../users/domain/__tests__/user.factory';
@@ -15,6 +18,7 @@ describe('GoogleLoginUseCase', () => {
   let mockJwtService: jest.Mocked<Pick<JwtService, 'sign'>>;
   let mockConfig: jest.Mocked<Pick<ConfigService, 'get'>>;
   let mockRefreshTokenRepo: jest.Mocked<RefreshTokenRepository>;
+  let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   beforeEach(() => {
     mockJwtService = { sign: jest.fn().mockReturnValue('mocked-access-token') };
@@ -34,11 +38,13 @@ describe('GoogleLoginUseCase', () => {
       revoke: jest.fn(),
       revokeAllByUserId: jest.fn(),
     };
+    mockLogger = buildMockPinoLogger();
 
     useCase = new GoogleLoginUseCase(
       mockJwtService as unknown as JwtService,
       mockConfig as unknown as ConfigService,
       mockRefreshTokenRepo,
+      mockLogger as unknown as PinoLogger,
     );
   });
 
