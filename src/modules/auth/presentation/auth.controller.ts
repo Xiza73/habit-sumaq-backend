@@ -74,7 +74,7 @@ export class AuthController {
     const { accessToken, rawRefreshToken } = await this.googleLoginUseCase.execute(user);
     this.setRefreshCookie(res, rawRefreshToken);
 
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const frontendUrl = this.config.getOrThrow<string>('app.frontendUrl');
     res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}`);
   }
 
@@ -109,7 +109,7 @@ export class AuthController {
   ): Promise<ApiResponseDto<null>> {
     const rawToken = (req.cookies as Record<string, string>)[REFRESH_COOKIE];
     await this.logoutUseCase.execute(rawToken);
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = this.isProduction();
     res.clearCookie(REFRESH_COOKIE, {
       httpOnly: true,
       secure: isProduction,
@@ -144,13 +144,17 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string): void {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = this.isProduction();
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
+  }
+
+  private isProduction(): boolean {
+    return this.config.get<string>('app.nodeEnv') === 'production';
   }
 
   private assertTestAuthSecret(provided: string | undefined): void {
