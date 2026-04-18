@@ -11,6 +11,8 @@ import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
 import { HealthController } from '../src/modules/health/health.controller';
 
+import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
+
 describe('HealthController (e2e)', () => {
   let app: INestApplication;
 
@@ -21,6 +23,7 @@ describe('HealthController (e2e)', () => {
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+        ...buildPinoLoggerProviders([AllExceptionsFilter.name]),
       ],
     }).compile();
 

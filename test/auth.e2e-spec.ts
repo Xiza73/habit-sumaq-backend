@@ -26,6 +26,8 @@ import { GetUserProfileUseCase } from '../src/modules/users/application/use-case
 import { buildUser } from '../src/modules/users/domain/__tests__/user.factory';
 import { UserRepository } from '../src/modules/users/domain/user.repository';
 
+import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
+
 const TEST_JWT_SECRET = 'e2e-test-jwt-secret-min-32-characters!!';
 
 describe('AuthController /auth/me (e2e)', () => {
@@ -70,6 +72,9 @@ describe('AuthController /auth/me (e2e)', () => {
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+
+        // PinoLogger tokens needed by migrated providers
+        ...buildPinoLoggerProviders([AllExceptionsFilter.name]),
       ],
     }).compile();
 
@@ -233,6 +238,9 @@ describe('AuthController /auth/test-login (e2e)', () => {
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+
+        // PinoLogger tokens needed by migrated providers
+        ...buildPinoLoggerProviders([AllExceptionsFilter.name, GoogleLoginUseCase.name]),
       ],
     }).compile();
 

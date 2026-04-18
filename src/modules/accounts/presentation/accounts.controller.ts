@@ -153,6 +153,7 @@ export class AccountsController {
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Eliminar una cuenta (soft delete)',
     description:
@@ -164,7 +165,7 @@ export class AccountsController {
     description: 'UUID de la cuenta',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ status: 200, description: 'Cuenta eliminada' })
+  @ApiResponse({ status: 204, description: 'Cuenta eliminada' })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   @ApiResponse({ status: 409, description: 'La cuenta tiene transacciones activas' })
   async remove(
