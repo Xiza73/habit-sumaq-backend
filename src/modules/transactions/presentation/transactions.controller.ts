@@ -247,6 +247,7 @@ export class TransactionsController {
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Eliminar una transacción (soft delete)',
     description:
@@ -259,7 +260,7 @@ export class TransactionsController {
     description: 'UUID de la transacción',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ status: 200, description: 'Transacción eliminada' })
+  @ApiResponse({ status: 204, description: 'Transacción eliminada' })
   @ApiResponse({ status: 403, description: 'La transacción pertenece a otro usuario' })
   @ApiResponse({ status: 404, description: 'Transacción no encontrada' })
   async remove(

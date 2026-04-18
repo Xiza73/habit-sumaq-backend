@@ -31,6 +31,8 @@ import { TransactionType } from '../src/modules/transactions/domain/enums/transa
 import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 import { TransactionsController } from '../src/modules/transactions/presentation/transactions.controller';
 
+import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
+
 const TEST_JWT_SECRET = 'e2e-test-jwt-secret-min-32-characters!!';
 const USER_ID = 'e2e-user-uuid-0001';
 const ACC_ID_1 = '00000000-0000-4000-a000-000000000001';
@@ -90,6 +92,14 @@ describe('TransactionsController (e2e)', () => {
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+
+        // PinoLogger tokens needed by migrated providers
+        ...buildPinoLoggerProviders([
+          AllExceptionsFilter.name,
+          CreateTransactionUseCase.name,
+          SettleTransactionUseCase.name,
+          BulkSettleByReferenceUseCase.name,
+        ]),
       ],
     }).compile();
 
@@ -466,7 +476,7 @@ describe('TransactionsController (e2e)', () => {
       const account = buildAccount({ id: ACC_ID_1, userId: USER_ID, balance: 150 });
 
       mockTxRepo.findById.mockResolvedValue(tx);
-      mockAccountRepo.findById.mockResolvedValue(account);
+      mockAccountRepo.findByIds.mockResolvedValue([account]);
       mockAccountRepo.save.mockResolvedValue(account);
       mockTxRepo.softDelete.mockResolvedValue(undefined);
 
@@ -496,7 +506,7 @@ describe('TransactionsController (e2e)', () => {
 
       mockTxRepo.findById.mockResolvedValue(debt);
       mockTxRepo.findByRelatedTransactionId.mockResolvedValue([settlement]);
-      mockAccountRepo.findById.mockResolvedValue(account);
+      mockAccountRepo.findByIds.mockResolvedValue([account]);
       mockAccountRepo.save.mockResolvedValue(account);
       mockTxRepo.softDelete.mockResolvedValue(undefined);
 

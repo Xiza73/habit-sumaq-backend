@@ -26,6 +26,8 @@ import { Currency } from '../src/modules/accounts/domain/enums/currency.enum';
 import { AccountsController } from '../src/modules/accounts/presentation/accounts.controller';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 
+import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
+
 const TEST_JWT_SECRET = 'e2e-test-jwt-secret-min-32-characters!!';
 const USER_ID = 'e2e-user-uuid-0001';
 
@@ -73,6 +75,9 @@ describe('AccountsController (e2e)', () => {
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+
+        // PinoLogger tokens needed by migrated providers
+        ...buildPinoLoggerProviders([AllExceptionsFilter.name, CreateAccountUseCase.name]),
       ],
     }).compile();
 

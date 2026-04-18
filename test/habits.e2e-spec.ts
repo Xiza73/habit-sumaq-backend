@@ -31,6 +31,8 @@ import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
 import { HabitsController } from '../src/modules/habits/presentation/habits.controller';
 
+import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
+
 const TEST_JWT_SECRET = 'e2e-habits-jwt-secret-min-32-chars!!';
 const USER_ID = 'e2e-user-uuid-habits-0001';
 const PAST_DATE = '2026-01-15';
@@ -115,6 +117,9 @@ describe('HabitsController (e2e)', () => {
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
+
+        // PinoLogger tokens for filters (use-case tokens provided explicitly above)
+        ...buildPinoLoggerProviders([AllExceptionsFilter.name]),
       ],
     }).compile();
 
