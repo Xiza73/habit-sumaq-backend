@@ -63,6 +63,9 @@ export class UserSettingsOrmEntity {
   })
   startOfWeek: StartOfWeek;
 
+  @Column({ type: 'varchar', length: 64, default: 'UTC' })
+  timezone: string;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

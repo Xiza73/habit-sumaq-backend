@@ -14,6 +14,7 @@ export class UserSettings {
     public defaultCurrency: Currency,
     public dateFormat: DateFormat,
     public startOfWeek: StartOfWeek,
+    public timezone: string,
     public readonly createdAt: Date,
     public updatedAt: Date,
   ) {}
@@ -24,12 +25,14 @@ export class UserSettings {
     defaultCurrency?: Currency;
     dateFormat?: DateFormat;
     startOfWeek?: StartOfWeek;
+    timezone?: string;
   }): void {
     if (partial.language !== undefined) this.language = partial.language;
     if (partial.theme !== undefined) this.theme = partial.theme;
     if (partial.defaultCurrency !== undefined) this.defaultCurrency = partial.defaultCurrency;
     if (partial.dateFormat !== undefined) this.dateFormat = partial.dateFormat;
     if (partial.startOfWeek !== undefined) this.startOfWeek = partial.startOfWeek;
+    if (partial.timezone !== undefined) this.timezone = partial.timezone;
     this.updatedAt = new Date();
   }
 }

@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import { IsEnum, IsOptional } from 'class-validator';
 
+import { IsIanaTimezone } from '@common/validators/is-iana-timezone.validator';
 import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { DateFormat } from '../../domain/enums/date-format.enum';
@@ -54,4 +55,13 @@ export class UpdateUserSettingsDto {
   @IsOptional()
   @IsEnum(StartOfWeek)
   startOfWeek?: StartOfWeek;
+
+  @ApiPropertyOptional({
+    description:
+      'Zona horaria IANA del usuario (usada para cálculos "por día", ej: cleanup de tareas diarias)',
+    example: 'America/Lima',
+  })
+  @IsOptional()
+  @IsIanaTimezone()
+  timezone?: string;
 }

@@ -51,6 +51,12 @@ export class UserSettingsResponseDto {
   })
   startOfWeek: StartOfWeek;
 
+  @ApiProperty({
+    example: 'America/Lima',
+    description: 'Zona horaria IANA del usuario (default "UTC" hasta que el cliente la fije)',
+  })
+  timezone: string;
+
   @ApiProperty()
   createdAt: Date;
 
@@ -65,6 +71,7 @@ export class UserSettingsResponseDto {
     dto.defaultCurrency = settings.defaultCurrency;
     dto.dateFormat = settings.dateFormat;
     dto.startOfWeek = settings.startOfWeek;
+    dto.timezone = settings.timezone;
     dto.createdAt = settings.createdAt;
     dto.updatedAt = settings.updatedAt;
     return dto;

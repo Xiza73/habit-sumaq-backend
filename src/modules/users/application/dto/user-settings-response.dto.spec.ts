@@ -18,6 +18,7 @@ describe('UserSettingsResponseDto', () => {
         defaultCurrency: Currency.USD,
         dateFormat: DateFormat.MM_DD_YYYY,
         startOfWeek: StartOfWeek.SUNDAY,
+        timezone: 'America/Lima',
       });
 
       const dto = UserSettingsResponseDto.fromDomain(settings);
@@ -28,6 +29,7 @@ describe('UserSettingsResponseDto', () => {
       expect(dto.defaultCurrency).toBe(Currency.USD);
       expect(dto.dateFormat).toBe(DateFormat.MM_DD_YYYY);
       expect(dto.startOfWeek).toBe(StartOfWeek.SUNDAY);
+      expect(dto.timezone).toBe('America/Lima');
       expect(dto.createdAt).toBe(settings.createdAt);
       expect(dto.updatedAt).toBe(settings.updatedAt);
     });

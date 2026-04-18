@@ -17,6 +17,7 @@ export function buildUserSettings(overrides: Partial<UserSettings> = {}): UserSe
     overrides.defaultCurrency ?? Currency.PEN,
     overrides.dateFormat ?? DateFormat.DD_MM_YYYY,
     overrides.startOfWeek ?? StartOfWeek.MONDAY,
+    overrides.timezone ?? 'UTC',
     overrides.createdAt ?? new Date('2026-01-01'),
     overrides.updatedAt ?? new Date('2026-01-01'),
   );

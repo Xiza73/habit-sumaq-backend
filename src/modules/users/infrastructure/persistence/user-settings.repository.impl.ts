@@ -37,6 +37,7 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       defaultCurrency: settings.defaultCurrency,
       dateFormat: settings.dateFormat,
       startOfWeek: settings.startOfWeek,
+      timezone: settings.timezone,
       updatedAt: settings.updatedAt,
     });
     return this.toDomain(saved as UserSettingsOrmEntity);
@@ -51,6 +52,7 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       orm.defaultCurrency,
       orm.dateFormat,
       orm.startOfWeek,
+      orm.timezone,
       orm.createdAt,
       orm.updatedAt,
     );
