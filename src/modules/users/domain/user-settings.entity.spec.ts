@@ -38,6 +38,12 @@ describe('UserSettings', () => {
       expect(settings.startOfWeek).toBe(StartOfWeek.SUNDAY);
     });
 
+    it('should update timezone', () => {
+      const settings = buildUserSettings({ timezone: 'UTC' });
+      settings.update({ timezone: 'America/Lima' });
+      expect(settings.timezone).toBe('America/Lima');
+    });
+
     it('should update multiple fields at once', () => {
       const settings = buildUserSettings();
       settings.update({

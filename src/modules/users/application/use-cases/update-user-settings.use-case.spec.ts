@@ -60,4 +60,15 @@ describe('UpdateUserSettingsUseCase', () => {
 
     expect(mockRepo.save).toHaveBeenCalled();
   });
+
+  it('should update timezone', async () => {
+    const settings = buildUserSettings({ userId: 'user-1', timezone: 'UTC' });
+    mockRepo.findByUserId.mockResolvedValue(settings);
+    mockRepo.save.mockResolvedValue(settings);
+
+    const result = await useCase.execute('user-1', { timezone: 'America/Lima' });
+
+    expect(result.timezone).toBe('America/Lima');
+    expect(mockRepo.save).toHaveBeenCalled();
+  });
 });
