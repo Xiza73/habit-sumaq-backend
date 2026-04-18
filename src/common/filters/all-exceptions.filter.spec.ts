@@ -2,6 +2,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 
+import { type PinoLogger } from 'nestjs-pino';
+
+import { buildMockPinoLogger } from '../__tests__/pino-logger.mock';
 import { DomainException } from '../exceptions/domain.exception';
 
 import { AllExceptionsFilter } from './all-exceptions.filter';
@@ -19,7 +22,8 @@ describe('AllExceptionsFilter', () => {
   let responseMock: { status: jest.Mock; json: jest.Mock };
 
   beforeEach(() => {
-    filter = new AllExceptionsFilter();
+    const mockLogger = buildMockPinoLogger();
+    filter = new AllExceptionsFilter(mockLogger as unknown as PinoLogger);
     const json = jest.fn();
     responseMock = { status: jest.fn().mockReturnValue({ json }), json };
   });

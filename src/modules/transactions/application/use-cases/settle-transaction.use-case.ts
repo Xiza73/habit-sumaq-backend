@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
@@ -13,11 +15,11 @@ import type { SettleTransactionDto } from '../dto/settle-transaction.dto';
 
 @Injectable()
 export class SettleTransactionUseCase {
-  private readonly logger = new Logger(SettleTransactionUseCase.name);
-
   constructor(
     private readonly txRepo: TransactionRepository,
     private readonly accountRepo: AccountRepository,
+    @InjectPinoLogger(SettleTransactionUseCase.name)
+    private readonly logger: PinoLogger,
   ) {}
 
   async execute(id: string, userId: string, dto: SettleTransactionDto): Promise<Transaction> {
@@ -100,8 +102,16 @@ export class SettleTransactionUseCase {
     original.applySettlement(dto.amount);
     await this.txRepo.save(original);
 
-    this.logger.log(
-      `Liquidación: settlement=${savedSettlement.id} original=${original.id} monto=${dto.amount} remaining=${original.remainingAmount}`,
+    this.logger.info(
+      {
+        event: 'transaction.settled',
+        settlementId: savedSettlement.id,
+        originalTransactionId: original.id,
+        userId,
+        amount: dto.amount,
+        remaining: original.remainingAmount,
+      },
+      'transaction.settled',
     );
 
     return savedSettlement;

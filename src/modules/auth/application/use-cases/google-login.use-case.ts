@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 
@@ -18,17 +20,20 @@ export interface AuthTokens {
 
 @Injectable()
 export class GoogleLoginUseCase {
-  private readonly logger = new Logger(GoogleLoginUseCase.name);
-
   constructor(
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly refreshTokenRepo: RefreshTokenRepository,
+    @InjectPinoLogger(GoogleLoginUseCase.name)
+    private readonly logger: PinoLogger,
   ) {}
 
   async execute(user: User): Promise<AuthTokens> {
     if (!user.isActive) {
-      this.logger.warn(`Intento de login de usuario inactivo: ${user.id}`);
+      this.logger.warn(
+        { event: 'auth.google.login.inactive_user', userId: user.id },
+        'auth.google.login.inactive_user',
+      );
       throw new DomainException('USER_INACTIVE', 'La cuenta de usuario está desactivada');
     }
 
@@ -47,7 +52,10 @@ export class GoogleLoginUseCase {
 
     await this.refreshTokenRepo.create({ userId: user.id, hashedToken, expiresAt });
 
-    this.logger.log(`Login exitoso: userId=${user.id}`);
+    this.logger.info(
+      { event: 'auth.google.login.success', userId: user.id },
+      'auth.google.login.success',
+    );
     return { accessToken, rawRefreshToken };
   }
 

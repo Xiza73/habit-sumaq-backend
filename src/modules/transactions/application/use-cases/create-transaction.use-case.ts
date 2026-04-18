@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
@@ -14,11 +16,11 @@ import type { CreateTransactionDto } from '../dto/create-transaction.dto';
 
 @Injectable()
 export class CreateTransactionUseCase {
-  private readonly logger = new Logger(CreateTransactionUseCase.name);
-
   constructor(
     private readonly txRepo: TransactionRepository,
     private readonly accountRepo: AccountRepository,
+    @InjectPinoLogger(CreateTransactionUseCase.name)
+    private readonly logger: PinoLogger,
   ) {}
 
   async execute(userId: string, dto: CreateTransactionDto): Promise<Transaction> {
@@ -111,8 +113,16 @@ export class CreateTransactionUseCase {
     );
 
     const saved = await this.txRepo.save(transaction);
-    this.logger.log(
-      `Transacción creada: id=${saved.id} tipo=${dto.type} monto=${dto.amount} cuenta=${dto.accountId}`,
+    this.logger.info(
+      {
+        event: 'transaction.created',
+        transactionId: saved.id,
+        userId,
+        type: dto.type,
+        amount: dto.amount,
+        accountId: dto.accountId,
+      },
+      'transaction.created',
     );
     return saved;
   }

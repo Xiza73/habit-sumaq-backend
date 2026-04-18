@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 
@@ -11,13 +13,16 @@ import type { CreateCategoryDto } from '../dto/create-category.dto';
 
 @Injectable()
 export class CreateCategoryUseCase {
-  private readonly logger = new Logger(CreateCategoryUseCase.name);
-
-  constructor(private readonly categoryRepo: CategoryRepository) {}
+  constructor(
+    private readonly categoryRepo: CategoryRepository,
+    @InjectPinoLogger(CreateCategoryUseCase.name)
+    private readonly logger: PinoLogger,
+  ) {}
 
   async execute(userId: string, dto: CreateCategoryDto): Promise<Category> {
     const existing = await this.categoryRepo.findByUserIdAndName(userId, dto.name);
     if (existing) {
+      this.logger.warn({ event: 'category.create.conflict', userId }, 'category.create.conflict');
       throw new DomainException(
         'CATEGORY_NAME_TAKEN',
         `Ya existe una categoría llamada "${dto.name}"`,
@@ -39,7 +44,10 @@ export class CreateCategoryUseCase {
     );
 
     const saved = await this.categoryRepo.save(category);
-    this.logger.log({ categoryId: saved.id, userId }, 'Categoría creada');
+    this.logger.info(
+      { event: 'category.created', categoryId: saved.id, userId, type: dto.type },
+      'category.created',
+    );
     return saved;
   }
 }
