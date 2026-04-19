@@ -25,6 +25,6 @@ import { UserSettingsController } from './user-settings.controller';
     { provide: UserRepository, useClass: UserRepositoryImpl },
     { provide: UserSettingsRepository, useClass: UserSettingsRepositoryImpl },
   ],
-  exports: [FindOrCreateUserUseCase, GetUserProfileUseCase],
+  exports: [FindOrCreateUserUseCase, GetUserProfileUseCase, UserSettingsRepository],
 })
 export class UsersModule {}

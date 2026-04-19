@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/presentation/auth.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
 import { HabitsModule } from './modules/habits/presentation/habits.module';
 import { HealthModule } from './modules/health/health.module';
+import { QuickTasksModule } from './modules/quick-tasks/presentation/quick-tasks.module';
 import { TransactionsModule } from './modules/transactions/presentation/transactions.module';
 import { UsersModule } from './modules/users/presentation/users.module';
 import { AppController } from './app.controller';
@@ -29,6 +30,7 @@ import { AppService } from './app.service';
     CategoriesModule,
     TransactionsModule,
     HabitsModule,
+    QuickTasksModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
     LoggerModule.forRoot({
