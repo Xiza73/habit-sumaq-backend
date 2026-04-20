@@ -394,36 +394,90 @@ GET    /habits/:id/logs     → Historial de logs (query: dateFrom, dateTo, page
 
 ---
 
+## Fase 7 — Timezone en user-settings ✅
+
+**Objetivo:** Guardar la IANA timezone del usuario como pre-requisito para features que razonan en "días del usuario" (cleanup diario en quick-tasks, rangos calendario-alineados en reports).
+
+- [x] Columna `timezone varchar(64) NOT NULL DEFAULT 'UTC'` en `user_settings` (migración `AddTimezoneToUserSettings`)
+- [x] Validador `@IsIanaTimezone()` en `src/common/validators/` — usa `Intl.DateTimeFormat` para rechazar garbage
+- [x] Campo en `UpdateUserSettingsDto` + `UserSettingsResponseDto`
+- [x] `UserSettings` domain entity + repo impl + factory + 16 tests
+- [x] Default `'UTC'` permite a usuarios pre-existentes seguir sin cambios; el frontend auto-detecta en el primer login post-deploy
+
+**Criterio de completitud:** PATCH con zona inválida → 400; PATCH con zona canónica → 200; tests unitarios verdes. ✅
+
+---
+
+## Fase 8 — Quick Tasks (Diarias) ✅
+
+**Objetivo:** Módulo ligero de TODO diario con auto-cleanup timezone-aware.
+
+- [x] `QuickTask` domain entity con invariantes (`title <= 120`, `description <= 5000`, título no vacío)
+- [x] 5 endpoints: `GET`, `POST`, `PATCH /:id`, `DELETE /:id`, `PATCH /reorder`
+- [x] **Hard delete** (excepción explícita a la convención global de soft delete — documentada en el use case y PR body)
+- [x] Lazy cleanup en `GET /quick-tasks`: borra `completed + completedAt < startOfTodayInTimezone(user.timezone)`
+- [x] Helper `startOfTodayInTimezone` en `src/modules/quick-tasks/infrastructure/timezone/` con tests sobre zonas DST (Madrid, Lima, Tokyo, fallback UTC)
+- [x] Reorder acepta `orderedIds: UUID[]` y renumera 1..N en transacción
+- [x] Códigos de error `QTK_001..006` mapeados en `DOMAIN_HTTP_MAP`
+- [x] E2E suite con 10 casos (auth, CRUD, validation, reorder + ownership, lazy cleanup)
+
+**Criterio de completitud:** 337 unit tests + 105 e2e pasando. ✅
+
+---
+
+## Fase 9 — Reportes (Dashboards agregados) ✅
+
+**Objetivo:** Endpoints de agregación por módulo (Finanzas, Rutinas) con `period` configurable. Sin tablas nuevas — solo queries sobre las entidades existentes.
+
+- [x] Módulo `reports/` con estructura Clean Arch pero sin `domain/entity` (los reports son derivados, no persistidos)
+- [x] `GET /api/v1/reports/finances-dashboard?period=week|30d|month|3m`
+- [x] `GET /api/v1/reports/routines-dashboard?period=...`
+- [x] Helper `computePeriodRange(period, timezone, startOfWeek)` en `src/modules/reports/application/utils/`, Intl-based, tested con DST
+- [x] Extensiones en `TransactionRepository`: `sumFlowByCurrencyInRange`, `topExpenseCategoriesInRange`, `dailyNetFlowInRange` (raw SQL + JOIN con accounts para agrupar por moneda)
+- [x] Reuso de `StatsCalculator` y `aggregateDebtsByReference` para no duplicar lógica
+- [x] `HabitsModule` y `QuickTasksModule` ahora exportan sus repositorios para ser consumidos por `ReportsModule`
+- [x] E2E: 4 casos por endpoint (401, empty, wired data, 400 on bad period)
+
+**Criterio de completitud:** 355 unit tests + 112 e2e pasando, respuestas correctas sobre data real. ✅
+
+---
+
 ## Orden de dependencias entre módulos (actualizado)
 
 ```
 ConfigModule + DatabaseModule (Fase 0)
        ↓
-  UsersModule (Fase 1.1)
+  UsersModule (Fase 1.1) ─────────────────────── [exporta UserSettingsRepository]
        ↓
    AuthModule (Fase 1.2)
        ↓
- AccountsModule (Fase 2)
-       ↓
-CategoriesModule (Fase 4)
-       ↓
-TransactionsModule (Fase 5)
-
-  UsersModule (Fase 1.1)
-       ↓
-  HabitsModule (Fase 6)    ← independiente del módulo financiero
+ AccountsModule (Fase 2) ───────────────────────┐
+       ↓                                         │
+CategoriesModule (Fase 4)                        │
+       ↓                                         │
+TransactionsModule (Fase 5)  ───────────────────┤
+       ↓ [reuso]                                 │
+  ReportsModule (Fase 9) ←───────────────────────┤
+                                                 │
+  UsersModule (Fase 1.1)                         │
+       ↓                                         │
+  HabitsModule (Fase 6) ─────────────────────────┤
+       ↓                                         │
+QuickTasksModule (Fase 8) ←───────────────────────┘
+       ↑
+  Fase 7 (timezone en user-settings) es pre-requisito de Fase 8 y Fase 9
 ```
 
 ---
 
-## Lo que NO se implementa en v2 inicial
+## Lo que NO se implementa (backlog post-MVP actual)
 
-Para mantener el foco, estas features quedan fuera del alcance actual:
-
-- Daily Planner
+- Presupuestos por categoría con alertas
+- Vinculación hábitos ↔ transacciones (hábitos con costo asociado)
+- Daily Planner / Schedule
 - Notificaciones push
-- Multi-moneda con conversión
-- Exportación CSV
+- Multi-moneda con conversión automática
+- Exportación / importación CSV-JSON
 - Roles y permisos granulares
-- Presupuestos por categoría
-- Vinculación hábitos ↔ transacciones (post-Fase 6)
+- Historial de quick-tasks completadas (hoy se pierden al cleanup; requiere tabla de log dedicada)
+- Heatmap anual en el dashboard de Rutinas (hoy solo en la página de hábitos)
