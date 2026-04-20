@@ -5,9 +5,12 @@ import { Repository } from 'typeorm';
 
 import { Transaction } from '../../domain/transaction.entity';
 import {
+  type DailyNetFlowRow,
   type DebtsSummaryRow,
   type DebtsSummaryStatusFilter,
+  type FlowByCurrencyRow,
   type PaginatedTransactions,
+  type TopCategoryRow,
   type TransactionFilters,
   TransactionRepository,
 } from '../../domain/transaction.repository';
@@ -203,6 +206,118 @@ export class TransactionRepositoryImpl extends TransactionRepository {
 
     const entities = await qb.getMany();
     return entities.map((e) => this.toDomain(e));
+  }
+
+  async sumFlowByCurrencyInRange(
+    userId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<FlowByCurrencyRow[]> {
+    // Excludes DEBT/LOAN (never affect balance) and TRANSFER (double-counts).
+    const rows = await this.repo.manager.query<
+      Array<{ currency: string; income: string; expense: string }>
+    >(
+      `
+      SELECT
+        a.currency AS currency,
+        COALESCE(SUM(CASE WHEN tx.type = 'INCOME' THEN tx.amount ELSE 0 END), 0) AS income,
+        COALESCE(SUM(CASE WHEN tx.type = 'EXPENSE' THEN tx.amount ELSE 0 END), 0) AS expense
+      FROM transactions tx
+      INNER JOIN accounts a ON a.id = tx."accountId"
+      WHERE tx."userId" = $1
+        AND tx."deletedAt" IS NULL
+        AND tx.type IN ('INCOME', 'EXPENSE')
+        AND tx.date >= $2
+        AND tx.date <= $3
+      GROUP BY a.currency
+      ORDER BY a.currency ASC
+      `,
+      [userId, dateFrom, dateTo],
+    );
+    return rows.map((r) => ({
+      currency: r.currency,
+      income: Number(r.income),
+      expense: Number(r.expense),
+    }));
+  }
+
+  async topExpenseCategoriesInRange(
+    userId: string,
+    dateFrom: Date,
+    dateTo: Date,
+    limit: number,
+  ): Promise<TopCategoryRow[]> {
+    const rows = await this.repo.manager.query<
+      Array<{
+        category_id: string | null;
+        name: string | null;
+        color: string | null;
+        currency: string;
+        total: string;
+      }>
+    >(
+      `
+      SELECT
+        tx."categoryId" AS category_id,
+        c.name AS name,
+        c.color AS color,
+        a.currency AS currency,
+        COALESCE(SUM(tx.amount), 0) AS total
+      FROM transactions tx
+      INNER JOIN accounts a ON a.id = tx."accountId"
+      LEFT JOIN categories c ON c.id = tx."categoryId"
+      WHERE tx."userId" = $1
+        AND tx."deletedAt" IS NULL
+        AND tx.type = 'EXPENSE'
+        AND tx.date >= $2
+        AND tx.date <= $3
+      GROUP BY tx."categoryId", c.name, c.color, a.currency
+      ORDER BY total DESC
+      LIMIT $4
+      `,
+      [userId, dateFrom, dateTo, limit],
+    );
+    return rows.map((r) => ({
+      categoryId: r.category_id,
+      name: r.name,
+      color: r.color,
+      currency: r.currency,
+      total: Number(r.total),
+    }));
+  }
+
+  async dailyNetFlowInRange(
+    userId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<DailyNetFlowRow[]> {
+    const rows = await this.repo.manager.query<
+      Array<{ date: string; currency: string; income: string; expense: string }>
+    >(
+      `
+      SELECT
+        TO_CHAR(tx.date AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date,
+        a.currency AS currency,
+        COALESCE(SUM(CASE WHEN tx.type = 'INCOME' THEN tx.amount ELSE 0 END), 0) AS income,
+        COALESCE(SUM(CASE WHEN tx.type = 'EXPENSE' THEN tx.amount ELSE 0 END), 0) AS expense
+      FROM transactions tx
+      INNER JOIN accounts a ON a.id = tx."accountId"
+      WHERE tx."userId" = $1
+        AND tx."deletedAt" IS NULL
+        AND tx.type IN ('INCOME', 'EXPENSE')
+        AND tx.date >= $2
+        AND tx.date <= $3
+      GROUP BY TO_CHAR(tx.date AT TIME ZONE 'UTC', 'YYYY-MM-DD'), a.currency
+      ORDER BY date ASC, currency ASC
+      `,
+      [userId, dateFrom, dateTo],
+    );
+    return rows.map((r) => ({
+      date: r.date,
+      currency: r.currency,
+      income: Number(r.income),
+      expense: Number(r.expense),
+    }));
   }
 
   private toDomain(entity: TransactionOrmEntity): Transaction {

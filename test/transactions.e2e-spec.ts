@@ -53,6 +53,9 @@ describe('TransactionsController (e2e)', () => {
     existsByAccountId: jest.fn(),
     aggregateDebtsByReference: jest.fn(),
     findPendingDebtOrLoanByNormalizedReference: jest.fn(),
+    sumFlowByCurrencyInRange: jest.fn(),
+    topExpenseCategoriesInRange: jest.fn(),
+    dailyNetFlowInRange: jest.fn(),
   };
 
   const mockAccountRepo: jest.Mocked<AccountRepository> = {

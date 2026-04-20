@@ -35,5 +35,6 @@ import { HabitsController } from './habits.controller';
     GetHabitLogsUseCase,
     GetDailySummaryUseCase,
   ],
+  exports: [HabitRepository, HabitLogRepository],
 })
 export class HabitsModule {}

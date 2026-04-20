@@ -24,5 +24,6 @@ import { QuickTasksController } from './quick-tasks.controller';
     DeleteQuickTaskUseCase,
     ReorderQuickTasksUseCase,
   ],
+  exports: [QuickTaskRepository],
 })
 export class QuickTasksModule {}
