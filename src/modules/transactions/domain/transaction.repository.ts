@@ -20,6 +20,31 @@ export interface PaginatedTransactions {
 
 export type DebtsSummaryStatusFilter = 'pending' | 'all' | 'settled';
 
+/** Aggregate row returned by {@link TransactionRepository.sumFlowByCurrencyInRange}. */
+export interface FlowByCurrencyRow {
+  currency: string;
+  income: number;
+  expense: number;
+}
+
+/** Aggregate row returned by {@link TransactionRepository.topExpenseCategoriesInRange}. */
+export interface TopCategoryRow {
+  categoryId: string | null;
+  name: string | null;
+  color: string | null;
+  currency: string;
+  total: number;
+}
+
+/** Aggregate row returned by {@link TransactionRepository.dailyNetFlowInRange}. */
+export interface DailyNetFlowRow {
+  /** `YYYY-MM-DD` in UTC — frontend renders per-currency lines. */
+  date: string;
+  currency: string;
+  income: number;
+  expense: number;
+}
+
 export interface DebtsSummaryRow {
   /** Normalized reference — lowercase and accent-stripped. Part of grouping key. */
   reference: string;
@@ -79,4 +104,37 @@ export abstract class TransactionRepository {
     reference: string,
     currency?: string,
   ): Promise<Transaction[]>;
+
+  /**
+   * Sum INCOME and EXPENSE amounts in a given date range, grouped by the
+   * currency of the source account. Excludes DEBT/LOAN and their settlements
+   * (those are accounted for via {@link aggregateDebtsByReference}).
+   */
+  abstract sumFlowByCurrencyInRange(
+    userId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<FlowByCurrencyRow[]>;
+
+  /**
+   * Top N EXPENSE categories by total amount in the given date range, grouped
+   * by category + currency. Uncategorized rows (categoryId null) collapse into
+   * a single row with name=null. Ordered by total DESC.
+   */
+  abstract topExpenseCategoriesInRange(
+    userId: string,
+    dateFrom: Date,
+    dateTo: Date,
+    limit: number,
+  ): Promise<TopCategoryRow[]>;
+
+  /**
+   * Per-day INCOME + EXPENSE totals in the range, grouped by date (UTC) and
+   * currency. Used to render a "daily flow" chart on the finances dashboard.
+   */
+  abstract dailyNetFlowInRange(
+    userId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<DailyNetFlowRow[]>;
 }

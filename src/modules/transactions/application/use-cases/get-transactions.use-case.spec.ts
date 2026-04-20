@@ -18,6 +18,9 @@ describe('GetTransactionsUseCase', () => {
       existsByAccountId: jest.fn(),
       aggregateDebtsByReference: jest.fn(),
       findPendingDebtOrLoanByNormalizedReference: jest.fn(),
+      sumFlowByCurrencyInRange: jest.fn(),
+      topExpenseCategoriesInRange: jest.fn(),
+      dailyNetFlowInRange: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
     useCase = new GetTransactionsUseCase(txRepo);
