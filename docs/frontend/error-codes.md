@@ -26,55 +26,78 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 
 ### Cuentas
 
-| Código | HTTP | Descripción | Cuándo ocurre |
-|---|---|---|---|
-| `ACC_001` | 404 | Cuenta no encontrada | GET/PATCH/DELETE con UUID inexistente |
-| `ACC_002` | 409 | Nombre de cuenta ya en uso | POST/PATCH con nombre duplicado |
-| `ACC_003` | 409 | La cuenta tiene transacciones activas | DELETE de cuenta con transacciones |
-| `ACC_004` | 403 | La cuenta pertenece a otro usuario | Acceso a cuenta ajena |
-| `ACC_005` | 409 | No se puede cambiar la moneda | Cambio de moneda con transacciones existentes |
+| Código    | HTTP | Descripción                           | Cuándo ocurre                                 |
+| --------- | ---- | ------------------------------------- | --------------------------------------------- |
+| `ACC_001` | 404  | Cuenta no encontrada                  | GET/PATCH/DELETE con UUID inexistente         |
+| `ACC_002` | 409  | Nombre de cuenta ya en uso            | POST/PATCH con nombre duplicado               |
+| `ACC_003` | 409  | La cuenta tiene transacciones activas | DELETE de cuenta con transacciones            |
+| `ACC_004` | 403  | La cuenta pertenece a otro usuario    | Acceso a cuenta ajena                         |
+| `ACC_005` | 409  | No se puede cambiar la moneda         | Cambio de moneda con transacciones existentes |
 
 ### Categorías
 
-| Código | HTTP | Descripción | Cuándo ocurre |
-|---|---|---|---|
-| `CAT_001` | 404 | Categoría no encontrada | GET/PATCH/DELETE con UUID inexistente |
-| `CAT_002` | 409 | Nombre ya en uso para este tipo | POST/PATCH con nombre duplicado por tipo |
-| `CAT_003` | 403 | La categoría pertenece a otro usuario | Acceso a categoría ajena |
-| `CAT_004` | 409 | No se puede eliminar categoría por defecto | DELETE de categoría con `isDefault=true` |
+| Código    | HTTP | Descripción                                | Cuándo ocurre                            |
+| --------- | ---- | ------------------------------------------ | ---------------------------------------- |
+| `CAT_001` | 404  | Categoría no encontrada                    | GET/PATCH/DELETE con UUID inexistente    |
+| `CAT_002` | 409  | Nombre ya en uso para este tipo            | POST/PATCH con nombre duplicado por tipo |
+| `CAT_003` | 403  | La categoría pertenece a otro usuario      | Acceso a categoría ajena                 |
+| `CAT_004` | 409  | No se puede eliminar categoría por defecto | DELETE de categoría con `isDefault=true` |
 
 ### Transacciones
 
-| Código | HTTP | Descripción | Cuándo ocurre |
-|---|---|---|---|
-| `TXN_001` | 404 | Transacción no encontrada | GET/PATCH/DELETE con UUID inexistente |
-| `TXN_002` | 403 | La transacción pertenece a otro usuario | Acceso a transacción ajena |
-| `TXN_003` | 422 | Balance insuficiente | EXPENSE/TRANSFER excede el balance |
-| `TXN_004` | 422 | No se puede transferir a la misma cuenta | TRANSFER con `accountId === destinationAccountId` |
-| `TXN_005` | 422 | Las cuentas tienen monedas distintas | TRANSFER entre cuentas con diferente currency |
-| `TXN_006` | 404 | Cuenta destino no encontrada | TRANSFER con `destinationAccountId` inválido |
-| `TXN_007` | 422 | Falta cuenta destino | TRANSFER sin `destinationAccountId` |
+| Código    | HTTP | Descripción                              | Cuándo ocurre                                     |
+| --------- | ---- | ---------------------------------------- | ------------------------------------------------- |
+| `TXN_001` | 404  | Transacción no encontrada                | GET/PATCH/DELETE con UUID inexistente             |
+| `TXN_002` | 403  | La transacción pertenece a otro usuario  | Acceso a transacción ajena                        |
+| `TXN_003` | 422  | Balance insuficiente                     | EXPENSE/TRANSFER excede el balance                |
+| `TXN_004` | 422  | No se puede transferir a la misma cuenta | TRANSFER con `accountId === destinationAccountId` |
+| `TXN_005` | 422  | Las cuentas tienen monedas distintas     | TRANSFER entre cuentas con diferente currency     |
+| `TXN_006` | 404  | Cuenta destino no encontrada             | TRANSFER con `destinationAccountId` inválido      |
+| `TXN_007` | 422  | Falta cuenta destino                     | TRANSFER sin `destinationAccountId`               |
 
 ### Deudas y préstamos
 
-| Código | HTTP | Descripción | Cuándo ocurre |
-|---|---|---|---|
-| `TXN_008` | 422 | DEBT/LOAN requiere campo `reference` | Crear DEBT/LOAN sin `reference` |
-| `TXN_009` | 422 | Solo se pueden liquidar DEBT/LOAN | POST settle en INCOME/EXPENSE/TRANSFER |
-| `TXN_010` | 409 | Ya fue liquidada completamente | POST settle en transacción con `status=SETTLED` |
-| `TXN_011` | 409 | No se puede modificar una tx liquidada | PATCH en DEBT/LOAN con `status=SETTLED` |
-| `TXN_012` | 422 | El monto excede el saldo pendiente | POST settle con `amount > remainingAmount` |
+| Código    | HTTP | Descripción                            | Cuándo ocurre                                   |
+| --------- | ---- | -------------------------------------- | ----------------------------------------------- |
+| `TXN_008` | 422  | DEBT/LOAN requiere campo `reference`   | Crear DEBT/LOAN sin `reference`                 |
+| `TXN_009` | 422  | Solo se pueden liquidar DEBT/LOAN      | POST settle en INCOME/EXPENSE/TRANSFER          |
+| `TXN_010` | 409  | Ya fue liquidada completamente         | POST settle en transacción con `status=SETTLED` |
+| `TXN_011` | 409  | No se puede modificar una tx liquidada | PATCH en DEBT/LOAN con `status=SETTLED`         |
+| `TXN_012` | 422  | El monto excede el saldo pendiente     | POST settle con `amount > remainingAmount`      |
+| `TXN_013` | 422  | Monto menor que lo ya liquidado        | PATCH amount en DEBT/LOAN por debajo de pagos   |
+
+### Hábitos
+
+| Código    | HTTP | Descripción                        | Cuándo ocurre                            |
+| --------- | ---- | ---------------------------------- | ---------------------------------------- |
+| `HAB_001` | 404  | Hábito no encontrado               | GET/PATCH/DELETE con UUID inexistente    |
+| `HAB_002` | 409  | Nombre de hábito ya en uso         | POST/PATCH con nombre duplicado          |
+| `HAB_003` | 422  | Hábito archivado                   | POST log en hábito con `isArchived=true` |
+| `HAB_004` | 422  | Fecha futura                       | POST log con fecha posterior a hoy       |
+| `HAB_005` | 422  | targetCount inválido               | targetCount < 1                          |
+| `HAB_006` | 403  | El hábito pertenece a otro usuario | Acceso a hábito ajeno                    |
+
+### Quick Tasks (Diarias)
+
+| Código    | HTTP | Descripción                                   | Cuándo ocurre                                                |
+| --------- | ---- | --------------------------------------------- | ------------------------------------------------------------ |
+| `QTK_001` | 404  | Tarea no encontrada                           | PATCH/DELETE con UUID inexistente                            |
+| `QTK_002` | 403  | La tarea pertenece a otro usuario             | Acceso a tarea ajena                                         |
+| `QTK_003` | 422  | Título obligatorio                            | POST/PATCH con `title` vacío o solo whitespace               |
+| `QTK_004` | 422  | Título supera 120 chars                       | POST/PATCH con título demasiado largo                        |
+| `QTK_005` | 422  | Descripción supera 5000 chars                 | POST/PATCH con descripción demasiado larga                   |
+| `QTK_006` | 422  | Reorder incluye ids no propias del usuario    | PATCH /quick-tasks/reorder con uuid de otro user o inexistente |
 
 ### Generales
 
-| Código | HTTP | Descripción | Cuándo ocurre |
-|---|---|---|---|
-| `VAL_001` | 422 | Monto inválido | Monto negativo o con formato incorrecto |
-| `VAL_002` | 422 | Incompatibilidad de monedas | Operaciones entre monedas distintas |
-| `GEN_001` | 400 | Error de validación de campos | Campos faltantes, formato incorrecto, etc. |
-| `USR_001` | 404 | Usuario no encontrado | Token válido pero usuario eliminado |
-| `USR_002` | 403 | Usuario desactivado | Token válido pero usuario inactivo |
-| `AUT_001` | 401 | Refresh token inválido o expirado | POST /auth/refresh con token malo |
+| Código    | HTTP | Descripción                       | Cuándo ocurre                              |
+| --------- | ---- | --------------------------------- | ------------------------------------------ |
+| `VAL_001` | 422  | Monto inválido                    | Monto negativo o con formato incorrecto    |
+| `VAL_002` | 422  | Incompatibilidad de monedas       | Operaciones entre monedas distintas        |
+| `GEN_001` | 400  | Error de validación de campos     | Campos faltantes, formato incorrecto, etc. |
+| `USR_001` | 404  | Usuario no encontrado             | Token válido pero usuario eliminado        |
+| `USR_002` | 403  | Usuario desactivado               | Token válido pero usuario inactivo         |
+| `AUT_001` | 401  | Refresh token inválido o expirado | POST /auth/refresh con token malo          |
 
 ---
 

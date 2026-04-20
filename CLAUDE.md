@@ -207,3 +207,47 @@ pnpm test:cov
 # Lint
 pnpm lint
 ```
+
+---
+
+## Convención de documentación (obligatoria)
+
+Todo cambio con impacto de **contrato público** o **arquitectura** debe documentarse **antes** de empezar y **después** de shipear. Sin excepción. Esta convención complementa la checklist de auditoría de arriba — la auditoría valida código, esto valida docs.
+
+### Antes de codear
+
+Si el PR introduce un endpoint, módulo, variable de entorno, comando de `package.json`, DTO nuevo, o código de error:
+
+1. **Escribir o actualizar el doc primero** con la shape planeada. El diff del doc sirve como "spec" al que codear.
+2. Archivos candidatos (no todos aplican a cada cambio):
+   - [`docs/frontend/api-reference.md`](docs/frontend/api-reference.md) si el cambio toca la API expuesta al frontend
+   - [`docs/frontend/error-codes.md`](docs/frontend/error-codes.md) si hay códigos nuevos
+   - [`docs/frontend/enums.md`](docs/frontend/enums.md) si hay enums nuevos
+   - [`docs/api-conventions.md`](docs/api-conventions.md) si cambia el patrón de request/response (ApiResponse wrapper, paginación, etc.)
+   - [`docs/architecture.md`](docs/architecture.md) si cambia la estructura de capas o dependencias entre módulos
+   - [`docs/business-model.md`](docs/business-model.md) si cambia una regla de negocio o se agrega una entidad de dominio
+   - [`docs/implementation-plan.md`](docs/implementation-plan.md) si es una fase nueva o cambia el alcance de una existente
+   - `README.md` si cambian comandos, env vars, prereqs o estructura de carpetas
+   - `.env.example` si se agrega una variable obligatoria
+
+### Después de shipear (checklist del PR)
+
+- [ ] `api-reference.md` refleja la shape final si difiere de la planeada
+- [ ] `error-codes.md` incluye cualquier código de error nuevo + está mapeado en `DOMAIN_HTTP_MAP` + agregado a `ERROR_CODES` en `src/common/errors/error-codes.ts`
+- [ ] `enums.md` refleja los enums nuevos
+- [ ] `implementation-plan.md` marca la fase con ✅ si quedó completa, o actualiza su avance
+- [ ] `README.md` actualizado si cambiaron comandos, env vars, módulos listados o estructura
+- [ ] `.env.example` refleja variables nuevas
+- [ ] Swagger registrado correctamente en los controllers (`@ApiTags`, `@ApiOperation`, `@ApiResponse` con códigos y descripciones)
+- [ ] Los TODOs introducidos en código tienen tag de fase: `// TODO (Fase X): ...`
+
+### Excepciones (no requieren doc)
+
+- Fixes puntuales sin cambio de contrato
+- Tests puros (nuevos specs sobre código existente)
+- Refactors internos que preservan la API pública
+- Dependencias menores sin impacto en el cliente
+
+> **Regla de dedo:** si dudás si documentar o no, **documentar igual**. Es más barato bajar una doc innecesaria que subir una que falta.
+
+> **Sincronización entre repos:** `docs/frontend/api-reference.md`, `docs/frontend/error-codes.md` y `docs/frontend/enums.md` están duplicados con `habit-sumaq-web/docs/frontend/*`. Mantenerlos en sync al modificar — o proponer al usuario unificarlos en algún momento.
