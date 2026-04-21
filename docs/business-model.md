@@ -305,3 +305,69 @@ HabitWithStats {
 | `targetCount` | Cantidad objetivo que define "completado" en un período |
 | `currentStreak` | Racha actual de períodos consecutivos completados |
 | `completionRate` | Porcentaje de cumplimiento en los últimos 30 días |
+
+---
+
+## Módulo Monthly Services
+
+### MonthlyService
+
+Representa un servicio recurrente que el usuario paga mes a mes (Netflix, gym, internet, etc.).
+
+```typescript
+MonthlyService {
+  id: UUID
+  userId: UUID                    // FK → User
+  name: string                    // "Netflix", "Gimnasio"
+  defaultAccountId: UUID          // FK → Account — cuenta habitual de pago
+  categoryId: UUID                // FK → Category — categoría de la transacción generada
+  currency: string                // ISO 4217, inmutable, debe coincidir con defaultAccount
+  estimatedAmount: number | null  // Recalculado como AVG de las últimas 3 tx al pagar
+  dueDay: number | null           // 1..31, informativo para UI
+  startPeriod: string             // YYYY-MM — primer período a pagar, inmutable
+  lastPaidPeriod: string | null   // YYYY-MM — último mes cubierto, null si nunca se pagó
+  isActive: boolean               // false = archivado
+  createdAt: Date
+  updatedAt: Date
+  deletedAt: Date | null          // Reservado para futuro; hoy el delete es hard
+}
+```
+
+**Valores calculados (no persistidos):**
+
+- `nextDuePeriod`: si `lastPaidPeriod` es null → `startPeriod`; si no → `lastPaidPeriod + 1 mes`.
+- `isOverdue`: `nextDuePeriod < currentMonthInUserTz`.
+- `isPaidForCurrentMonth`: `nextDuePeriod > currentMonthInUserTz`.
+
+Los tres se calculan en cada respuesta usando la timezone del header `x-timezone`.
+
+**Reglas de negocio:**
+
+1. La moneda del servicio es **inmutable** después de crearlo — transacciones y cuentas dependen de ella.
+2. `startPeriod` es **inmutable** — cambia el "origen" del scheduler y rompe la historia.
+3. Un usuario no puede tener dos servicios **activos** con el mismo nombre (índice parcial único en DB).
+4. Archivar un servicio no borra las transacciones vinculadas — el ledger queda intacto.
+5. `DELETE` sólo procede si el servicio **no tiene** transacciones vinculadas (`MSVC_001` en caso contrario).
+6. Pagar un servicio:
+   - Crea una `Transaction EXPENSE` con `monthlyServiceId` apuntando al servicio.
+   - Debita la cuenta elegida (default u `accountIdOverride`).
+   - Avanza `lastPaidPeriod` al `nextDuePeriod` que se acaba de facturar.
+   - Recalcula `estimatedAmount` = AVG de las últimas 3 transacciones del servicio.
+7. Saltear un mes sólo avanza `lastPaidPeriod`; no afecta balance ni crea transacción.
+
+**Invariantes de dominio:**
+
+| #  | Regla                                                                    | Módulo          |
+|----|--------------------------------------------------------------------------|-----------------|
+| 11 | La moneda del servicio = la moneda de la cuenta por defecto              | MonthlyService  |
+| 12 | La moneda no cambia después de creado                                    | MonthlyService  |
+| 13 | `startPeriod` no cambia después de creado                                | MonthlyService  |
+| 14 | Nombres de servicios activos únicos por usuario                          | MonthlyService  |
+| 15 | Un servicio con transacciones vinculadas no puede eliminarse (sólo archivarse) | MonthlyService  |
+
+**Relación con `Transaction`:**
+
+- `transactions.monthlyServiceId` (`UUID`, nullable) referencia a `monthly_services(id)`.
+- `ON DELETE SET NULL` — si el servicio se elimina (caso raro, sin pagos), las referencias quedan en null.
+- Las transacciones generadas por `POST /monthly-services/:id/pay` son `EXPENSE` normales, aparecen
+  en la lista general y en los reportes de finanzas como cualquier otro gasto.

@@ -88,6 +88,14 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `QTK_005` | 422  | Descripción supera 5000 chars                 | POST/PATCH con descripción demasiado larga                   |
 | `QTK_006` | 422  | Reorder incluye ids no propias del usuario    | PATCH /quick-tasks/reorder con uuid de otro user o inexistente |
 
+### Monthly Services
+
+| Código     | HTTP | Descripción                                 | Cuándo ocurre                                                                                        |
+| ---------- | ---- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `MSVC_001` | 409  | El servicio tiene pagos registrados         | DELETE /monthly-services/:id cuando existen transacciones vinculadas. Archivalo en su lugar.         |
+| `MSVC_002` | 404  | Servicio mensual no encontrado              | GET/PATCH/POST .../pay .../skip DELETE con UUID inexistente o perteneciente a otro usuario.          |
+| `MSVC_003` | 409  | Ya tenés un servicio activo con ese nombre  | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
+
 ### Generales
 
 | Código    | HTTP | Descripción                       | Cuándo ocurre                              |

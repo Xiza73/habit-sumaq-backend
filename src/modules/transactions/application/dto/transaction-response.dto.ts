@@ -69,6 +69,13 @@ export class TransactionResponseDto {
   })
   remainingAmount: number | null;
 
+  @ApiPropertyOptional({
+    description:
+      'UUID del servicio mensual que originó este pago (solo para EXPENSE generado por POST /monthly-services/:id/pay)',
+    nullable: true,
+  })
+  monthlyServiceId: string | null;
+
   @ApiProperty({ description: 'Fecha de creación' })
   createdAt: Date;
 
@@ -90,6 +97,7 @@ export class TransactionResponseDto {
     dto.status = tx.status;
     dto.relatedTransactionId = tx.relatedTransactionId;
     dto.remainingAmount = tx.remainingAmount;
+    dto.monthlyServiceId = tx.monthlyServiceId;
     dto.createdAt = tx.createdAt;
     dto.updatedAt = tx.updatedAt;
     return dto;

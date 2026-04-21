@@ -139,7 +139,7 @@ Al terminar cualquier feature (módulo, use case, endpoint o refactor significat
 
 ```bash
 pnpm test                  # 0 fallos en unit tests
-pnpm test:e2e              # 0 fallos en e2e (si aplica al feature)
+pnpm test:e2e              # 0 fallos — E2E son OBLIGATORIOS para todo feature nuevo con endpoints HTTP
 ```
 
 ### 2. Cobertura no regresa

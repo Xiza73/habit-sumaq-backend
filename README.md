@@ -94,6 +94,14 @@ El servidor queda disponible en `http://localhost:3010`.
 | PATCH | /api/v1/accounts/:id | Bearer | Actualizar cuenta |
 | PATCH | /api/v1/accounts/:id/archive | Bearer | Archivar cuenta |
 | DELETE | /api/v1/accounts/:id | Bearer | Eliminar cuenta |
+| GET | /api/v1/monthly-services | Bearer | Listar servicios mensuales |
+| GET | /api/v1/monthly-services/:id | Bearer | Obtener servicio mensual |
+| POST | /api/v1/monthly-services | Bearer | Crear servicio mensual |
+| PATCH | /api/v1/monthly-services/:id | Bearer | Editar servicio mensual |
+| POST | /api/v1/monthly-services/:id/pay | Bearer | Registrar pago del mes |
+| POST | /api/v1/monthly-services/:id/skip | Bearer | Saltear el mes sin pagar |
+| PATCH | /api/v1/monthly-services/:id/archive | Bearer | Archivar/desarchivar |
+| DELETE | /api/v1/monthly-services/:id | Bearer | Eliminar (solo sin pagos) |
 
 ## Comandos frecuentes
 

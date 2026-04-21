@@ -38,6 +38,8 @@ describe('GetFinancesDashboardUseCase', () => {
       sumFlowByCurrencyInRange: jest.fn().mockResolvedValue([]),
       topExpenseCategoriesInRange: jest.fn().mockResolvedValue([]),
       dailyNetFlowInRange: jest.fn().mockResolvedValue([]),
+      countByMonthlyServiceId: jest.fn(),
+      findLastNByMonthlyServiceId: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
     settingsRepo = {

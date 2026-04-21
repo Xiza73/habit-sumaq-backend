@@ -19,6 +19,7 @@ export class Transaction {
     readonly createdAt: Date,
     public updatedAt: Date,
     public deletedAt: Date | null,
+    public monthlyServiceId: string | null = null,
   ) {}
 
   isTransfer(): boolean {

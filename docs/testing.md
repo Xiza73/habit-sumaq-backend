@@ -175,6 +175,8 @@ export function createTestDataSource(): Promise<DataSource> {
 
 Testean el flujo HTTP completo: request → controller → use case → repositorio → DB → response.
 
+> **Requerimiento**: todo módulo nuevo que exponga endpoints HTTP debe incluir un archivo `test/<feature>.e2e-spec.ts` que cubra happy path + errores principales de cada endpoint.
+
 ### Endpoint de test para Playwright — `POST /auth/test-login`
 
 Para que la suite e2e del frontend (Playwright) pueda autenticarse sin pasar

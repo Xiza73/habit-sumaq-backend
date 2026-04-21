@@ -96,6 +96,7 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       status: transaction.status,
       relatedTransactionId: transaction.relatedTransactionId,
       remainingAmount: transaction.remainingAmount,
+      monthlyServiceId: transaction.monthlyServiceId,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
       deletedAt: transaction.deletedAt,
@@ -111,6 +112,25 @@ export class TransactionRepositoryImpl extends TransactionRepository {
   async existsByAccountId(accountId: string): Promise<boolean> {
     const count = await this.repo.count({ where: { accountId } });
     return count > 0;
+  }
+
+  async countByMonthlyServiceId(monthlyServiceId: string): Promise<number> {
+    // Includes only non-soft-deleted rows; softDelete is filtered automatically
+    // by TypeORM when using `count` with @DeleteDateColumn present on the ORM
+    // entity.
+    return this.repo.count({ where: { monthlyServiceId } });
+  }
+
+  async findLastNByMonthlyServiceId(
+    monthlyServiceId: string,
+    limit: number,
+  ): Promise<Transaction[]> {
+    const entities = await this.repo.find({
+      where: { monthlyServiceId },
+      order: { date: 'DESC' },
+      take: limit,
+    });
+    return entities.map((e) => this.toDomain(e));
   }
 
   async aggregateDebtsByReference(
@@ -338,6 +358,7 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       entity.createdAt,
       entity.updatedAt,
       entity.deletedAt,
+      entity.monthlyServiceId,
     );
   }
 }

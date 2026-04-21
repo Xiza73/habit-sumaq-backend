@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/presentation/auth.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
 import { HabitsModule } from './modules/habits/presentation/habits.module';
 import { HealthModule } from './modules/health/health.module';
+import { MonthlyServicesModule } from './modules/monthly-services/presentation/monthly-services.module';
 import { QuickTasksModule } from './modules/quick-tasks/presentation/quick-tasks.module';
 import { ReportsModule } from './modules/reports/presentation/reports.module';
 import { TransactionsModule } from './modules/transactions/presentation/transactions.module';
@@ -32,6 +33,7 @@ import { AppService } from './app.service';
     TransactionsModule,
     HabitsModule,
     QuickTasksModule,
+    MonthlyServicesModule,
     ReportsModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),

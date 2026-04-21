@@ -819,3 +819,140 @@ Devuelve agregados de hábitos + tareas diarias. Las métricas "hoy" usan la tim
 - `topHabitStreaks`: hasta 5 hábitos ordenados por `currentStreak DESC` y desempatados por `longestStreak`. Usa el mismo `StatsCalculator` que `GET /habits`, así los números coinciden con la página de hábitos.
 - `habitCompletionToday`: solo cuenta hábitos DAILY (los WEEKLY no encajan en una métrica diaria).
 - `quickTasksToday`: refleja el estado actual del día en la timezone del usuario.
+
+---
+
+## Monthly Services
+
+Servicios mensuales recurrentes (Netflix, gym, internet). El sistema no cobra automáticamente —
+el usuario marca "pagar" y se crea un `Transaction EXPENSE` vinculado al servicio. Los períodos
+se manejan como `YYYY-MM`. `nextDuePeriod`, `isOverdue` e `isPaidForCurrentMonth` son campos
+calculados en cada respuesta, relativos al mes actual en la timezone del header `x-timezone`.
+
+**Importante**: la moneda del servicio es inmutable y debe coincidir con la cuenta por defecto.
+`startPeriod` tampoco es editable una vez creado.
+
+### `GET /monthly-services?includeArchived=bool`
+
+Lista los servicios activos del usuario. `includeArchived=true` trae también los archivados.
+
+- **Query:**
+  - `includeArchived` — `boolean` opcional (default `false`)
+- **Response:** `200` — `MonthlyServiceResponseDto[]`
+
+```json
+[
+  {
+    "id": "uuid",
+    "userId": "uuid",
+    "name": "Netflix",
+    "defaultAccountId": "uuid",
+    "categoryId": "uuid",
+    "currency": "PEN",
+    "estimatedAmount": 45.0,
+    "dueDay": 15,
+    "startPeriod": "2026-01",
+    "lastPaidPeriod": "2026-03",
+    "isActive": true,
+    "nextDuePeriod": "2026-04",
+    "isOverdue": false,
+    "isPaidForCurrentMonth": false,
+    "createdAt": "2026-01-05T12:00:00.000Z",
+    "updatedAt": "2026-04-01T20:10:00.000Z"
+  }
+]
+```
+
+### `GET /monthly-services/:id`
+
+Detalle de un servicio.
+
+- **Response:** `200` — `MonthlyServiceResponseDto`
+- `404 MSVC_002` si no existe o pertenece a otro usuario.
+
+### `POST /monthly-services`
+
+Crea un servicio. La moneda debe coincidir con la cuenta por defecto.
+`startPeriod` es opcional — si se omite, se usa el mes actual en la timezone del header `x-timezone`.
+
+- **Body:**
+
+```json
+{
+  "name": "Netflix",
+  "defaultAccountId": "uuid",
+  "categoryId": "uuid",
+  "currency": "PEN",
+  "estimatedAmount": 45.0,
+  "dueDay": 15,
+  "startPeriod": "2026-04"
+}
+```
+
+- **Response:** `201` — `MonthlyServiceResponseDto`
+- `404 ACC_001` si la cuenta no existe o no es tuya.
+- `404 CAT_001` si la categoría no existe o no es tuya.
+- `409 MSVC_003` si ya tenés un servicio activo con ese nombre.
+- `422 VAL_002` si la moneda del DTO no coincide con la cuenta.
+
+### `PATCH /monthly-services/:id`
+
+Edita los campos permitidos. **No se puede cambiar** `currency` ni `startPeriod`.
+
+- **Body (todos opcionales):** `name`, `defaultAccountId`, `categoryId`, `estimatedAmount`, `dueDay`.
+- **Response:** `200` — `MonthlyServiceResponseDto`
+- `404 MSVC_002` / `404 ACC_001` / `404 CAT_001`
+- `409 MSVC_003` si el nuevo nombre está tomado por otro servicio activo.
+- `422 VAL_002` si la nueva cuenta tiene distinta moneda.
+
+### `POST /monthly-services/:id/pay`
+
+Registra un pago del servicio:
+
+1. Crea un `Transaction` de tipo `EXPENSE` con `monthlyServiceId` = `:id`.
+2. Debita la cuenta (override si se envía `accountIdOverride`, default si no).
+3. Avanza `lastPaidPeriod` al período recién facturado.
+4. Recalcula `estimatedAmount` como promedio de las últimas 3 transacciones del servicio.
+
+- **Body:**
+
+```json
+{
+  "amount": 42.9,
+  "date": "2026-04-21T12:00:00Z",
+  "description": "Netflix abril",
+  "accountIdOverride": "uuid"
+}
+```
+
+`date` default = ahora. `description` default = nombre del servicio.
+
+- **Response:** `201` — `{ service: MonthlyServiceResponseDto, transaction: TransactionResponseDto }`
+- `404 MSVC_002` servicio no encontrado.
+- `404 ACC_001` cuenta de pago no encontrada.
+- `422 VAL_002` monedas incompatibles.
+
+### `POST /monthly-services/:id/skip`
+
+Avanza `lastPaidPeriod` al próximo período **sin** crear transacción ni afectar balance. Útil
+para meses gratuitos o pausas del servicio.
+
+- **Body:** `{ reason?: string }` — sólo metadato para el log del backend, no se persiste.
+- **Response:** `200` — `MonthlyServiceResponseDto`
+- `404 MSVC_002`
+
+### `PATCH /monthly-services/:id/archive`
+
+Toggle de `isActive`. Archivar un servicio NO afecta las transacciones históricas vinculadas.
+
+- **Response:** `200` — `MonthlyServiceResponseDto`
+- `404 MSVC_002`
+
+### `DELETE /monthly-services/:id`
+
+Hard-delete, **sólo** si el servicio no tiene pagos registrados. Si los tiene, hay que archivarlo.
+
+- **Response:** `204 No Content`
+- `404 MSVC_002` servicio no encontrado.
+- `409 MSVC_001` servicio con pagos — no se puede eliminar.
+

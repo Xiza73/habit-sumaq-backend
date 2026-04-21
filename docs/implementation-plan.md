@@ -470,12 +470,39 @@ QuickTasksModule (Fase 8) ←─────────────────
 
 ---
 
+## Fase 10 — Monthly Services
+
+**Objetivo:** Módulo para trackear servicios recurrentes (Netflix, gym, internet, etc.). Por ahora el pago es **manual** — el usuario marca "pagar" y se crea una `Transaction EXPENSE` vinculada al servicio. El scheduler automático queda para el backlog.
+
+- [x] Migración `CreateMonthlyServicesTable` con unique index parcial `(userId, name) WHERE isActive = true`
+- [x] Migración `AddMonthlyServiceIdToTransactions` + índice + FK `ON DELETE SET NULL`
+- [x] `MonthlyService` domain entity con helpers `nextDuePeriod`, `isOverdueFor`, `isPaidForMonth`, `markPeriodAsPaid`, `toggleActive`, `addMonth`
+- [x] `MonthlyServiceRepository` + `MonthlyServiceOrmEntity` + `MonthlyServiceRepositoryImpl`
+- [x] Extensión de `TransactionRepository`: `countByMonthlyServiceId`, `findLastNByMonthlyServiceId` (para el recalculo de `estimatedAmount`)
+- [x] `TransactionOrmEntity` y `Transaction` domain propagan `monthlyServiceId`
+- [x] DTOs: `CreateMonthlyServiceDto`, `UpdateMonthlyServiceDto` (omite currency y startPeriod), `PayMonthlyServiceDto`, `SkipMonthDto`, `MonthlyServiceResponseDto` con campos calculados
+- [x] Use cases: List, Get, Create, Update, Pay, Skip, Archive (toggle), Delete (hard delete condicional)
+- [x] 8 endpoints con `JwtAuthGuard` y Swagger completo
+- [x] Error codes `MSVC_001..003` agregados a `ERROR_CODES` y `DOMAIN_HTTP_MAP`
+- [x] Helper `currentPeriodInTimezone` en `src/modules/monthly-services/infrastructure/timezone/` — resuelve el mes actual (YYYY-MM) en la timezone del cliente (header `x-timezone`)
+- [x] Pago crea `Transaction EXPENSE` con `monthlyServiceId`, debita la cuenta, avanza `lastPaidPeriod` y recalcula `estimatedAmount` como AVG de las últimas 3 tx
+- [x] Skip avanza período sin afectar balance
+- [x] Delete condicional: 409 `MSVC_001` si hay pagos registrados — forzar archivar en su lugar
+- [x] `CategoriesModule` ahora exporta `CategoryRepository` (se usa desde monthly-services)
+- [x] Tests unitarios: 42 tests cubriendo los 8 use cases + happy path + errores de dominio
+- [x] Tests e2e: CRUD, pay/skip/archive, guardas de ownership y de borrado con pagos
+
+**Criterio de completitud:** tsc limpio, lint limpio, 42 tests del módulo + regresión de transactions/reports intacta. ✅
+
+---
+
 ## Lo que NO se implementa (backlog post-MVP actual)
 
 - Presupuestos por categoría con alertas
 - Vinculación hábitos ↔ transacciones (hábitos con costo asociado)
 - Daily Planner / Schedule
-- Notificaciones push
+- Scheduler automático de pagos de servicios mensuales (hoy es manual)
+- Notificaciones push (incluye alertas de servicios vencidos)
 - Multi-moneda con conversión automática
 - Exportación / importación CSV-JSON
 - Roles y permisos granulares
