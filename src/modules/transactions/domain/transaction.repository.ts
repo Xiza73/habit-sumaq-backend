@@ -80,6 +80,21 @@ export abstract class TransactionRepository {
   abstract softDelete(id: string): Promise<void>;
   abstract existsByAccountId(accountId: string): Promise<boolean>;
   /**
+   * Counts non-deleted transactions linked to a monthly service. Used by
+   * the hard-delete guard on `DELETE /monthly-services/:id` — services that
+   * already produced payments cannot be hard-deleted, only archived.
+   */
+  abstract countByMonthlyServiceId(monthlyServiceId: string): Promise<number>;
+  /**
+   * Returns up to `limit` most recent non-deleted transactions linked to a
+   * monthly service, ordered by date DESC. Used when paying a service to
+   * recompute `estimatedAmount` from the moving average of recent payments.
+   */
+  abstract findLastNByMonthlyServiceId(
+    monthlyServiceId: string,
+    limit: number,
+  ): Promise<Transaction[]>;
+  /**
    * Aggregate DEBT/LOAN transactions grouped by normalized reference.
    *
    * Normalization uses Postgres `unaccent` + `LOWER` so "Juán", "Juan", "JUAN"

@@ -22,6 +22,8 @@ describe('GetTransactionByIdUseCase', () => {
       sumFlowByCurrencyInRange: jest.fn(),
       topExpenseCategoriesInRange: jest.fn(),
       dailyNetFlowInRange: jest.fn(),
+      countByMonthlyServiceId: jest.fn(),
+      findLastNByMonthlyServiceId: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
     useCase = new GetTransactionByIdUseCase(txRepo);

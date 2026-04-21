@@ -35,6 +35,8 @@ describe('SettleTransactionUseCase', () => {
       sumFlowByCurrencyInRange: jest.fn(),
       topExpenseCategoriesInRange: jest.fn(),
       dailyNetFlowInRange: jest.fn(),
+      countByMonthlyServiceId: jest.fn(),
+      findLastNByMonthlyServiceId: jest.fn(),
     } as jest.Mocked<TransactionRepository>;
 
     accountRepo = {

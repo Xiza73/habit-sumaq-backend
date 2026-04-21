@@ -56,6 +56,8 @@ describe('TransactionsController (e2e)', () => {
     sumFlowByCurrencyInRange: jest.fn(),
     topExpenseCategoriesInRange: jest.fn(),
     dailyNetFlowInRange: jest.fn(),
+    countByMonthlyServiceId: jest.fn(),
+    findLastNByMonthlyServiceId: jest.fn(),
   };
 
   const mockAccountRepo: jest.Mocked<AccountRepository> = {

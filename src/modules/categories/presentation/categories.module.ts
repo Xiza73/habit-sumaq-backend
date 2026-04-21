@@ -24,6 +24,7 @@ import { CategoriesController } from './categories.controller';
     DeleteCategoryUseCase,
   ],
   exports: [
+    CategoryRepository,
     CreateCategoryUseCase,
     GetCategoriesUseCase,
     GetCategoryByIdUseCase,

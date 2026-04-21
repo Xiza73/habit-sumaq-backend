@@ -17,6 +17,7 @@ import { TransactionType } from '../../domain/enums/transaction-type.enum';
 @Index('IDX_transactions_date', ['date'])
 @Index('IDX_transactions_status', ['status'])
 @Index('IDX_transactions_relatedTransactionId', ['relatedTransactionId'])
+@Index('IDX_transactions_monthlyServiceId', ['monthlyServiceId'])
 export class TransactionOrmEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -78,6 +79,9 @@ export class TransactionOrmEntity {
     },
   })
   remainingAmount: number | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  monthlyServiceId: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
