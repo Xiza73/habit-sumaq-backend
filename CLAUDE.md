@@ -250,4 +250,4 @@ Si el PR introduce un endpoint, módulo, variable de entorno, comando de `packag
 
 > **Regla de dedo:** si dudás si documentar o no, **documentar igual**. Es más barato bajar una doc innecesaria que subir una que falta.
 
-> **Sincronización entre repos:** `docs/frontend/api-reference.md`, `docs/frontend/error-codes.md` y `docs/frontend/enums.md` están duplicados con `habit-sumaq-web/docs/frontend/*`. Mantenerlos en sync al modificar — o proponer al usuario unificarlos en algún momento.
+> **Fuente única de verdad:** `docs/frontend/api-reference.md`, `docs/frontend/error-codes.md` y `docs/frontend/enums.md` viven **acá, en el backend**. El repo `habit-sumaq-web` tiene solo stubs con el link a estos archivos. Si tu cambio toca contrato (endpoints, error codes, enums), editá solo estos archivos — no hace falta (ni hay dónde) duplicarlos en el web.
