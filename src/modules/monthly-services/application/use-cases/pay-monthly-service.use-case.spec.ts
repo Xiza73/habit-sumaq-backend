@@ -22,6 +22,9 @@ describe('PayMonthlyServiceUseCase', () => {
   let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   const userId = 'user-1';
+  // Represents "today" as the client timezone sees it. Use cases receive this
+  // from the controller — kept as a constant so every test reads the same way.
+  const CURRENT_PERIOD = '2026-04';
 
   beforeEach(() => {
     serviceRepo = {
@@ -83,9 +86,12 @@ describe('PayMonthlyServiceUseCase', () => {
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(account);
 
-    const { transaction, service: updated } = await useCase.execute(service.id, userId, {
-      amount: 42,
-    });
+    const { transaction, service: updated } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 42 },
+      CURRENT_PERIOD,
+    );
 
     expect(transaction.type).toBe(TransactionType.EXPENSE);
     expect(transaction.amount).toBe(42);
@@ -112,10 +118,12 @@ describe('PayMonthlyServiceUseCase', () => {
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(override);
 
-    const { transaction } = await useCase.execute(service.id, userId, {
-      amount: 20,
-      accountIdOverride: 'acc-2',
-    });
+    const { transaction } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 20, accountIdOverride: 'acc-2' },
+      CURRENT_PERIOD,
+    );
 
     expect(transaction.accountId).toBe('acc-2');
     expect(accountRepo.findById).toHaveBeenCalledWith('acc-2');
@@ -129,7 +137,12 @@ describe('PayMonthlyServiceUseCase', () => {
       buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
     );
 
-    const { transaction } = await useCase.execute(service.id, userId, { amount: 10 });
+    const { transaction } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 10 },
+      CURRENT_PERIOD,
+    );
 
     expect(transaction.description).toBe('Netflix');
   });
@@ -146,7 +159,12 @@ describe('PayMonthlyServiceUseCase', () => {
       buildTransaction({ amount: 50 }),
     ]);
 
-    const { service: updated } = await useCase.execute(service.id, userId, { amount: 60 });
+    const { service: updated } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 60 },
+      CURRENT_PERIOD,
+    );
 
     // AVG(60, 40, 50) = 50
     expect(updated.estimatedAmount).toBe(50);
@@ -155,22 +173,44 @@ describe('PayMonthlyServiceUseCase', () => {
   it('throws MONTHLY_SERVICE_NOT_FOUND when the id is unknown', async () => {
     serviceRepo.findById.mockResolvedValue(null);
 
-    await expect(useCase.execute('x', userId, { amount: 10 })).rejects.toThrow(DomainException);
+    await expect(useCase.execute('x', userId, { amount: 10 }, CURRENT_PERIOD)).rejects.toThrow(
+      DomainException,
+    );
   });
 
   it('hides services owned by another user behind MONTHLY_SERVICE_NOT_FOUND', async () => {
     serviceRepo.findById.mockResolvedValue(buildMonthlyService({ userId: 'other' }));
 
-    await expect(useCase.execute('x', userId, { amount: 10 })).rejects.toThrow(
+    await expect(useCase.execute('x', userId, { amount: 10 }, CURRENT_PERIOD)).rejects.toThrow(
       'Servicio mensual no encontrado',
     );
+  });
+
+  it('throws MONTHLY_SERVICE_ALREADY_PAID when the service is up to date for the current month', async () => {
+    // lastPaidPeriod = '2026-04' → nextDuePeriod = '2026-05' → strictly > currentPeriod,
+    // which means isPaidForMonth(CURRENT_PERIOD) === true.
+    const service = buildMonthlyService({
+      userId,
+      currency: 'PEN',
+      lastPaidPeriod: CURRENT_PERIOD,
+    });
+    serviceRepo.findById.mockResolvedValue(service);
+
+    await expect(
+      useCase.execute(service.id, userId, { amount: 42 }, CURRENT_PERIOD),
+    ).rejects.toThrow('El servicio ya está pagado para el mes actual');
+
+    // No side effects: no account debit, no transaction saved, no service update.
+    expect(accountRepo.save).not.toHaveBeenCalled();
+    expect(txRepo.save).not.toHaveBeenCalled();
+    expect(serviceRepo.save).not.toHaveBeenCalled();
   });
 
   it('throws ACCOUNT_NOT_FOUND when the resolved account does not exist', async () => {
     serviceRepo.findById.mockResolvedValue(buildMonthlyService({ userId, currency: 'PEN' }));
     accountRepo.findById.mockResolvedValue(null);
 
-    await expect(useCase.execute('svc', userId, { amount: 10 })).rejects.toThrow(
+    await expect(useCase.execute('svc', userId, { amount: 10 }, CURRENT_PERIOD)).rejects.toThrow(
       'Cuenta no encontrada',
     );
   });
@@ -182,8 +222,8 @@ describe('PayMonthlyServiceUseCase', () => {
       buildAccount({ id: service.defaultAccountId, userId, currency: Currency.USD }),
     );
 
-    await expect(useCase.execute(service.id, userId, { amount: 10 })).rejects.toThrow(
-      'La cuenta de pago debe tener la misma moneda que el servicio',
-    );
+    await expect(
+      useCase.execute(service.id, userId, { amount: 10 }, CURRENT_PERIOD),
+    ).rejects.toThrow('La cuenta de pago debe tener la misma moneda que el servicio');
   });
 });

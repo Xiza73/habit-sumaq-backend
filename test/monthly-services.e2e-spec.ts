@@ -575,6 +575,39 @@ describe('MonthlyServicesController (e2e)', () => {
           expect(body.error.code).toBe('MSVC_002');
         });
     });
+
+    it('should return 409 MSVC_004 when the service is already paid for the current month', async () => {
+      // Service paid for the ongoing month in America/Lima — a direct API call
+      // (bypassing the web, which hides the button in this state) must not be
+      // allowed to create a duplicate transaction.
+      const now = new Date();
+      const currentPeriod = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+      const service = buildMonthlyService({
+        id: SVC_ID,
+        userId: USER_ID,
+        currency: 'PEN',
+        startPeriod: currentPeriod,
+        lastPaidPeriod: currentPeriod,
+        defaultAccountId: ACC_ID_1,
+      });
+      mockServiceRepo.findById.mockResolvedValue(service);
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/monthly-services/${SVC_ID}/pay`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .send({ amount: 42 })
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.error.code).toBe('MSVC_004');
+        })
+        .expect(() => {
+          // No side effects: no tx created, no account debit, no service update.
+          expect(mockAccountRepo.save).not.toHaveBeenCalled();
+          expect(mockTxRepo.save).not.toHaveBeenCalled();
+          expect(mockServiceRepo.save).not.toHaveBeenCalled();
+        });
+    });
   });
 
   // ─── POST /monthly-services/:id/skip ─────────────────────────────────────────

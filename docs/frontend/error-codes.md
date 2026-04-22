@@ -95,6 +95,7 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `MSVC_001` | 409  | El servicio tiene pagos registrados         | DELETE /monthly-services/:id cuando existen transacciones vinculadas. Archivalo en su lugar.         |
 | `MSVC_002` | 404  | Servicio mensual no encontrado              | GET/PATCH/POST .../pay .../skip DELETE con UUID inexistente o perteneciente a otro usuario.          |
 | `MSVC_003` | 409  | Ya tenés un servicio activo con ese nombre  | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
+| `MSVC_004` | 409  | El servicio ya está pagado para el mes actual | POST /monthly-services/:id/pay cuando el servicio ya está al día (idempotency guard).              |
 
 ### Generales
 
