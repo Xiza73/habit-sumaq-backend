@@ -176,6 +176,10 @@ export class MonthlyServicesController {
     description: 'Pago registrado. Retorna el servicio actualizado y la transacción creada.',
   })
   @ApiResponse({ status: 404, description: 'Servicio o cuenta no encontrados' })
+  @ApiResponse({
+    status: 409,
+    description: 'El servicio ya está pagado para el mes actual (idempotency guard)',
+  })
   @ApiResponse({ status: 422, description: 'Monedas incompatibles' })
   async pay(
     @CurrentUser() payload: JwtPayload,
@@ -185,10 +189,16 @@ export class MonthlyServicesController {
   ): Promise<
     ApiResponseDto<{ service: MonthlyServiceResponseDto; transaction: TransactionResponseDto }>
   > {
-    const { service, transaction } = await this.payMonthlyService.execute(id, payload.sub, dto);
+    const currentPeriod = currentPeriodInTimezone(timezone);
+    const { service, transaction } = await this.payMonthlyService.execute(
+      id,
+      payload.sub,
+      dto,
+      currentPeriod,
+    );
     return ApiResponseDto.ok(
       {
-        service: MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone)),
+        service: MonthlyServiceResponseDto.fromDomain(service, currentPeriod),
         transaction: TransactionResponseDto.fromDomain(transaction),
       },
       'Pago registrado exitosamente',

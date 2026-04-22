@@ -930,6 +930,7 @@ Registra un pago del servicio:
 - **Response:** `201` — `{ service: MonthlyServiceResponseDto, transaction: TransactionResponseDto }`
 - `404 MSVC_002` servicio no encontrado.
 - `404 ACC_001` cuenta de pago no encontrada.
+- `409 MSVC_004` el servicio ya está pagado para el mes actual (idempotency guard — evita duplicar transacciones).
 - `422 VAL_002` monedas incompatibles.
 
 ### `POST /monthly-services/:id/skip`
@@ -950,7 +951,7 @@ Toggle de `isActive`. Archivar un servicio NO afecta las transacciones históric
 
 ### `DELETE /monthly-services/:id`
 
-Hard-delete, **sólo** si el servicio no tiene pagos registrados. Si los tiene, hay que archivarlo.
+Soft-delete (marca `deletedAt = now()`), **sólo** si el servicio no tiene pagos registrados. Si los tiene, hay que archivarlo.
 
 - **Response:** `204 No Content`
 - `404 MSVC_002` servicio no encontrado.

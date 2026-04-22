@@ -39,10 +39,21 @@ export class PayMonthlyServiceUseCase {
     id: string,
     userId: string,
     dto: PayMonthlyServiceDto,
+    currentPeriod: string,
   ): Promise<{ service: MonthlyService; transaction: Transaction }> {
     const service = await this.serviceRepo.findById(id);
     if (!service || service.userId !== userId) {
       throw new DomainException('MONTHLY_SERVICE_NOT_FOUND', 'Servicio mensual no encontrado');
+    }
+
+    // Defense-in-depth — the web hides the "Pagar" button when the service
+    // is already up-to-date, but a direct API call would otherwise create a
+    // duplicate EXPENSE and silently advance `lastPaidPeriod` into the future.
+    if (service.isPaidForMonth(currentPeriod)) {
+      throw new DomainException(
+        'MONTHLY_SERVICE_ALREADY_PAID',
+        'El servicio ya está pagado para el mes actual',
+      );
     }
 
     const accountId = dto.accountIdOverride ?? service.defaultAccountId;
