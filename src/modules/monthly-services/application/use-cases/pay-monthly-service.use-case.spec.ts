@@ -25,6 +25,7 @@ describe('PayMonthlyServiceUseCase', () => {
   // Represents "today" as the client timezone sees it. Use cases receive this
   // from the controller — kept as a constant so every test reads the same way.
   const CURRENT_PERIOD = '2026-04';
+  const TZ = 'America/Lima';
 
   beforeEach(() => {
     serviceRepo = {
@@ -91,6 +92,7 @@ describe('PayMonthlyServiceUseCase', () => {
       userId,
       { amount: 42 },
       CURRENT_PERIOD,
+      TZ,
     );
 
     expect(transaction.type).toBe(TransactionType.EXPENSE);
@@ -123,6 +125,7 @@ describe('PayMonthlyServiceUseCase', () => {
       userId,
       { amount: 20, accountIdOverride: 'acc-2' },
       CURRENT_PERIOD,
+      TZ,
     );
 
     expect(transaction.accountId).toBe('acc-2');
@@ -142,9 +145,59 @@ describe('PayMonthlyServiceUseCase', () => {
       userId,
       { amount: 10 },
       CURRENT_PERIOD,
+      TZ,
     );
 
     expect(transaction.description).toBe('Netflix');
+  });
+
+  it('recomputes dueDay as the rounded average day-of-month of the last 3 payments', async () => {
+    // Service starts with no dueDay set; the recompute fills it in based on
+    // when the user actually pays. Mirror of the estimatedAmount logic.
+    const service = buildMonthlyService({ userId, currency: 'PEN', dueDay: null });
+    serviceRepo.findById.mockResolvedValue(service);
+    accountRepo.findById.mockResolvedValue(
+      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+    );
+    // Days 14, 16, 15 in America/Lima -> avg = 15.
+    txRepo.findLastNByMonthlyServiceId.mockResolvedValue([
+      buildTransaction({ date: new Date('2026-01-14T12:00:00-05:00') }),
+      buildTransaction({ date: new Date('2026-02-16T12:00:00-05:00') }),
+      buildTransaction({ date: new Date('2026-03-15T12:00:00-05:00') }),
+    ]);
+
+    const { service: updated } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 50 },
+      CURRENT_PERIOD,
+      TZ,
+    );
+
+    expect(updated.dueDay).toBe(15);
+  });
+
+  it('keeps the previous dueDay when there are no past payments to average', async () => {
+    // The new transaction is created BEFORE recompute reads the recent list,
+    // but our test mocks `findLastNByMonthlyServiceId` directly — so we can
+    // simulate "no recent payments" here. With nothing to average, the use
+    // case must keep whatever dueDay the service already had.
+    const service = buildMonthlyService({ userId, currency: 'PEN', dueDay: 10 });
+    serviceRepo.findById.mockResolvedValue(service);
+    accountRepo.findById.mockResolvedValue(
+      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+    );
+    txRepo.findLastNByMonthlyServiceId.mockResolvedValue([]);
+
+    const { service: updated } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 50 },
+      CURRENT_PERIOD,
+      TZ,
+    );
+
+    expect(updated.dueDay).toBe(10);
   });
 
   it('recomputes estimatedAmount as the average of the last 3 payments', async () => {
@@ -164,6 +217,7 @@ describe('PayMonthlyServiceUseCase', () => {
       userId,
       { amount: 60 },
       CURRENT_PERIOD,
+      TZ,
     );
 
     // AVG(60, 40, 50) = 50
@@ -173,7 +227,7 @@ describe('PayMonthlyServiceUseCase', () => {
   it('throws MONTHLY_SERVICE_NOT_FOUND when the id is unknown', async () => {
     serviceRepo.findById.mockResolvedValue(null);
 
-    await expect(useCase.execute('x', userId, { amount: 10 }, CURRENT_PERIOD)).rejects.toThrow(
+    await expect(useCase.execute('x', userId, { amount: 10 }, CURRENT_PERIOD, TZ)).rejects.toThrow(
       DomainException,
     );
   });
@@ -181,7 +235,7 @@ describe('PayMonthlyServiceUseCase', () => {
   it('hides services owned by another user behind MONTHLY_SERVICE_NOT_FOUND', async () => {
     serviceRepo.findById.mockResolvedValue(buildMonthlyService({ userId: 'other' }));
 
-    await expect(useCase.execute('x', userId, { amount: 10 }, CURRENT_PERIOD)).rejects.toThrow(
+    await expect(useCase.execute('x', userId, { amount: 10 }, CURRENT_PERIOD, TZ)).rejects.toThrow(
       'Servicio mensual no encontrado',
     );
   });
@@ -197,7 +251,7 @@ describe('PayMonthlyServiceUseCase', () => {
     serviceRepo.findById.mockResolvedValue(service);
 
     await expect(
-      useCase.execute(service.id, userId, { amount: 42 }, CURRENT_PERIOD),
+      useCase.execute(service.id, userId, { amount: 42 }, CURRENT_PERIOD, TZ),
     ).rejects.toThrow('El servicio ya está pagado para el mes actual');
 
     // No side effects: no account debit, no transaction saved, no service update.
@@ -210,9 +264,9 @@ describe('PayMonthlyServiceUseCase', () => {
     serviceRepo.findById.mockResolvedValue(buildMonthlyService({ userId, currency: 'PEN' }));
     accountRepo.findById.mockResolvedValue(null);
 
-    await expect(useCase.execute('svc', userId, { amount: 10 }, CURRENT_PERIOD)).rejects.toThrow(
-      'Cuenta no encontrada',
-    );
+    await expect(
+      useCase.execute('svc', userId, { amount: 10 }, CURRENT_PERIOD, TZ),
+    ).rejects.toThrow('Cuenta no encontrada');
   });
 
   it('throws CURRENCY_MISMATCH when the paying account has a different currency', async () => {
@@ -223,7 +277,7 @@ describe('PayMonthlyServiceUseCase', () => {
     );
 
     await expect(
-      useCase.execute(service.id, userId, { amount: 10 }, CURRENT_PERIOD),
+      useCase.execute(service.id, userId, { amount: 10 }, CURRENT_PERIOD, TZ),
     ).rejects.toThrow('La cuenta de pago debe tener la misma moneda que el servicio');
   });
 });

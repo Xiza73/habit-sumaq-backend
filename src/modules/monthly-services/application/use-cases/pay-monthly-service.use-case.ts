@@ -12,6 +12,7 @@ import { TransactionRepository } from '@modules/transactions/domain/transaction.
 
 import { MonthlyService } from '../../domain/monthly-service.entity';
 import { MonthlyServiceRepository } from '../../domain/monthly-service.repository';
+import { dayInTimezone } from '../../infrastructure/timezone/day-in-timezone';
 
 import type { PayMonthlyServiceDto } from '../dto/pay-monthly-service.dto';
 
@@ -40,6 +41,7 @@ export class PayMonthlyServiceUseCase {
     userId: string,
     dto: PayMonthlyServiceDto,
     currentPeriod: string,
+    timezone: string,
   ): Promise<{ service: MonthlyService; transaction: Transaction }> {
     const service = await this.serviceRepo.findById(id);
     if (!service || service.userId !== userId) {
@@ -99,9 +101,17 @@ export class PayMonthlyServiceUseCase {
 
     const savedTx = await this.txRepo.save(transaction);
 
-    // Advance the period pointer and recompute estimate from the last N payments.
+    // Advance the period pointer and recompute estimates from the last N
+    // payments. dueDay tracks the user's payment habit — re-averaging it
+    // every time keeps the auto-fill on the pay form (#2.a) accurate without
+    // the user editing it manually.
     service.markPeriodAsPaid(paidPeriod);
-    service.estimatedAmount = await this.recomputeEstimatedAmount(service.id);
+    const recent = await this.txRepo.findLastNByMonthlyServiceId(
+      service.id,
+      PayMonthlyServiceUseCase.MOVING_AVG_WINDOW,
+    );
+    service.estimatedAmount = computeAverageAmount(recent);
+    service.dueDay = computeAverageDueDay(recent, timezone) ?? service.dueDay;
     const savedService = await this.serviceRepo.save(service);
 
     this.logger.info(
@@ -118,14 +128,25 @@ export class PayMonthlyServiceUseCase {
 
     return { service: savedService, transaction: savedTx };
   }
+}
 
-  private async recomputeEstimatedAmount(serviceId: string): Promise<number> {
-    const recent = await this.txRepo.findLastNByMonthlyServiceId(
-      serviceId,
-      PayMonthlyServiceUseCase.MOVING_AVG_WINDOW,
-    );
-    if (recent.length === 0) return 0;
-    const sum = recent.reduce((acc, tx) => acc + tx.amount, 0);
-    return Math.round((sum / recent.length) * 100) / 100;
-  }
+function computeAverageAmount(recent: Transaction[]): number {
+  if (recent.length === 0) return 0;
+  const sum = recent.reduce((acc, tx) => acc + tx.amount, 0);
+  return Math.round((sum / recent.length) * 100) / 100;
+}
+
+/**
+ * Returns the rounded average day-of-month across `recent` transactions in
+ * the user's timezone, or null when there are no transactions to average.
+ * The caller decides whether to keep the previous `dueDay` (null result) or
+ * update it (numeric result).
+ */
+function computeAverageDueDay(recent: Transaction[], timezone: string): number | null {
+  if (recent.length === 0) return null;
+  const days = recent.map((tx) => dayInTimezone(tx.date, timezone));
+  const avg = days.reduce((acc, d) => acc + d, 0) / days.length;
+  // Clamp to 1..31 — the validation range of the column. Handles edge cases
+  // like an empty timezone string falling through to a UTC day of 0.
+  return Math.min(31, Math.max(1, Math.round(avg)));
 }
