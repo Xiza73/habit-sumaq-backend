@@ -151,6 +151,32 @@ describe('PayMonthlyServiceUseCase', () => {
     expect(transaction.description).toBe('Netflix');
   });
 
+  it('advances lastPaidPeriod by `frequencyMonths` (quarterly: April -> July)', async () => {
+    // Quarterly service paid for April -> next due jumps to July, not May.
+    const service = buildMonthlyService({
+      userId,
+      currency: 'PEN',
+      frequencyMonths: 3,
+      startPeriod: '2026-04',
+      lastPaidPeriod: null,
+    });
+    serviceRepo.findById.mockResolvedValue(service);
+    accountRepo.findById.mockResolvedValue(
+      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+    );
+
+    const { service: updated } = await useCase.execute(
+      service.id,
+      userId,
+      { amount: 100 },
+      CURRENT_PERIOD,
+      TZ,
+    );
+
+    expect(updated.lastPaidPeriod).toBe('2026-04');
+    expect(updated.nextDuePeriod()).toBe('2026-07');
+  });
+
   it('recomputes dueDay as the rounded average day-of-month of the last 3 payments', async () => {
     // Service starts with no dueDay set; the recompute fills it in based on
     // when the user actually pays. Mirror of the estimatedAmount logic.

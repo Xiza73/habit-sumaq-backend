@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -12,6 +13,12 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+/**
+ * Allowed billing cadences. Stored as raw integers in the DB (the column is
+ * INTEGER with a CHECK constraint) so we don't need a Postgres enum type.
+ */
+export const ALLOWED_FREQUENCY_MONTHS = [1, 3, 6, 12] as const;
 
 export class CreateMonthlyServiceDto {
   @ApiProperty({ example: 'Netflix', minLength: 1, maxLength: 100 })
@@ -36,6 +43,20 @@ export class CreateMonthlyServiceDto {
   @IsString()
   @Length(3, 3)
   currency: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Cadencia de cobro en meses. Permitidos: 1 (mensual), 3 (trimestral), ' +
+      '6 (semestral), 12 (anual). Default: 1. Inmutable después de la creación.',
+    enum: ALLOWED_FREQUENCY_MONTHS,
+    default: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @IsIn(ALLOWED_FREQUENCY_MONTHS as readonly number[] as number[], {
+    message: 'frequencyMonths debe ser uno de: 1, 3, 6, 12',
+  })
+  frequencyMonths?: number;
 
   @ApiPropertyOptional({
     description: 'Estimado mensual. Se recalcula al pagar (AVG de las últimas 3 tx).',

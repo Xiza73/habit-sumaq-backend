@@ -849,6 +849,7 @@ Lista los servicios activos del usuario. `includeArchived=true` trae también lo
     "defaultAccountId": "uuid",
     "categoryId": "uuid",
     "currency": "PEN",
+    "frequencyMonths": 1,
     "estimatedAmount": 45.0,
     "dueDay": 15,
     "startPeriod": "2026-01",
@@ -883,11 +884,14 @@ Crea un servicio. La moneda debe coincidir con la cuenta por defecto.
   "defaultAccountId": "uuid",
   "categoryId": "uuid",
   "currency": "PEN",
+  "frequencyMonths": 1,
   "estimatedAmount": 45.0,
   "dueDay": 15,
   "startPeriod": "2026-04"
 }
 ```
+
+`frequencyMonths` defaults to `1` (monthly). Allowed values: `1, 3, 6, 12` (mensual, trimestral, semestral, anual). **Inmutable** — no se puede cambiar después de crear el servicio.
 
 - **Response:** `201` — `MonthlyServiceResponseDto`
 - `404 ACC_001` si la cuenta no existe o no es tuya.
@@ -897,7 +901,7 @@ Crea un servicio. La moneda debe coincidir con la cuenta por defecto.
 
 ### `PATCH /monthly-services/:id`
 
-Edita los campos permitidos. **No se puede cambiar** `currency` ni `startPeriod`.
+Edita los campos permitidos. **No se puede cambiar** `currency`, `startPeriod` ni `frequencyMonths`.
 
 - **Body (todos opcionales):** `name`, `defaultAccountId`, `categoryId`, `estimatedAmount`, `dueDay`.
 - **Response:** `200` — `MonthlyServiceResponseDto`

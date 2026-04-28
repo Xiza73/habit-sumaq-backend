@@ -236,3 +236,19 @@ Estado de ciclo de vida para transacciones `DEBT` / `LOAN`.
 | `SETTLED` | Completamente liquidada (`remainingAmount = 0`)                  |
 
 Transacciones `INCOME` / `EXPENSE` / `TRANSFER` tienen `status=null`.
+
+## MonthlyServiceFrequency
+
+Cadencia de cobro de un `MonthlyService`. No es un enum de Postgres — es un
+entero con `CHECK ("frequencyMonths" IN (1, 3, 6, 12))`. Inmutable después de
+la creación.
+
+| Valor | Descripción  |
+| ----- | ------------ |
+| `1`   | Mensual      |
+| `3`   | Trimestral   |
+| `6`   | Semestral    |
+| `12`  | Anual        |
+
+Default al crear: `1`. El frontend muestra el chip de cadencia solo cuando
+`frequencyMonths !== 1` (mensual = caso por defecto, no agrega ruido visual).
