@@ -38,6 +38,9 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       dateFormat: settings.dateFormat,
       startOfWeek: settings.startOfWeek,
       timezone: settings.timezone,
+      monthlyServicesGroupBy: settings.monthlyServicesGroupBy,
+      monthlyServicesOrderBy: settings.monthlyServicesOrderBy,
+      monthlyServicesOrderDir: settings.monthlyServicesOrderDir,
       updatedAt: settings.updatedAt,
     });
     return this.toDomain(saved as UserSettingsOrmEntity);
@@ -53,6 +56,9 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       orm.dateFormat,
       orm.startOfWeek,
       orm.timezone,
+      orm.monthlyServicesGroupBy,
+      orm.monthlyServicesOrderBy,
+      orm.monthlyServicesOrderDir,
       orm.createdAt,
       orm.updatedAt,
     );

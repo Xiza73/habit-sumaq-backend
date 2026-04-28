@@ -237,6 +237,38 @@ Estado de ciclo de vida para transacciones `DEBT` / `LOAN`.
 
 Transacciones `INCOME` / `EXPENSE` / `TRANSFER` tienen `status=null`.
 
+## MonthlyServicesGroupBy
+
+Cómo el usuario quiere agrupar la lista de servicios mensuales en el web. Persistido en `user_settings.monthlyServicesGroupBy`. Default: `none`.
+
+| Valor       | Descripción                                  |
+| ----------- | -------------------------------------------- |
+| `none`      | Sin agrupar (lista plana)                    |
+| `status`    | Por estado: atrasado / pendiente / al día    |
+| `frequency` | Por cadencia (ver `MonthlyServiceFrequency`) |
+| `category`  | Por categoría asignada                       |
+
+## MonthlyServicesOrderBy
+
+Campo por el que se ordena la lista de servicios mensuales. Persistido en `user_settings.monthlyServicesOrderBy`. Default: `name`.
+
+| Valor             | Descripción                                                |
+| ----------------- | ---------------------------------------------------------- |
+| `name`            | Alfabético por nombre                                      |
+| `dueDay`          | Por día aproximado de vencimiento                          |
+| `nextDuePeriod`   | Por próximo período a pagar (atrasados primero en `asc`)   |
+| `estimatedAmount` | Por monto estimado                                         |
+| `createdAt`       | Por fecha de creación                                      |
+
+## MonthlyServicesOrderDir
+
+Dirección del orden. Persistido en `user_settings.monthlyServicesOrderDir`. Default: `asc`.
+
+| Valor  | Descripción      |
+| ------ | ---------------- |
+| `asc`  | Ascendente       |
+| `desc` | Descendente      |
+
 ## MonthlyServiceFrequency
 
 Cadencia de cobro de un `MonthlyService`. No es un enum de Postgres — es un

@@ -4,6 +4,9 @@ import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { DateFormat } from '../../domain/enums/date-format.enum';
 import { Language } from '../../domain/enums/language.enum';
+import { MonthlyServicesGroupBy } from '../../domain/enums/monthly-services-group-by.enum';
+import { MonthlyServicesOrderBy } from '../../domain/enums/monthly-services-order-by.enum';
+import { MonthlyServicesOrderDir } from '../../domain/enums/monthly-services-order-dir.enum';
 import { StartOfWeek } from '../../domain/enums/start-of-week.enum';
 import { Theme } from '../../domain/enums/theme.enum';
 
@@ -57,6 +60,27 @@ export class UserSettingsResponseDto {
   })
   timezone: string;
 
+  @ApiProperty({
+    enum: MonthlyServicesGroupBy,
+    example: MonthlyServicesGroupBy.NONE,
+    description: 'Agrupación preferida de la lista de servicios mensuales',
+  })
+  monthlyServicesGroupBy: MonthlyServicesGroupBy;
+
+  @ApiProperty({
+    enum: MonthlyServicesOrderBy,
+    example: MonthlyServicesOrderBy.NAME,
+    description: 'Campo de orden de la lista de servicios mensuales',
+  })
+  monthlyServicesOrderBy: MonthlyServicesOrderBy;
+
+  @ApiProperty({
+    enum: MonthlyServicesOrderDir,
+    example: MonthlyServicesOrderDir.ASC,
+    description: 'Dirección de orden (asc/desc)',
+  })
+  monthlyServicesOrderDir: MonthlyServicesOrderDir;
+
   @ApiProperty()
   createdAt: Date;
 
@@ -72,6 +96,9 @@ export class UserSettingsResponseDto {
     dto.dateFormat = settings.dateFormat;
     dto.startOfWeek = settings.startOfWeek;
     dto.timezone = settings.timezone;
+    dto.monthlyServicesGroupBy = settings.monthlyServicesGroupBy;
+    dto.monthlyServicesOrderBy = settings.monthlyServicesOrderBy;
+    dto.monthlyServicesOrderDir = settings.monthlyServicesOrderDir;
     dto.createdAt = settings.createdAt;
     dto.updatedAt = settings.updatedAt;
     return dto;

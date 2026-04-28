@@ -94,14 +94,17 @@ Obtiene la configuración del usuario autenticado. Si no existe, se crea automá
 
 Actualiza parcialmente la configuración. Solo se modifican los campos enviados.
 
-| Campo             | Tipo        | Notas                                                                          |
-| ----------------- | ----------- | ------------------------------------------------------------------------------ |
-| `language`        | Language    | Ver [enums.md](enums.md#language)                                              |
-| `theme`           | Theme       | Ver [enums.md](enums.md#theme)                                                 |
-| `defaultCurrency` | Currency    | Ver [enums.md](enums.md#currency)                                              |
-| `dateFormat`      | DateFormat  | Ver [enums.md](enums.md#dateformat)                                            |
-| `startOfWeek`     | StartOfWeek | Ver [enums.md](enums.md#startofweek)                                           |
-| `timezone`        | string      | IANA zone (ej: `America/Lima`). Validado server-side con `Intl.DateTimeFormat` |
+| Campo                       | Tipo                       | Notas                                                                          |
+| --------------------------- | -------------------------- | ------------------------------------------------------------------------------ |
+| `language`                  | Language                   | Ver [enums.md](enums.md#language)                                              |
+| `theme`                     | Theme                      | Ver [enums.md](enums.md#theme)                                                 |
+| `defaultCurrency`           | Currency                   | Ver [enums.md](enums.md#currency)                                              |
+| `dateFormat`                | DateFormat                 | Ver [enums.md](enums.md#dateformat)                                            |
+| `startOfWeek`               | StartOfWeek                | Ver [enums.md](enums.md#startofweek)                                           |
+| `timezone`                  | string                     | IANA zone (ej: `America/Lima`). Validado server-side con `Intl.DateTimeFormat` |
+| `monthlyServicesGroupBy`    | MonthlyServicesGroupBy     | Ver [enums.md](enums.md#monthlyservicesgroupby)                                |
+| `monthlyServicesOrderBy`    | MonthlyServicesOrderBy     | Ver [enums.md](enums.md#monthlyservicesorderby)                                |
+| `monthlyServicesOrderDir`   | MonthlyServicesOrderDir    | Ver [enums.md](enums.md#monthlyservicesorderdir)                               |
 
 Todos los campos son opcionales. Si no existe configuración previa, se crea antes de aplicar los cambios.
 
@@ -118,6 +121,9 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "dateFormat": "DD/MM/YYYY",
   "startOfWeek": "monday",
   "timezone": "America/Lima",
+  "monthlyServicesGroupBy": "none",
+  "monthlyServicesOrderBy": "name",
+  "monthlyServicesOrderDir": "asc",
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }

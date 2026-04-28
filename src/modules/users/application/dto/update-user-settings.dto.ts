@@ -7,6 +7,9 @@ import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { DateFormat } from '../../domain/enums/date-format.enum';
 import { Language } from '../../domain/enums/language.enum';
+import { MonthlyServicesGroupBy } from '../../domain/enums/monthly-services-group-by.enum';
+import { MonthlyServicesOrderBy } from '../../domain/enums/monthly-services-order-by.enum';
+import { MonthlyServicesOrderDir } from '../../domain/enums/monthly-services-order-dir.enum';
 import { StartOfWeek } from '../../domain/enums/start-of-week.enum';
 import { Theme } from '../../domain/enums/theme.enum';
 
@@ -64,4 +67,31 @@ export class UpdateUserSettingsDto {
   @IsOptional()
   @IsIanaTimezone()
   timezone?: string;
+
+  @ApiPropertyOptional({
+    enum: MonthlyServicesGroupBy,
+    description: 'Agrupación de la lista de servicios mensuales en el web',
+    example: MonthlyServicesGroupBy.NONE,
+  })
+  @IsOptional()
+  @IsEnum(MonthlyServicesGroupBy)
+  monthlyServicesGroupBy?: MonthlyServicesGroupBy;
+
+  @ApiPropertyOptional({
+    enum: MonthlyServicesOrderBy,
+    description: 'Campo por el que se ordena la lista de servicios mensuales',
+    example: MonthlyServicesOrderBy.NAME,
+  })
+  @IsOptional()
+  @IsEnum(MonthlyServicesOrderBy)
+  monthlyServicesOrderBy?: MonthlyServicesOrderBy;
+
+  @ApiPropertyOptional({
+    enum: MonthlyServicesOrderDir,
+    description: 'Dirección del orden (asc/desc)',
+    example: MonthlyServicesOrderDir.ASC,
+  })
+  @IsOptional()
+  @IsEnum(MonthlyServicesOrderDir)
+  monthlyServicesOrderDir?: MonthlyServicesOrderDir;
 }
