@@ -745,9 +745,7 @@ describe('MonthlyServicesController (e2e)', () => {
       mockAccountRepo.findById.mockResolvedValue(
         buildAccount({ id: ACC_ID_1, userId: USER_ID, currency: Currency.PEN }),
       );
-      mockCategoryRepo.findById.mockResolvedValue(
-        buildCategory({ id: CAT_ID, userId: USER_ID }),
-      );
+      mockCategoryRepo.findById.mockResolvedValue(buildCategory({ id: CAT_ID, userId: USER_ID }));
       mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
 
       return request(app.getHttpServer())

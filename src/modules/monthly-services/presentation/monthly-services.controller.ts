@@ -195,6 +195,7 @@ export class MonthlyServicesController {
       payload.sub,
       dto,
       currentPeriod,
+      timezone,
     );
     return ApiResponseDto.ok(
       {
