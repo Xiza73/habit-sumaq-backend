@@ -82,6 +82,19 @@ describe('CreateMonthlyServiceUseCase', () => {
     expect(serviceRepo.save).toHaveBeenCalled();
   });
 
+  it('defaults frequencyMonths to 1 (monthly) when not provided', async () => {
+    const result = await useCase.execute(userId, baseDto, 'UTC');
+    expect(result.frequencyMonths).toBe(1);
+  });
+
+  it('honors the requested frequencyMonths and shapes nextDuePeriod accordingly', async () => {
+    // Quarterly service starting in April -> nextDuePeriod is still April
+    // (it has not been paid yet); after first pay it would jump to July.
+    const result = await useCase.execute(userId, { ...baseDto, frequencyMonths: 3 }, 'UTC');
+    expect(result.frequencyMonths).toBe(3);
+    expect(result.nextDuePeriod()).toBe('2026-04');
+  });
+
   it('defaults startPeriod to current month when not provided', async () => {
     const dto = { ...baseDto, startPeriod: undefined };
     const result = await useCase.execute(userId, dto, 'UTC');

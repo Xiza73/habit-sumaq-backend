@@ -67,6 +67,7 @@ export class CreateMonthlyServiceUseCase {
       dto.defaultAccountId,
       dto.categoryId,
       dto.currency,
+      dto.frequencyMonths ?? 1,
       dto.estimatedAmount ?? null,
       dto.dueDay ?? null,
       startPeriod,

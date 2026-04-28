@@ -30,6 +30,9 @@ export class MonthlyServiceOrmEntity {
   @Column({ type: 'varchar', length: 3 })
   currency: string;
 
+  @Column({ type: 'integer', default: 1 })
+  frequencyMonths: number;
+
   @Column({
     type: 'numeric',
     precision: 15,

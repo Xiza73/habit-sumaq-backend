@@ -16,6 +16,15 @@ export class MonthlyService {
     // account in a different currency, the service "moves" to that currency
     // too (handled in UpdateMonthlyServiceUseCase).
     public currency: string,
+    /**
+     * Billing cadence in months. Currently restricted to {1, 3, 6, 12}
+     * (mensual, trimestral, semestral, anual) by the DB CHECK constraint
+     * and the create DTO validation. Immutable after creation — if you got
+     * it wrong, archive and recreate. Past payments would be misaligned with
+     * a new cadence (e.g. 3 monthly payments would suddenly become "3
+     * quarterly payments" if you switched to trimestral mid-stream).
+     */
+    readonly frequencyMonths: number,
     public estimatedAmount: number | null,
     public dueDay: number | null,
     readonly startPeriod: string,
@@ -28,10 +37,12 @@ export class MonthlyService {
 
   /**
    * The next `YYYY-MM` the service should be paid for. If it has never been
-   * paid, this is `startPeriod`; otherwise it is `lastPaidPeriod + 1 month`.
+   * paid, this is `startPeriod`; otherwise it is `lastPaidPeriod + frequencyMonths`.
    */
   nextDuePeriod(): string {
-    return this.lastPaidPeriod ? MonthlyService.addMonth(this.lastPaidPeriod) : this.startPeriod;
+    return this.lastPaidPeriod
+      ? MonthlyService.addMonths(this.lastPaidPeriod, this.frequencyMonths)
+      : this.startPeriod;
   }
 
   /**
@@ -69,16 +80,16 @@ export class MonthlyService {
   }
 
   /**
-   * Adds one month to a `YYYY-MM` string, rolling the year when needed.
+   * Adds `n` months to a `YYYY-MM` string, rolling the year when needed.
    * Kept as a static so use cases and tests can reuse it without instantiating.
    */
-  static addMonth(period: string): string {
+  static addMonths(period: string, n: number): string {
     const [yearStr, monthStr] = period.split('-');
     const year = Number(yearStr);
-    const month = Number(monthStr);
-    if (month === 12) {
-      return `${year + 1}-01`;
-    }
-    return `${year}-${String(month + 1).padStart(2, '0')}`;
+    const month = Number(monthStr); // 1-indexed
+    const total = month - 1 + n; // back to 0-indexed for arithmetic
+    const newYear = year + Math.floor(total / 12);
+    const newMonth = (total % 12) + 1;
+    return `${newYear}-${String(newMonth).padStart(2, '0')}`;
   }
 }

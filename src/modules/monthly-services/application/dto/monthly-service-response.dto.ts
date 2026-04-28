@@ -21,6 +21,13 @@ export class MonthlyServiceResponseDto {
   @ApiProperty({ example: 'PEN' })
   currency: string;
 
+  @ApiProperty({
+    example: 1,
+    description:
+      'Cadencia de cobro en meses (1 mensual, 3 trimestral, 6 semestral, 12 anual). Inmutable.',
+  })
+  frequencyMonths: number;
+
   @ApiPropertyOptional({ example: 45.0, nullable: true })
   estimatedAmount: number | null;
 
@@ -74,6 +81,7 @@ export class MonthlyServiceResponseDto {
     dto.defaultAccountId = entity.defaultAccountId;
     dto.categoryId = entity.categoryId;
     dto.currency = entity.currency;
+    dto.frequencyMonths = entity.frequencyMonths;
     dto.estimatedAmount = entity.estimatedAmount;
     dto.dueDay = entity.dueDay;
     dto.startPeriod = entity.startPeriod;

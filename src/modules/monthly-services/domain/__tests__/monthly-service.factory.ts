@@ -10,6 +10,7 @@ export function buildMonthlyService(
     defaultAccountId: string;
     categoryId: string;
     currency: string;
+    frequencyMonths: number;
     estimatedAmount: number | null;
     dueDay: number | null;
     startPeriod: string;
@@ -27,6 +28,7 @@ export function buildMonthlyService(
     overrides.defaultAccountId ?? 'account-test-id',
     overrides.categoryId ?? 'category-test-id',
     overrides.currency ?? 'PEN',
+    overrides.frequencyMonths ?? 1,
     overrides.estimatedAmount !== undefined ? overrides.estimatedAmount : 45,
     overrides.dueDay !== undefined ? overrides.dueDay : 15,
     overrides.startPeriod ?? '2026-01',
