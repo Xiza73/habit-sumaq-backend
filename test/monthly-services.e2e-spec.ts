@@ -713,5 +713,58 @@ describe('MonthlyServicesController (e2e)', () => {
           expect(body.error.code).toBe('MSVC_001');
         });
     });
+
+    it('should allow recreating a service with the same name after a soft-delete', async () => {
+      // Regression for the bug where the partial unique index still blocked
+      // recreation because softDelete only sets deletedAt, leaving isActive
+      // intact. The migration FixMonthlyServicesUniqueIndexExcludeSoftDeleted
+      // extends the index's WHERE clause to also exclude soft-deleted rows.
+      // E2E-side: after delete, findActiveByUserIdAndName returns null
+      // (TypeORM excludes soft-deleted rows from find() automatically), so
+      // the create use case proceeds normally.
+      const original = buildMonthlyService({
+        id: SVC_ID,
+        userId: USER_ID,
+        name: 'Netflix',
+        defaultAccountId: ACC_ID_1,
+        categoryId: CAT_ID,
+      });
+      mockServiceRepo.findById.mockResolvedValue(original);
+      mockTxRepo.countByMonthlyServiceId.mockResolvedValue(0);
+      mockServiceRepo.softDelete.mockResolvedValue(undefined);
+
+      // 1. Delete the original service.
+      await request(app.getHttpServer())
+        .delete(`/api/v1/monthly-services/${SVC_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      // 2. Now create another service with the SAME name. After the migration
+      //    the active-name uniqueness check excludes soft-deleted rows.
+      mockServiceRepo.findActiveByUserIdAndName.mockResolvedValue(null);
+      mockAccountRepo.findById.mockResolvedValue(
+        buildAccount({ id: ACC_ID_1, userId: USER_ID, currency: Currency.PEN }),
+      );
+      mockCategoryRepo.findById.mockResolvedValue(
+        buildCategory({ id: CAT_ID, userId: USER_ID }),
+      );
+      mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
+
+      return request(app.getHttpServer())
+        .post('/api/v1/monthly-services')
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .send({
+          name: 'Netflix',
+          defaultAccountId: ACC_ID_1,
+          categoryId: CAT_ID,
+          currency: 'PEN',
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.success).toBe(true);
+          expect(body.data.name).toBe('Netflix');
+        });
+    });
   });
 });

@@ -33,13 +33,16 @@ export class UpdateMonthlyServiceUseCase {
       if (!account || account.userId !== userId) {
         throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta no encontrada');
       }
-      if (String(account.currency) !== service.currency) {
-        throw new DomainException(
-          'CURRENCY_MISMATCH',
-          'La cuenta debe tener la misma moneda que el servicio',
-        );
-      }
       service.defaultAccountId = dto.defaultAccountId;
+
+      // If the new account has a different currency, the service "moves" to
+      // that currency. estimatedAmount was computed from past transactions in
+      // the old currency so it's meaningless now — reset to null and let the
+      // next /pay recompute it.
+      if (String(account.currency) !== service.currency) {
+        service.currency = String(account.currency);
+        service.estimatedAmount = null;
+      }
     }
 
     if (dto.categoryId !== undefined) {

@@ -12,7 +12,10 @@ export class MonthlyService {
     public name: string,
     public defaultAccountId: string,
     public categoryId: string,
-    readonly currency: string,
+    // No longer readonly — when the user moves the service to a default
+    // account in a different currency, the service "moves" to that currency
+    // too (handled in UpdateMonthlyServiceUseCase).
+    public currency: string,
     public estimatedAmount: number | null,
     public dueDay: number | null,
     readonly startPeriod: string,
