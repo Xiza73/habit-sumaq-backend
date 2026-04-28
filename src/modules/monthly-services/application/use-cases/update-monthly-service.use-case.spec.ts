@@ -110,16 +110,38 @@ describe('UpdateMonthlyServiceUseCase', () => {
     expect(result.defaultAccountId).toBe('acc-2');
   });
 
-  it('throws CURRENCY_MISMATCH when the new account has a different currency', async () => {
-    const service = buildMonthlyService({ userId, currency: 'PEN' });
+  it('moves the service to the new currency when the account currency differs and resets estimatedAmount', async () => {
+    // Used to throw CURRENCY_MISMATCH — now the service "moves" to the new
+    // currency. estimatedAmount was computed from past tx in the OLD currency
+    // so it's reset to null and will recompute on the next /pay.
+    const service = buildMonthlyService({
+      userId,
+      currency: 'PEN',
+      estimatedAmount: 120,
+    });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
       buildAccount({ id: 'acc-2', userId, currency: Currency.USD }),
     );
 
-    await expect(
-      useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' }),
-    ).rejects.toThrow('La cuenta debe tener la misma moneda que el servicio');
+    const result = await useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' });
+
+    expect(result.defaultAccountId).toBe('acc-2');
+    expect(result.currency).toBe('USD');
+    expect(result.estimatedAmount).toBeNull();
+  });
+
+  it('keeps estimatedAmount when the new account has the SAME currency', async () => {
+    const service = buildMonthlyService({ userId, currency: 'PEN', estimatedAmount: 120 });
+    serviceRepo.findById.mockResolvedValue(service);
+    accountRepo.findById.mockResolvedValue(
+      buildAccount({ id: 'acc-2', userId, currency: Currency.PEN }),
+    );
+
+    const result = await useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' });
+
+    expect(result.currency).toBe('PEN');
+    expect(result.estimatedAmount).toBe(120);
   });
 
   it('throws ACCOUNT_NOT_FOUND when the new account is owned by another user', async () => {
