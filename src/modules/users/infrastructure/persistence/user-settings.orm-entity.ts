@@ -11,6 +11,9 @@ import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { DateFormat } from '../../domain/enums/date-format.enum';
 import { Language } from '../../domain/enums/language.enum';
+import { MonthlyServicesGroupBy } from '../../domain/enums/monthly-services-group-by.enum';
+import { MonthlyServicesOrderBy } from '../../domain/enums/monthly-services-order-by.enum';
+import { MonthlyServicesOrderDir } from '../../domain/enums/monthly-services-order-dir.enum';
 import { StartOfWeek } from '../../domain/enums/start-of-week.enum';
 import { Theme } from '../../domain/enums/theme.enum';
 
@@ -65,6 +68,17 @@ export class UserSettingsOrmEntity {
 
   @Column({ type: 'varchar', length: 64, default: 'UTC' })
   timezone: string;
+
+  // VARCHAR + CHECK (declared in the migration) keeps these specific to the
+  // monthly-services UI without polluting the global enum types.
+  @Column({ type: 'varchar', length: 20, default: MonthlyServicesGroupBy.NONE })
+  monthlyServicesGroupBy: MonthlyServicesGroupBy;
+
+  @Column({ type: 'varchar', length: 24, default: MonthlyServicesOrderBy.NAME })
+  monthlyServicesOrderBy: MonthlyServicesOrderBy;
+
+  @Column({ type: 'varchar', length: 4, default: MonthlyServicesOrderDir.ASC })
+  monthlyServicesOrderDir: MonthlyServicesOrderDir;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
