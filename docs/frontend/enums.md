@@ -284,3 +284,23 @@ la creación.
 
 Default al crear: `1`. El frontend muestra el chip de cadencia solo cuando
 `frequencyMonths !== 1` (mensual = caso por defecto, no agrega ruido visual).
+
+---
+
+## IntervalUnit
+
+Unidad de cadencia de una `Chore` (tarea recurrente no diaria). Persistido como `VARCHAR + CHECK`
+en la columna `chores.intervalUnit` — NO es un Postgres ENUM.
+
+| Valor    | Descripción       |
+| -------- | ----------------- |
+| `days`   | Cada N días       |
+| `weeks`  | Cada N semanas    |
+| `months` | Cada N meses      |
+| `years`  | Cada N años       |
+
+**Aritmética:** sumar meses/años clampea el día cuando el target tiene menos días (ej: Jan 31 +
+1 mes = Feb 28; Feb 29 + 1 año = Feb 28 si el año target no es bisiesto).
+
+**Uso:** campo `intervalUnit` en `POST /chores` y `PATCH /chores/:id`, junto con `intervalValue`
+(entero positivo) que indica la cantidad de unidades.

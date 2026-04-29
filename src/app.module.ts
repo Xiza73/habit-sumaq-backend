@@ -12,6 +12,7 @@ import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
+import { ChoresModule } from './modules/chores/presentation/chores.module';
 import { HabitsModule } from './modules/habits/presentation/habits.module';
 import { HealthModule } from './modules/health/health.module';
 import { MonthlyServicesModule } from './modules/monthly-services/presentation/monthly-services.module';
@@ -34,6 +35,7 @@ import { AppService } from './app.service';
     HabitsModule,
     QuickTasksModule,
     MonthlyServicesModule,
+    ChoresModule,
     ReportsModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
