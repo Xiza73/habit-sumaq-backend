@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
@@ -25,4 +25,16 @@ export class SettleByReferenceDto {
   @IsOptional()
   @IsEnum(Currency)
   currency?: Currency;
+
+  @ApiPropertyOptional({
+    description:
+      'Modo "pago real": cuenta donde se contabiliza el flujo. Por cada deuda/préstamo ' +
+      'pendiente se crea una transacción de liquidación (EXPENSE para DEBT, INCOME para LOAN) ' +
+      'que mueve plata. Si se omite, la liquidación es "informal" — solo marca como SETTLED sin ' +
+      'tocar cuentas. Al usar `accountId`, `currency` es obligatorio para asegurar coincidencia.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @IsOptional()
+  @IsUUID()
+  accountId?: string;
 }

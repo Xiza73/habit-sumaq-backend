@@ -18,4 +18,12 @@ export class BulkSettleResponseDto {
     description: 'Cantidad de transacciones liquidadas (0 si la referencia no tenía pendientes)',
   })
   count: number;
+
+  @ApiProperty({
+    example: ['650e8400-e29b-41d4-a716-446655440000', '650e8400-e29b-41d4-a716-446655440001'],
+    description:
+      'IDs de las transacciones de liquidación creadas (EXPENSE/INCOME). Solo se llena en modo ' +
+      '"pago real" (con accountId). En modo informal queda como array vacío.',
+  })
+  settlementIds: string[];
 }

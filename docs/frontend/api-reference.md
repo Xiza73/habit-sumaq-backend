@@ -357,6 +357,43 @@ Liquida parcial o totalmente una deuda/préstamo.
 - `409` — Ya fue liquidada completamente (`SETTLED`)
 - `422` — No es DEBT/LOAN, o monto excede saldo pendiente
 
+### `POST /transactions/settle-by-reference`
+
+Liquida en bloque todas las DEBT/LOAN pendientes que coincidan con una `reference` (normalizada server-side: `LOWER + unaccent`, así `"Juán"`, `"juan"` y `"JUAN"` colapsan en la misma persona).
+
+Tiene **dos modos** según el body:
+
+| Campo       | Tipo             | Requerido | Notas                                                                                    |
+| ----------- | ---------------- | --------- | ---------------------------------------------------------------------------------------- |
+| `reference` | string           | sí        | Referencia a liquidar (case + accent insensitive)                                        |
+| `currency`  | Currency         | no        | Filtra a transacciones cuya cuenta tenga esta moneda. Obligatorio si `accountId` se envía |
+| `accountId` | UUID             | no        | **Si se envía**, dispara modo "pago real"                                                |
+
+**Modo informal** (sin `accountId`): marca como `SETTLED` los originales. NO crea transacciones de liquidación ni mueve balances. Útil cuando ya se arregló cara a cara.
+
+**Modo pago real** (con `accountId`): por cada pendiente, crea una transacción de liquidación (EXPENSE para DEBT, INCOME para LOAN) en la cuenta indicada y mueve la plata. Equivale a llamar `POST /transactions/:id/settle` para cada uno en un solo shot. La cuenta debe existir, ser del usuario, y compartir la `currency` del filtro.
+
+**Idempotente**: si no hay pendientes, devuelve `count: 0` sin error.
+
+**Response:** `200` — `BulkSettleResponseDto`:
+
+```json
+{
+  "settledIds": ["...", "..."],
+  "totalSettled": 700,
+  "count": 2,
+  "settlementIds": ["...", "..."]
+}
+```
+
+`settlementIds` queda vacío en modo informal y se llena con los IDs de las nuevas EXPENSE/INCOME en modo pago real.
+
+**Errores:**
+
+- `404` — Cuenta de pago no encontrada (solo modo real)
+- `403` — La cuenta pertenece a otro usuario (solo modo real)
+- `422` — `CURRENCY_MISMATCH` si la cuenta no coincide con la `currency` del filtro
+
 ### `GET /transactions`
 
 Lista transacciones del usuario paginadas, ordenadas por fecha descendente.
