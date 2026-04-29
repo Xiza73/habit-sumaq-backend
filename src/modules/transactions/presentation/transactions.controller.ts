@@ -120,17 +120,21 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'Liquidar en bloque todas las deudas/préstamos pendientes por referencia',
     description:
-      'Marca como SETTLED todas las DEBT/LOAN pendientes cuya `reference` matchee la provista ' +
-      '(LOWER + unaccent). NO crea transacciones de liquidación (EXPENSE/INCOME) ni afecta ' +
-      'balances — cierra el libro cuando ya arreglaste informalmente. Para liquidar con efecto ' +
-      'contable, usá POST /transactions/:id/settle. Idempotente: retorna count=0 si no hay ' +
-      'pendientes.',
+      'Dos modos según el body:\n\n' +
+      '- **Informal** (sin `accountId`): marca como SETTLED las DEBT/LOAN pendientes cuya ' +
+      '`reference` matchee la provista (LOWER + unaccent). NO crea transacciones de liquidación ' +
+      'ni afecta balances — cierra el libro cuando ya arreglaste informalmente.\n\n' +
+      '- **Pago real** (con `accountId`): por cada deuda/préstamo pendiente crea una transacción ' +
+      'de liquidación (EXPENSE para DEBT, INCOME para LOAN) en la cuenta indicada y mueve la ' +
+      'plata. La cuenta debe existir, ser del usuario, y compartir la `currency` del filtro.\n\n' +
+      'Idempotente: retorna count=0 si no hay pendientes.',
   })
   @ApiResponse({
     status: 200,
     description: 'Resumen de la operación',
     type: BulkSettleResponseDto,
   })
+  @ApiResponse({ status: 404, description: 'Cuenta de pago no encontrada' })
   async settleByReference(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: SettleByReferenceDto,
@@ -139,6 +143,7 @@ export class TransactionsController {
       payload.sub,
       dto.reference,
       dto.currency,
+      dto.accountId,
     );
     return ApiResponseDto.ok(result, 'Liquidación en bloque completada');
   }

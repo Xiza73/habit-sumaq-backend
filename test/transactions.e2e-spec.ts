@@ -636,7 +636,12 @@ describe('TransactionsController (e2e)', () => {
         .send({ reference: 'Ghost' })
         .expect(200)
         .expect(({ body }) => {
-          expect(body.data).toEqual({ settledIds: [], totalSettled: 0, count: 0 });
+          expect(body.data).toEqual({
+            settledIds: [],
+            totalSettled: 0,
+            count: 0,
+            settlementIds: [],
+          });
         });
     });
 
