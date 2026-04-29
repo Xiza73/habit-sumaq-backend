@@ -97,6 +97,13 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `MSVC_003` | 409  | Ya tenés un servicio activo con ese nombre  | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
 | `MSVC_004` | 409  | El servicio ya está pagado para el mes actual | POST /monthly-services/:id/pay cuando el servicio ya está al día (idempotency guard).              |
 
+### Chores (Tareas recurrentes no diarias)
+
+| Código     | HTTP | Descripción                                  | Cuándo ocurre                                                                                |
+| ---------- | ---- | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `CHRE_001` | 409  | La tarea tiene eventos (logs) registrados    | DELETE /chores/:id cuando ya existen logs. Archivala en su lugar con PATCH /:id/archive.     |
+| `CHRE_002` | 404  | Tarea no encontrada                          | GET/PATCH/POST .../done .../skip DELETE con UUID inexistente o perteneciente a otro usuario. |
+
 ### Generales
 
 | Código    | HTTP | Descripción                       | Cuándo ocurre                              |

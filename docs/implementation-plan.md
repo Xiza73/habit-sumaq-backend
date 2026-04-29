@@ -496,6 +496,60 @@ QuickTasksModule (Fase 8) ←─────────────────
 
 ---
 
+## Fase 11 — Chores (Tareas recurrentes no diarias)
+
+**Objetivo:** Módulo para tareas de mantenimiento con cadencia libre (lavar sábanas cada 2 semanas,
+rotar neumáticos cada 6 meses, etc.). Decoplado del módulo `Habits` (que es para hábitos diarios)
+y del módulo `MonthlyServices` (que es para gastos recurrentes en moneda). Sin notificaciones, sin
+costos, sin foto: el v1 es chore + logs.
+
+- [x] Migración `CreateChoresTables` con tablas `chores` y `chore_logs` (FK + CASCADE), índices
+  `(userId)`, `(userId, isActive)`, `(userId, nextDueDate)` y `(choreId, doneAt DESC)`
+- [x] CHECK constraints: `intervalValue > 0` y `intervalUnit IN ('days','weeks','months','years')`
+- [x] `Chore` domain entity con helpers `isOverdueFor`, `markDone`, `skipCycle`, `toggleActive`
+- [x] `ChoreLog` domain entity (inmutable post-insert)
+- [x] Helper puro `addInterval(date, value, unit)` con tests para overflow de mes/año, leap years
+  y clamp de día (Jan 31 + 1 month → Feb 28/29)
+- [x] `ChoreRepository` + `ChoreLogRepository` + ORM entities + impls
+- [x] DTOs: `CreateChoreDto`, `UpdateChoreDto` (omite `startDate`, agrega `nextDueDate` editable),
+  `MarkChoreDoneDto`, `SkipChoreDto`, `ChoreResponseDto`, `ChoreLogResponseDto`
+- [x] Use cases: List, Get, ListLogs, Create, Update, MarkDone, SkipCycle, Archive, Delete
+- [x] 9 endpoints con `JwtAuthGuard` y Swagger completo
+- [x] Error codes `CHRE_001` (logs registrados) y `CHRE_002` (not-found / cross-user) en
+  `ERROR_CODES` y `DOMAIN_HTTP_MAP`
+- [x] Helper `todayInTimezone` análogo a `currentPeriodInTimezone` pero a nivel día
+- [x] Mark done crea log + setea `lastDoneDate = doneAt` + avanza `nextDueDate = doneAt + interval`
+  (regla A — la cadencia se reanuda desde la fecha real de hecho)
+- [x] Skip avanza `nextDueDate += interval` sin log, sin tocar `lastDoneDate`
+- [x] Update de `intervalValue`/`intervalUnit` NO recalcula `nextDueDate` (decisión firmada)
+- [x] Delete condicional: 409 `CHRE_001` si hay logs — forzar archivar en su lugar
+- [x] Tests unitarios: 60 tests cubriendo los 9 use cases + addInterval helper
+- [x] Tests e2e: 24 tests cubriendo CRUD, mark-done por unidad (días/semanas/meses/años), skip,
+  archive toggle, delete con logs → 409, override manual de `nextDueDate`
+
+**Criterio de completitud:** tsc limpio, lint limpio, 60 unit tests + 24 e2e tests del módulo
++ regresión total intacta (464 unit / 161 e2e). ✅
+
+---
+
+## Backlog Chores (post-v1)
+
+Funcionalidades intencionalmente fuera del v1. Dejadas para una iteración futura cuando haya
+demanda real:
+
+1. **Foto / adjuntos en logs.** Subir una imagen del antes/después al marcar como hecho.
+2. **Costo por log + link a `Transaction`.** Algunas chores cuestan plata (ej: rotar neumáticos
+   en el taller). Permitiría linkar el log con una `Transaction EXPENSE` para reportes financieros.
+3. **Multi-user / quién lo hizo.** Compartir chores entre miembros de un hogar y trackear quién
+   completó cada log. Requiere primero el módulo de "households" / sharing.
+4. **Notificaciones push/email.** Alertar al usuario cuando una chore se vuelve overdue o cuando
+   se acerca el `nextDueDate`. Depende del módulo de notificaciones (también pendiente).
+5. **Group/Order persistido.** Hoy el orden y agrupamiento de la lista vive en el cliente. Cuando
+   esté la UI estable, persistir la preferencia en `user_settings` (mismo patrón que
+   `monthlyServicesGroupBy/OrderBy/OrderDir`).
+
+---
+
 ## Lo que NO se implementa (backlog post-MVP actual)
 
 - Presupuestos por categoría con alertas

@@ -51,6 +51,9 @@ export const ERROR_CODES = {
   MONTHLY_SERVICE_NOT_FOUND: 'MSVC_002',
   MONTHLY_SERVICE_NAME_TAKEN: 'MSVC_003',
   MONTHLY_SERVICE_ALREADY_PAID: 'MSVC_004',
+  // Chores (recurring household tasks)
+  CHORE_HAS_LOGS: 'CHRE_001',
+  CHORE_NOT_FOUND: 'CHRE_002',
   // Validation
   VALIDATION_ERROR: 'GEN_001',
 } as const;

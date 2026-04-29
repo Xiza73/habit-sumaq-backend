@@ -102,6 +102,15 @@ El servidor queda disponible en `http://localhost:3010`.
 | POST | /api/v1/monthly-services/:id/skip | Bearer | Saltear el mes sin pagar |
 | PATCH | /api/v1/monthly-services/:id/archive | Bearer | Archivar/desarchivar |
 | DELETE | /api/v1/monthly-services/:id | Bearer | Eliminar (solo sin pagos) |
+| GET | /api/v1/chores | Bearer | Listar tareas recurrentes |
+| GET | /api/v1/chores/:id | Bearer | Obtener una tarea |
+| GET | /api/v1/chores/:id/logs | Bearer | Listar eventos paginados de una tarea |
+| POST | /api/v1/chores | Bearer | Crear una tarea recurrente |
+| PATCH | /api/v1/chores/:id | Bearer | Editar una tarea |
+| POST | /api/v1/chores/:id/done | Bearer | Marcar como hecha (crea log + avanza nextDueDate) |
+| POST | /api/v1/chores/:id/skip | Bearer | Saltear un ciclo sin marcar como hecha |
+| PATCH | /api/v1/chores/:id/archive | Bearer | Archivar/desarchivar |
+| DELETE | /api/v1/chores/:id | Bearer | Eliminar (solo sin logs) |
 
 ## Comandos frecuentes
 

@@ -371,3 +371,82 @@ Los tres se calculan en cada respuesta usando la timezone del header `x-timezone
 - `ON DELETE SET NULL` — si el servicio se elimina (caso raro, sin pagos), las referencias quedan en null.
 - Las transacciones generadas por `POST /monthly-services/:id/pay` son `EXPENSE` normales, aparecen
   en la lista general y en los reportes de finanzas como cualquier otro gasto.
+
+## Módulo Chores (Tareas recurrentes no diarias)
+
+### Chore
+
+Tarea de mantenimiento o rutina hogareña con cadencia libre — días, semanas, meses o años. NO se
+mide por completitud diaria (eso son los `Habit`s); una `Chore` simplemente "se hizo" o "todavía
+no", y el sistema sabe cuándo toca de vuelta.
+
+```typescript
+Chore {
+  id: UUID
+  userId: UUID                    // FK → User
+  name: string                    // "Lavar sábanas", "Rotar neumáticos"
+  notes: string | null            // texto libre (≤2000 chars)
+  category: string | null         // tag libre, ≤50 chars
+  intervalValue: number           // entero positivo (ej. 2)
+  intervalUnit: 'days'|'weeks'|'months'|'years'
+  startDate: string               // YYYY-MM-DD — semilla del primer ciclo, inmutable
+  lastDoneDate: string | null     // YYYY-MM-DD — null si nunca se hizo
+  nextDueDate: string             // YYYY-MM-DD — persistido, editable manualmente
+  isActive: boolean               // false = archivada
+  createdAt: Date
+  updatedAt: Date
+  deletedAt: Date | null          // soft delete
+}
+```
+
+**Valores calculados (no persistidos):**
+
+- `isOverdue`: `nextDueDate < currentDateInUserTz`. El frontend puede recalcular `isUpcoming` y
+  bandas de proximidad client-side; el backend sólo expone `isOverdue` para tests/consistencia.
+
+### ChoreLog
+
+Registro de un evento de "hecho". Inmutable después del insert (no hay edición en v1).
+
+```typescript
+ChoreLog {
+  id: UUID
+  choreId: UUID                   // FK → Chore (ON DELETE CASCADE)
+  doneAt: string                  // YYYY-MM-DD — el día se entiende en la TZ del usuario
+  note: string | null             // texto libre (≤500 chars)
+  createdAt: Date
+}
+```
+
+**Reglas de negocio (firmadas v1):**
+
+1. **Create**: `nextDueDate = startDate`. `lastDoneDate = null`.
+2. **Mark done** (`POST /chores/:id/done`):
+   - `doneAt` default = hoy en la TZ del cliente.
+   - Crea `ChoreLog` con `doneAt + note?`.
+   - `lastDoneDate = doneAt`.
+   - `nextDueDate = doneAt + interval` (regla A — la cadencia se reanuda desde la fecha real
+     de hecho, NO desde el `nextDueDate` previo).
+3. **Skip** (`POST /chores/:id/skip`): `nextDueDate += interval`. NO crea log, NO toca
+   `lastDoneDate`.
+4. **Update** `intervalValue`/`intervalUnit`: NO recalcula `nextDueDate`. El usuario puede ajustar
+   `nextDueDate` manualmente vía PATCH si quiere — decisión firmada (predecible > "mágico").
+5. **Update** con `nextDueDate`: lo asigna directo (después de validar formato `YYYY-MM-DD`).
+6. **Delete**: bloqueado con `409 CHRE_001` si la chore tiene logs. Sin logs → soft delete.
+7. **Archive**: toggle `isActive`. Los logs históricos quedan intactos.
+
+**Aritmética de fechas (helper `addInterval`):**
+
+- `days` / `weeks`: suma directa en UTC para evitar saltos por DST.
+- `months`: usa `Date(year, monthIndex, day)` con clamp manual del día (Jan 31 + 1 mes = Feb 28
+  o Feb 29 según año bisiesto, NUNCA Mar 3).
+- `years`: idem, con clamp para Feb 29 (Feb 29 + 1 año = Feb 28 si el target no es bisiesto).
+
+**Invariantes de dominio:**
+
+| #  | Regla                                                                       | Módulo |
+|----|-----------------------------------------------------------------------------|--------|
+| 16 | `intervalValue > 0`                                                         | Chore  |
+| 17 | `intervalUnit ∈ {days, weeks, months, years}`                               | Chore  |
+| 18 | Una chore con logs no puede eliminarse (sólo archivarse)                    | Chore  |
+| 19 | `startDate` no cambia después de creada                                     | Chore  |

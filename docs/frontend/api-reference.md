@@ -967,3 +967,165 @@ Soft-delete (marca `deletedAt = now()`), **sólo** si el servicio no tiene pagos
 - `404 MSVC_002` servicio no encontrado.
 - `409 MSVC_001` servicio con pagos — no se puede eliminar.
 
+---
+
+## Chores
+
+Tareas recurrentes no diarias (lavar sábanas, rotar neumáticos, vaciar la pelusera del secarropas, etc.).
+A diferencia de los hábitos diarios, las chores tienen una **cadencia libre** definida como
+`(intervalValue, intervalUnit)` donde `intervalUnit` es uno de `days | weeks | months | years`.
+
+Cada chore conoce su próxima fecha (`nextDueDate`, formato `YYYY-MM-DD`). Marcarla como hecha crea
+un `ChoreLog` y avanza `nextDueDate` a `doneAt + interval` (la cadencia se reanuda desde la fecha real
+de hecho). Saltear un ciclo avanza `nextDueDate` sin crear log y sin tocar `lastDoneDate`.
+
+`isOverdue` se calcula contra "hoy" en la timezone del header `x-timezone`.
+
+### `GET /chores?includeArchived=bool`
+
+Lista las chores activas del usuario. `includeArchived=true` incluye también las archivadas.
+
+- **Query:**
+  - `includeArchived` — `boolean` opcional (default `false`)
+- **Response:** `200` — `ChoreResponseDto[]`
+
+```json
+[
+  {
+    "id": "uuid",
+    "userId": "uuid",
+    "name": "Lavar sábanas",
+    "notes": "Programa 60°C",
+    "category": "Limpieza",
+    "intervalValue": 2,
+    "intervalUnit": "weeks",
+    "startDate": "2026-04-01",
+    "lastDoneDate": "2026-04-15",
+    "nextDueDate": "2026-04-29",
+    "isActive": true,
+    "isOverdue": false,
+    "createdAt": "2026-04-01T12:00:00.000Z",
+    "updatedAt": "2026-04-15T20:30:00.000Z"
+  }
+]
+```
+
+### `GET /chores/:id`
+
+Detalle de una chore.
+
+- **Response:** `200` — `ChoreResponseDto`
+- `404 CHRE_002` si no existe o pertenece a otro usuario.
+
+### `GET /chores/:id/logs?limit=20&offset=0`
+
+Lista paginada de eventos (logs) de la chore. Orden: `doneAt DESC, createdAt DESC` (más recientes primero).
+
+- **Query:**
+  - `limit` — `number` opcional, default `20`, max `100`.
+  - `offset` — `number` opcional, default `0`.
+- **Response:** `200` — `ChoreLogResponseDto[]` con `meta` paginada.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "choreId": "uuid",
+      "doneAt": "2026-04-15",
+      "note": "Usé desinfectante nuevo",
+      "createdAt": "2026-04-15T20:30:00.000Z"
+    }
+  ],
+  "message": "Eventos obtenidos exitosamente",
+  "meta": { "page": 1, "limit": 20, "total": 1, "totalPages": 1 }
+}
+```
+
+- `404 CHRE_002` si la chore no existe o pertenece a otro usuario.
+
+### `POST /chores`
+
+Crea una chore. `nextDueDate` se inicializa al `startDate`. `lastDoneDate` queda en `null`.
+
+- **Body:**
+
+```json
+{
+  "name": "Lavar sábanas",
+  "notes": "Programa 60°C",
+  "category": "Limpieza",
+  "intervalValue": 2,
+  "intervalUnit": "weeks",
+  "startDate": "2026-04-15"
+}
+```
+
+- `name` requerido (1..100 chars). `notes` opcional (≤2000 chars). `category` opcional (≤50 chars).
+- `intervalValue` requerido, entero positivo. `intervalUnit` requerido, ver
+  [`IntervalUnit`](enums.md#intervalunit).
+- `startDate` requerido, formato `YYYY-MM-DD`.
+- **Response:** `201` — `ChoreResponseDto`
+
+### `PATCH /chores/:id`
+
+Edita los campos permitidos. **No se puede cambiar** `startDate` (semilla de la primera cadencia).
+
+- **Body (todos opcionales):** `name`, `notes`, `category`, `intervalValue`, `intervalUnit`,
+  `nextDueDate`.
+- **Importante:** cambiar `intervalValue` o `intervalUnit` **NO** recalcula `nextDueDate`
+  automáticamente. Si querés desplazar el próximo vencimiento, mandalo explícitamente vía
+  `nextDueDate` en el mismo PATCH.
+- **Response:** `200` — `ChoreResponseDto`
+- `404 CHRE_002` si no existe o pertenece a otro usuario.
+
+### `POST /chores/:id/done`
+
+Marca la chore como hecha:
+
+1. Crea un `ChoreLog` con `doneAt` (default = hoy en la timezone del cliente) y `note?`.
+2. Setea `lastDoneDate = doneAt`.
+3. Avanza `nextDueDate = doneAt + interval` (regla A — la cadencia se reanuda desde la fecha real
+   de hecho).
+
+- **Body:**
+
+```json
+{
+  "doneAt": "2026-04-15",
+  "note": "Usé desinfectante nuevo"
+}
+```
+
+- `doneAt` opcional (formato `YYYY-MM-DD`); si falta, se usa el día actual en la timezone del header
+  `x-timezone`.
+- `note` opcional (≤500 chars).
+- **Response:** `201` — `{ chore: ChoreResponseDto, log: ChoreLogResponseDto }`
+- `404 CHRE_002` si no existe o pertenece a otro usuario.
+
+### `POST /chores/:id/skip`
+
+Avanza `nextDueDate += interval` **sin** crear log y **sin** modificar `lastDoneDate`. Útil cuando
+el usuario quiere correr el próximo vencimiento un ciclo sin afirmar que la hizo.
+
+- **Body:** `{}` (vacío en v1).
+- **Response:** `200` — `ChoreResponseDto`
+- `404 CHRE_002` si no existe o pertenece a otro usuario.
+
+### `PATCH /chores/:id/archive`
+
+Toggle de `isActive`. Archivar una chore **NO** afecta los logs históricos.
+
+- **Response:** `200` — `ChoreResponseDto`
+- `404 CHRE_002`
+
+### `DELETE /chores/:id`
+
+Soft-delete (marca `deletedAt = now()`), **sólo** si la chore no tiene logs. Si los tiene,
+archivala con `PATCH /:id/archive`.
+
+- **Response:** `204 No Content`
+- `404 CHRE_002` chore no encontrada.
+- `409 CHRE_001` chore con eventos registrados — no se puede eliminar.
+
