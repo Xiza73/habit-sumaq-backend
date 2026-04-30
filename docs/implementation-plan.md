@@ -572,6 +572,51 @@ e2e tests del módulo + regresión total intacta. ✅
 
 ---
 
+## Fase 13 — Tasks + Sections (TODOs estilo proyectos con cleanup semanal)
+
+**Objetivo:** Módulo de TODOs agrupados en secciones (estilo proyectos). Cada
+usuario tiene 0..N secciones; cada sección 0..N tasks. Drag-and-drop restringido
+a la misma sección — el cross-section move se hace via `PATCH /tasks/:id`
+cambiando `sectionId`. Cleanup semanal: tasks completadas con
+`completedAt < startOfWeek` (TZ + setting del usuario) se hard-deletean lazy en
+cada `GET /tasks`. Diferencia clave con `quick-tasks` (boundary diario): granularidad
+semanal y agrupación por secciones.
+
+- [x] Migración `CreateSectionsTable` (FK a `users` con CASCADE, índice
+  `(userId, position)`, CHECK constraint `color ~ '^#[0-9a-fA-F]{6}$'`)
+- [x] Migración `CreateTasksTable` (FK a `users` y `sections` ambas con CASCADE,
+  índices `(userId)`, `(sectionId, position)`, `(userId, completedAt)`,
+  CHECK constraint `(completed=false AND completedAt IS NULL) OR (completed=true AND completedAt IS NOT NULL)`)
+- [x] `Section` domain entity con `assertName` (1..60 chars, no whitespace)
+  y `applyUpdate({ name?, color?, position? })`. Color validado a nivel DTO.
+- [x] `Task` domain entity con `assertTitle` (1..120), `assertDescription`
+  (≤5000), `applyUpdate` que toggle `completed` setea/limpia `completedAt`
+  automáticamente, y `sectionId` editable para cross-section moves
+- [x] `SectionRepository` + `TaskRepository` interfaces + ORM entities + impls
+  con `findByUserId`, `maxPosition*`, `updatePositions` (transaction batch),
+  `deleteCompletedBefore` para cleanup
+- [x] Helper `startOfWeekInTimezone(tz, 'monday'|'sunday')` con tests (Mon/Sun
+  start, Lima vs Auckland edge cases, fallback UTC para zonas desconocidas)
+- [x] DTOs: Create/Update/Reorder Section + Create/Update/Reorder Task +
+  Section/Task ResponseDtos
+- [x] 10 use cases: List/Create/Update/Delete/Reorder Sections + List
+  (con cleanup)/Create/Update/Delete/Reorder Tasks. Cross-section move en
+  `UpdateTaskUseCase` reasigna `position` al final de la nueva sección.
+- [x] `SectionsController` (`/tasks/sections`) y `TasksController` (`/tasks`)
+  separados — endpoints de reorden bajo `/reorder` antes del path param
+- [x] Error codes `TSK_001..009` en `ERROR_CODES` y `DOMAIN_HTTP_MAP`
+  (Sections: 001-004, Tasks: 005-009)
+- [x] Tests unitarios: 78 tests (entity validation + start-of-week helper +
+  10 use cases con happy paths y guards de ownership cross-user)
+- [x] Tests e2e: 14 tests cubriendo auth, CRUD secciones (con currency mismatch
+  guard), CRUD tasks (toggle completed, cross-section move), reorder dentro/fuera
+  de scope, cleanup lazy en GET
+
+**Criterio de completitud:** tsc limpio, lint limpio en archivos del scope, 78
+unit tests + 14 e2e tests del módulo + regresión total intacta. ✅
+
+---
+
 ## Backlog Chores (post-v1)
 
 Funcionalidades intencionalmente fuera del v1. Dejadas para una iteración futura cuando haya

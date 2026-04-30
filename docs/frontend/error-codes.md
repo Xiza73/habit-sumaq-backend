@@ -112,6 +112,20 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `BDGT_002` | 409  | Ya existe un budget para ese período     | POST /budgets cuando ya hay un budget activo para esa combinación (year, month, currency).                     |
 | `BDGT_003` | 422  | Fecha del movimiento fuera del mes       | POST /budgets/:id/movements con `date` fuera del mes calendario del budget.                                    |
 
+### Tasks + Sections (TODOs estilo proyectos con cleanup semanal)
+
+| Código    | HTTP | Descripción                                       | Cuándo ocurre                                                                          |
+| --------- | ---- | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `TSK_001` | 404  | Sección no encontrada                             | GET/PATCH/DELETE /tasks/sections/:id, POST /tasks (con sección ajena), o move cross-section a sección ajena. |
+| `TSK_002` | 422  | Nombre de sección requerido                       | POST/PATCH /tasks/sections con `name` vacío o whitespace.                              |
+| `TSK_003` | 422  | Nombre de sección demasiado largo                 | POST/PATCH /tasks/sections con `name` > 60 caracteres.                                 |
+| `TSK_004` | 422  | Reordenamiento de secciones con IDs inválidas     | PATCH /tasks/sections/reorder con algún ID que no existe o no pertenece al usuario.    |
+| `TSK_005` | 404  | Task no encontrada                                | GET/PATCH/DELETE /tasks/:id con UUID inexistente o perteneciente a otro usuario.       |
+| `TSK_006` | 422  | Título de task requerido                          | POST/PATCH /tasks con `title` vacío o whitespace.                                      |
+| `TSK_007` | 422  | Título de task demasiado largo                    | POST/PATCH /tasks con `title` > 120 caracteres.                                        |
+| `TSK_008` | 422  | Descripción de task demasiado larga               | POST/PATCH /tasks con `description` > 5000 caracteres.                                 |
+| `TSK_009` | 422  | Reordenamiento de tasks con IDs inválidas         | PATCH /tasks/reorder con IDs que no existen, no pertenecen al usuario, o no están en la sección. |
+
 ### Generales
 
 | Código    | HTTP | Descripción                       | Cuándo ocurre                              |
