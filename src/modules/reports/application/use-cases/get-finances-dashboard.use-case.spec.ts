@@ -24,7 +24,7 @@ describe('GetFinancesDashboardUseCase', () => {
       findByIds: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<AccountRepository>;
+    };
 
     txRepo = {
       findByUserId: jest.fn(),
@@ -40,13 +40,16 @@ describe('GetFinancesDashboardUseCase', () => {
       dailyNetFlowInRange: jest.fn().mockResolvedValue([]),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
-    } as jest.Mocked<TransactionRepository>;
+      findByBudgetId: jest.fn(),
+      sumAmountByBudgetId: jest.fn(),
+      clearBudgetIdForBudget: jest.fn(),
+    };
 
     settingsRepo = {
       findByUserId: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
       save: jest.fn(),
-    } as jest.Mocked<UserSettingsRepository>;
+    };
 
     useCase = new GetFinancesDashboardUseCase(accountRepo, txRepo, settingsRepo);
   });

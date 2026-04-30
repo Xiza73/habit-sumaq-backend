@@ -104,6 +104,14 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `CHRE_001` | 409  | La tarea tiene eventos (logs) registrados    | DELETE /chores/:id cuando ya existen logs. Archivala en su lugar con PATCH /:id/archive.     |
 | `CHRE_002` | 404  | Tarea no encontrada                          | GET/PATCH/POST .../done .../skip DELETE con UUID inexistente o perteneciente a otro usuario. |
 
+### Budgets (Presupuestos mensuales)
+
+| Código     | HTTP | Descripción                              | Cuándo ocurre                                                                                                  |
+| ---------- | ---- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `BDGT_001` | 404  | Budget no encontrado                     | GET/PATCH/DELETE /budgets/:id o POST /budgets/:id/movements con UUID inexistente o perteneciente a otro usuario. |
+| `BDGT_002` | 409  | Ya existe un budget para ese período     | POST /budgets cuando ya hay un budget activo para esa combinación (year, month, currency).                     |
+| `BDGT_003` | 422  | Fecha del movimiento fuera del mes       | POST /budgets/:id/movements con `date` fuera del mes calendario del budget.                                    |
+
 ### Generales
 
 | Código    | HTTP | Descripción                       | Cuándo ocurre                              |

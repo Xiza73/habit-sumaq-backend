@@ -20,6 +20,7 @@ export class Transaction {
     public updatedAt: Date,
     public deletedAt: Date | null,
     public monthlyServiceId: string | null = null,
+    public budgetId: string | null = null,
   ) {}
 
   isTransfer(): boolean {

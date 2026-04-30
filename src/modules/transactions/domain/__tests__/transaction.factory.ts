@@ -23,6 +23,7 @@ export function buildTransaction(
     updatedAt: Date;
     deletedAt: Date | null;
     monthlyServiceId: string | null;
+    budgetId: string | null;
   }> = {},
 ): Transaction {
   return new Transaction(
@@ -43,5 +44,6 @@ export function buildTransaction(
     overrides.updatedAt ?? new Date('2026-01-15T12:00:00Z'),
     overrides.deletedAt !== undefined ? overrides.deletedAt : null,
     overrides.monthlyServiceId !== undefined ? overrides.monthlyServiceId : null,
+    overrides.budgetId !== undefined ? overrides.budgetId : null,
   );
 }

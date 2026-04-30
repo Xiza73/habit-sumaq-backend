@@ -23,7 +23,10 @@ describe('GetTransactionsUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
-    } as jest.Mocked<TransactionRepository>;
+      findByBudgetId: jest.fn(),
+      sumAmountByBudgetId: jest.fn(),
+      clearBudgetIdForBudget: jest.fn(),
+    };
 
     useCase = new GetTransactionsUseCase(txRepo);
   });

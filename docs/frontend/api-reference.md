@@ -1166,3 +1166,156 @@ archivala con `PATCH /:id/archive`.
 - `404 CHRE_002` chore no encontrada.
 - `409 CHRE_001` chore con eventos registrados — no se puede eliminar.
 
+## Budgets
+
+Presupuestos mensuales de gastos discrecionales. Un budget cubre **una** combinación
+`(year, month, currency)` por usuario. Los **movimientos del budget** son transactions
+EXPENSE con `budgetId` apuntando al budget — NO se cuentan todos los expenses del mes,
+sólo los que el usuario explícitamente registra desde el budget. Esto permite separar
+"plata para gastar libre" del resto del flujo financiero.
+
+- Cada movimiento debita la cuenta elegida en la moneda del budget.
+- Borrar el budget no borra sus movimientos: nullea `transaction.budgetId` y los expenses
+  sobreviven en `/transactions` como gastos normales.
+
+Todos los endpoints requieren `Authorization: Bearer <accessToken>`.
+
+### `GET /budgets`
+
+Lista todos los budgets del usuario (sin KPI, sin movimientos). Vista de historial.
+
+- **Response:** `200` — `BudgetResponseDto[]` ordenado por `year DESC, month DESC, currency ASC`.
+
+### `GET /budgets/current?currency=PEN`
+
+Devuelve el budget del **mes actual** para la moneda dada, con KPI y movimientos.
+
+- El año/mes se calculan desde el header `x-timezone` (timezone del cliente).
+- Si no existe budget para ese mes+moneda, devuelve **`200` con `data: null`** — la UI
+  renderiza CTA "crear budget" en ese caso (no es un error).
+- **Query params:** `currency` (`PEN | USD | EUR`) — requerido.
+- **Response:** `200` — `BudgetWithKpiResponseDto | null`.
+
+### `GET /budgets/:id`
+
+Detalle de un budget específico (pasado, presente o futuro), con KPI y movimientos.
+
+- **Response:** `200` — `BudgetWithKpiResponseDto`.
+- `404 BDGT_001` si no existe o pertenece a otro usuario.
+
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "year": 2026,
+  "month": 4,
+  "currency": "PEN",
+  "amount": 2000,
+  "spent": 450,
+  "remaining": 1550,
+  "daysRemainingIncludingToday": 16,
+  "dailyAllowance": 96.88,
+  "currentDate": "2026-04-15",
+  "movements": [
+    {
+      "id": "uuid",
+      "type": "EXPENSE",
+      "amount": 50,
+      "date": "2026-04-15T12:00:00.000Z",
+      "categoryId": "uuid",
+      "accountId": "uuid",
+      "description": "Cena con amigos",
+      "budgetId": "uuid"
+    }
+  ],
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+**KPI**:
+
+- `spent` = suma de `amount` de las transactions linkeadas al budget (no de todos los expenses
+  del mes).
+- `remaining = amount - spent` (puede ser negativo si el usuario se pasó).
+- `daysRemainingIncludingToday`:
+  - Mes activo: `lastDayOfMonth - today + 1` (incluye hoy).
+  - Mes pasado: `0`.
+  - Mes futuro: días totales del mes.
+- `dailyAllowance = round2(remaining / daysRemainingIncludingToday)`. **`null`** cuando
+  `daysRemaining = 0` (mes ya cerrado).
+- `currentDate` = `YYYY-MM-DD` en la timezone del cliente.
+
+### `POST /budgets`
+
+Crea un budget para `(year, month, currency)`.
+
+- **Body:**
+
+```json
+{
+  "year": 2026,
+  "month": 4,
+  "currency": "PEN",
+  "amount": 2000
+}
+```
+
+- `year` y `month` opcionales — si se omiten, se usa el mes actual en la timezone del header
+  `x-timezone`.
+- `currency` requerido (`PEN | USD | EUR`); inmutable después de crear.
+- `amount` > 0, máx 2 decimales.
+- **Response:** `201` — `BudgetResponseDto`.
+- `409 BDGT_002` si ya existe un budget activo para esa combinación.
+
+### `PATCH /budgets/:id`
+
+Edita el `amount` de un budget. **Único campo editable** — `year`, `month`, `currency` son
+inmutables (cambiarlos rompería los movimientos linkeados).
+
+- **Body:** `{ "amount": 2500 }`
+- **Response:** `200` — `BudgetResponseDto`.
+- `404 BDGT_001`
+
+### `DELETE /budgets/:id`
+
+Soft-delete del budget + nullea `budgetId` en todas las transactions linkeadas. Las
+transactions sobreviven como gastos normales en `/transactions`.
+
+- **Response:** `204 No Content`
+- `404 BDGT_001`
+
+### `POST /budgets/:id/movements`
+
+Registra un movimiento del budget — crea una transacción EXPENSE con `budgetId`,
+debita la cuenta elegida.
+
+- **Body:**
+
+```json
+{
+  "amount": 50,
+  "accountId": "uuid",
+  "categoryId": "uuid",
+  "date": "2026-04-15T12:00:00.000Z",
+  "description": "Cena"
+}
+```
+
+- `amount` > 0, máx 2 decimales.
+- `accountId`: cuenta del usuario; su `currency` debe coincidir con la del budget.
+- `categoryId`: categoría del usuario (catálogo global).
+- `date`: debe caer **dentro del mes calendario del budget**.
+- `description` opcional (≤255 chars).
+- **Response:** `201` — `{ transaction: TransactionResponseDto }`.
+- `404 BDGT_001` budget no encontrado.
+- `404 ACC_001` cuenta no encontrada o ajena.
+- `404 CAT_001` categoría no encontrada o ajena.
+- `422 VAL_002` (`CURRENCY_MISMATCH`) cuenta en otra moneda que el budget.
+- `422 BDGT_003` (`MOVEMENT_DATE_OUT_OF_RANGE`) fecha fuera del mes del budget.
+
+> **Nota:** los movimientos se editan/eliminan vía los endpoints normales de
+> `/transactions/:id` (`PATCH`/`DELETE`). El campo `budgetId` aparece en el
+> `TransactionResponseDto` para que la UI pueda diferenciar "movimiento de budget"
+> vs "expense normal" en el listado general.
+

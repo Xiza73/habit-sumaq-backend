@@ -32,7 +32,10 @@ describe('DeleteTransactionUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
-    } as jest.Mocked<TransactionRepository>;
+      findByBudgetId: jest.fn(),
+      sumAmountByBudgetId: jest.fn(),
+      clearBudgetIdForBudget: jest.fn(),
+    };
 
     accountRepo = {
       findByUserId: jest.fn(),
@@ -41,7 +44,7 @@ describe('DeleteTransactionUseCase', () => {
       findByIds: jest.fn(),
       save: jest.fn().mockImplementation((a) => Promise.resolve(a)),
       softDelete: jest.fn(),
-    } as jest.Mocked<AccountRepository>;
+    };
 
     useCase = new DeleteTransactionUseCase(txRepo, accountRepo);
   });
