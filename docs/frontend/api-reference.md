@@ -1319,3 +1319,106 @@ debita la cuenta elegida.
 > `TransactionResponseDto` para que la UI pueda diferenciar "movimiento de budget"
 > vs "expense normal" en el listado general.
 
+## Tasks + Sections
+
+Módulo de TODOs estilo proyectos. Las **secciones** agrupan tasks (drag-and-drop
+restringido a la misma sección — para mover una task entre secciones se usa el
+form de edit). Cleanup semanal: tasks completadas con
+`completedAt < startOfWeek` (en TZ + setting `startOfWeek` del usuario) se
+hard-deletean lazy en cada `GET /tasks`. Tasks incompletas sobreviven entre
+semanas.
+
+Todos los endpoints requieren `Authorization: Bearer <accessToken>`.
+
+### `GET /tasks/sections`
+
+Lista las secciones del usuario, ordenadas por `position` ASC.
+
+- **Response:** `200` — `SectionResponseDto[]`.
+
+### `POST /tasks/sections`
+
+- **Body:** `{ "name": "Trabajo", "color": "#FF6B35" }` (`color` opcional, debe ser `#RRGGBB`).
+- **Response:** `201` — `SectionResponseDto`. La sección se agrega al final del orden.
+
+### `PATCH /tasks/sections/:id`
+
+- **Body:** `{ "name"?, "color"? }` (`color: null` lo limpia).
+- **Response:** `200` — `SectionResponseDto`.
+- `404 TSK_001`.
+
+### `DELETE /tasks/sections/:id`
+
+**CASCADE** — borra la sección Y todas las tasks dentro (FK `ON DELETE CASCADE`). El
+frontend muestra un confirm con el conteo de tasks antes de invocar.
+
+- **Response:** `204 No Content`.
+- `404 TSK_001`.
+
+### `PATCH /tasks/sections/reorder`
+
+- **Body:** `{ "orderedIds": ["id1", "id2", ...] }`. Reasigna `position` 1..N.
+- **Response:** `204 No Content`.
+- `422 TSK_004` cuando algún ID no existe o no es del usuario.
+
+### `GET /tasks`
+
+Lista las tasks del usuario, **con cleanup lazy**: antes de devolver, se hard-deletean
+las tasks completadas cuyo `completedAt < startOfWeek` (en TZ + setting `startOfWeek`).
+
+Resultado ordenado por `(section.position, task.position, task.createdAt)` para que la
+UI las renderice agrupadas por sección sin re-orden client-side.
+
+- **Response:** `200` — `TaskResponseDto[]`.
+
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "sectionId": "uuid",
+  "title": "Llamar al banco",
+  "description": "## Notas\n- preguntar por la tarjeta",
+  "completed": false,
+  "completedAt": null,
+  "position": 1,
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+### `POST /tasks`
+
+- **Body:** `{ "sectionId": "uuid", "title": "...", "description"? }`.
+- `description` opcional (markdown, ≤5000 chars).
+- **Response:** `201` — `TaskResponseDto`. La task se agrega al final del orden de la sección.
+- `404 TSK_001` sección no encontrada o ajena.
+
+### `PATCH /tasks/:id`
+
+Edita campos de la task. Cualquier subset es válido.
+
+- **Body:** `{ "title"?, "description"?, "completed"?, "sectionId"? }`.
+- `completed: true` setea `completedAt = now()`. `completed: false` lo limpia.
+- `sectionId` permite mover la task a otra sección — la nueva debe pertenecer al usuario.
+  La task va al final del orden de la sección destino.
+- **Response:** `200` — `TaskResponseDto`.
+- `404 TSK_005` task no encontrada.
+- `404 TSK_001` sección destino no encontrada o ajena.
+
+### `DELETE /tasks/:id`
+
+Hard-delete.
+
+- **Response:** `204 No Content`.
+- `404 TSK_005`.
+
+### `PATCH /tasks/reorder`
+
+Reordena tasks dentro de **una** sección. La drag-and-drop está restringida a la
+misma sección.
+
+- **Body:** `{ "sectionId": "uuid", "orderedIds": ["id1", "id2", ...] }`.
+- **Response:** `204 No Content`.
+- `404 TSK_001` sección no encontrada o ajena.
+- `422 TSK_009` algún ID no existe, no pertenece al usuario, o no está en la sección.
+
