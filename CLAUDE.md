@@ -210,6 +210,58 @@ pnpm lint
 
 ---
 
+## Flujo de trabajo de branches (post-v0.1.0)
+
+Desde el release v0.1.0 el repo usa un split `dev` ↔ `master` para desacoplar
+"feature mergeada" de "deploy a producción".
+
+| Branch | Rol | Quién la actualiza |
+|---|---|---|
+| `dev` | Branch de integración. Default en GitHub. Recibe TODOS los PRs de feature/fix. | Cada PR aprobado |
+| `master` | Branch de release. **Railway watchea master y deploya en cada push.** | Solo merges desde `dev` cuando se quiere cortar release |
+
+### Para una feature nueva o fix
+
+```bash
+git checkout dev
+git pull
+git checkout -b feat/<módulo>/<descripción> dev   # SIEMPRE desde dev, no desde master
+# ... cambios ...
+git push -u origin feat/<módulo>/<descripción>
+gh pr create                                       # default base = dev
+```
+
+`gh pr create` apunta automáticamente a `dev` (el default branch) — no hace falta `--base`.
+
+### Para sacar un release
+
+```bash
+git checkout master
+git pull
+git merge --no-ff dev                              # merge commit explícito
+git push origin master                             # ESTO gatilla deploy en Railway
+git tag -a vX.Y.Z -m "Release vX.Y.Z — ..."
+git push origin vX.Y.Z
+gh release create vX.Y.Z --title "..." --notes "..."
+```
+
+Después del release, sincronizar `dev` con `master` (en caso de que master haya
+recibido hotfixes directos — no es el flujo esperado pero por las dudas):
+
+```bash
+git checkout dev
+git merge master
+git push origin dev
+```
+
+### Reglas duras
+
+- **Nunca pushear directo a master.** Master solo recibe merges desde `dev`.
+- **Nunca branch desde master para feature.** Siempre desde `dev` — si no, el PR queda fuera de sync.
+- **Hotfixes urgentes en producción**: si en algún momento hay que parchar master sin pasar por dev (ej: bug crítico en Railway), abrir branch `hotfix/<descripción>` desde master, PR a master, y DESPUÉS mergear master → dev para mantenerlas alineadas. Esto es excepción, no regla.
+
+---
+
 ## Convención de documentación (obligatoria)
 
 Todo cambio con impacto de **contrato público** o **arquitectura** debe documentarse **antes** de empezar y **después** de shipear. Sin excepción. Esta convención complementa la checklist de auditoría de arriba — la auditoría valida código, esto valida docs.
