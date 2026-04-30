@@ -25,7 +25,10 @@ describe('GetDebtsSummaryUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
-    } as unknown as jest.Mocked<TransactionRepository>;
+      findByBudgetId: jest.fn(),
+      sumAmountByBudgetId: jest.fn(),
+      clearBudgetIdForBudget: jest.fn(),
+    };
 
     useCase = new GetDebtsSummaryUseCase(mockRepo);
   });

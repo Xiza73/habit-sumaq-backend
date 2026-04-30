@@ -11,6 +11,7 @@ import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
+import { BudgetsModule } from './modules/budgets/presentation/budgets.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
 import { ChoresModule } from './modules/chores/presentation/chores.module';
 import { HabitsModule } from './modules/habits/presentation/habits.module';
@@ -36,6 +37,7 @@ import { AppService } from './app.service';
     QuickTasksModule,
     MonthlyServicesModule,
     ChoresModule,
+    BudgetsModule,
     ReportsModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),

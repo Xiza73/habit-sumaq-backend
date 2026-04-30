@@ -532,6 +532,46 @@ costos, sin foto: el v1 es chore + logs.
 
 ---
 
+## Fase 12 — Budgets (Presupuestos mensuales discrecionales)
+
+**Objetivo:** Permitir al usuario definir un presupuesto mensual de gastos discrecionales por
+moneda (ej. "este mes en PEN gasto 2000"), con KPI diaria `(amount - spent) / daysRestantes`
+incluyendo hoy. El budget **no** lee todos los expenses del mes — los movimientos se crean
+explícitamente desde el budget y cada uno genera una `transaction` EXPENSE con `budgetId` FK.
+Esto separa "plata para gastar libre" del flujo financiero general (alquiler, servicios, etc.).
+
+- [x] Migración `CreateBudgetsTable` (tabla `budgets` con CHECK + UNIQUE parcial sobre
+  `(userId, year, month, currency) WHERE deletedAt IS NULL`)
+- [x] Migración `AddBudgetIdToTransactions` (columna nullable + FK ON DELETE SET NULL + índice)
+- [x] `Budget` domain entity con helpers `period`, `containsDate`, `setAmount`, `isDeleted`
+- [x] `BudgetRepository` interface + ORM entity + impl con `findByPeriodAndCurrency`
+- [x] Helpers `currentMonthInTimezone`, `currentDateInTimezone`, `daysInMonth` con fallback UTC
+- [x] Extensión de `TransactionRepository`: `findByBudgetId`, `sumAmountByBudgetId`,
+  `clearBudgetIdForBudget` (este último para soft-delete que sobreviva las transactions)
+- [x] `Transaction` domain entity + ORM entity + factory + response DTO actualizados con `budgetId`
+- [x] DTOs: `CreateBudgetDto` (year/month opcionales — default mes actual en TZ),
+  `UpdateBudgetDto` (sólo amount), `AddBudgetMovementDto`, `BudgetResponseDto`,
+  `BudgetWithKpiResponseDto` (con KPI + movements embebidos)
+- [x] Helper puro `computeBudgetKpi(budget, spent, timezone, now)` con tests:
+  mes activo, mes pasado (daysRemaining=0, dailyAllowance=null), mes futuro, overspend
+  (allowance negativo), año bisiesto (Feb 29), TZ que cruza el filo del mes
+- [x] Use cases: List, GetCurrent (`null` si no hay budget para esa moneda este mes),
+  GetById, Create (valida conflicto), Update (sólo amount), Delete (clear FK + soft-delete),
+  AddMovement (valida ownership + currency match + date in month)
+- [x] Controller con 7 endpoints + Swagger completo + `JwtAuthGuard` + `ClientTimezone`
+- [x] Error codes `BDGT_001` (not-found), `BDGT_002` (already-exists),
+  `BDGT_003` (movement-date-out-of-range) en `ERROR_CODES` y `DOMAIN_HTTP_MAP`
+- [x] Tests unitarios: 28 tests cubriendo 7 use cases + KPI helper
+- [x] Tests e2e: 11 tests cubriendo auth, CRUD, current con/sin budget, addMovement con
+  validaciones (currency mismatch → 422 VAL_002, date out-of-range → 422 BDGT_003), delete con
+  clear de FK
+- [x] Reutiliza el catálogo de categorías global (no inventa sus propias categorías)
+
+**Criterio de completitud:** tsc limpio, lint limpio en archivos del scope, 28 unit tests + 11
+e2e tests del módulo + regresión total intacta. ✅
+
+---
+
 ## Backlog Chores (post-v1)
 
 Funcionalidades intencionalmente fuera del v1. Dejadas para una iteración futura cuando haya
@@ -552,7 +592,8 @@ demanda real:
 
 ## Lo que NO se implementa (backlog post-MVP actual)
 
-- Presupuestos por categoría con alertas
+- Presupuestos por categoría con alertas (el v1 de Budgets es un único monto total por moneda)
+- Mover una transaction EXISTENTE dentro de un budget retroactivamente (post-v1 de Budgets)
 - Vinculación hábitos ↔ transacciones (hábitos con costo asociado)
 - Daily Planner / Schedule
 - Scheduler automático de pagos de servicios mensuales (hoy es manual)

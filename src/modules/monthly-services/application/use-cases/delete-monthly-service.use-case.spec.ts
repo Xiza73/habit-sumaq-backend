@@ -20,7 +20,7 @@ describe('DeleteMonthlyServiceUseCase', () => {
       findActiveByUserIdAndName: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
+    };
 
     txRepo = {
       findByUserId: jest.fn(),
@@ -36,7 +36,10 @@ describe('DeleteMonthlyServiceUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
-    } as jest.Mocked<TransactionRepository>;
+      findByBudgetId: jest.fn(),
+      sumAmountByBudgetId: jest.fn(),
+      clearBudgetIdForBudget: jest.fn(),
+    };
 
     useCase = new DeleteMonthlyServiceUseCase(serviceRepo, txRepo);
   });

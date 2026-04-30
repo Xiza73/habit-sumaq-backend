@@ -34,7 +34,7 @@ describe('PayMonthlyServiceUseCase', () => {
       findActiveByUserIdAndName: jest.fn(),
       save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
+    };
 
     txRepo = {
       findByUserId: jest.fn(),
@@ -50,7 +50,10 @@ describe('PayMonthlyServiceUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn().mockResolvedValue([]),
-    } as jest.Mocked<TransactionRepository>;
+      findByBudgetId: jest.fn(),
+      sumAmountByBudgetId: jest.fn(),
+      clearBudgetIdForBudget: jest.fn(),
+    };
 
     accountRepo = {
       findByUserId: jest.fn(),
@@ -59,7 +62,7 @@ describe('PayMonthlyServiceUseCase', () => {
       findByIds: jest.fn(),
       save: jest.fn().mockImplementation((a) => Promise.resolve(a)),
       softDelete: jest.fn(),
-    } as jest.Mocked<AccountRepository>;
+    };
 
     mockLogger = buildMockPinoLogger();
     useCase = new PayMonthlyServiceUseCase(

@@ -97,6 +97,7 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       relatedTransactionId: transaction.relatedTransactionId,
       remainingAmount: transaction.remainingAmount,
       monthlyServiceId: transaction.monthlyServiceId,
+      budgetId: transaction.budgetId,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
       deletedAt: transaction.deletedAt,
@@ -131,6 +132,32 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       take: limit,
     });
     return entities.map((e) => this.toDomain(e));
+  }
+
+  async findByBudgetId(budgetId: string): Promise<Transaction[]> {
+    const entities = await this.repo.find({
+      where: { budgetId },
+      order: { date: 'DESC' },
+    });
+    return entities.map((e) => this.toDomain(e));
+  }
+
+  async sumAmountByBudgetId(budgetId: string): Promise<number> {
+    // Raw aggregate over non-soft-deleted rows (TypeORM filters deletedAt
+    // automatically when @DeleteDateColumn is present on the ORM entity).
+    const result = await this.repo
+      .createQueryBuilder('tx')
+      .select('COALESCE(SUM(tx.amount), 0)', 'total')
+      .where('tx.budgetId = :budgetId', { budgetId })
+      .getRawOne<{ total: string | number | null }>();
+    const total = result?.total ?? 0;
+    return typeof total === 'number' ? total : parseFloat(total) || 0;
+  }
+
+  async clearBudgetIdForBudget(budgetId: string): Promise<void> {
+    // Direct UPDATE — soft-deleting the budget would orphan the FK; we want
+    // the transactions to lose the link and behave like any other expense.
+    await this.repo.update({ budgetId }, { budgetId: null });
   }
 
   async aggregateDebtsByReference(
@@ -359,6 +386,7 @@ export class TransactionRepositoryImpl extends TransactionRepository {
       entity.updatedAt,
       entity.deletedAt,
       entity.monthlyServiceId,
+      entity.budgetId,
     );
   }
 }

@@ -76,6 +76,13 @@ export class TransactionResponseDto {
   })
   monthlyServiceId: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'UUID del budget al que pertenece este movimiento (solo para EXPENSE generado por POST /budgets/:id/movements). Cuando el budget se elimina, este campo vuelve a null y la transacción sobrevive como gasto normal.',
+    nullable: true,
+  })
+  budgetId: string | null;
+
   @ApiProperty({ description: 'Fecha de creación' })
   createdAt: Date;
 
@@ -98,6 +105,7 @@ export class TransactionResponseDto {
     dto.relatedTransactionId = tx.relatedTransactionId;
     dto.remainingAmount = tx.remainingAmount;
     dto.monthlyServiceId = tx.monthlyServiceId;
+    dto.budgetId = tx.budgetId;
     dto.createdAt = tx.createdAt;
     dto.updatedAt = tx.updatedAt;
     return dto;

@@ -95,6 +95,24 @@ export abstract class TransactionRepository {
     limit: number,
   ): Promise<Transaction[]>;
   /**
+   * Lists every non-soft-deleted transaction linked to a budget, ordered by
+   * date DESC. Used to render the movements list inside a budget dashboard.
+   */
+  abstract findByBudgetId(budgetId: string): Promise<Transaction[]>;
+  /**
+   * Sum of `amount` across non-soft-deleted transactions for a budget. Used
+   * by the KPI endpoint to compute `spent` without round-tripping every
+   * movement through the app layer.
+   */
+  abstract sumAmountByBudgetId(budgetId: string): Promise<number>;
+  /**
+   * Nullifies `budgetId` on every transaction linked to the given budget.
+   * Called when soft-deleting a budget — the transactions survive (the user
+   * already spent that money), they just stop being tagged as part of the
+   * deleted plan.
+   */
+  abstract clearBudgetIdForBudget(budgetId: string): Promise<void>;
+  /**
    * Aggregate DEBT/LOAN transactions grouped by normalized reference.
    *
    * Normalization uses Postgres `unaccent` + `LOWER` so "Juán", "Juan", "JUAN"
