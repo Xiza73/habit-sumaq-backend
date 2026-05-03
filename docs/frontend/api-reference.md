@@ -1336,14 +1336,28 @@ Lista las secciones del usuario, ordenadas por `position` ASC.
 
 - **Response:** `200` — `SectionResponseDto[]`.
 
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "name": "Trabajo",
+  "color": "#FF6B35",
+  "position": 1,
+  "isCollapsed": false,
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
 ### `POST /tasks/sections`
 
 - **Body:** `{ "name": "Trabajo", "color": "#FF6B35" }` (`color` opcional, debe ser `#RRGGBB`).
-- **Response:** `201` — `SectionResponseDto`. La sección se agrega al final del orden.
+- **Response:** `201` — `SectionResponseDto`. La sección se agrega al final del orden, expandida (`isCollapsed: false`).
 
 ### `PATCH /tasks/sections/:id`
 
-- **Body:** `{ "name"?, "color"? }` (`color: null` lo limpia).
+- **Body:** `{ "name"?, "color"?, "isCollapsed"? }` (`color: null` lo limpia).
+- `isCollapsed` persiste el estado del header en el dashboard de tareas — el frontend lo togglea con optimistic update y este endpoint confirma.
 - **Response:** `200` — `SectionResponseDto`.
 - `404 TSK_001`.
 

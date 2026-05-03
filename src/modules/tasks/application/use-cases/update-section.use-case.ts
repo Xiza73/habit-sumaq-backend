@@ -16,7 +16,11 @@ export class UpdateSectionUseCase {
     if (!section || section.userId !== userId) {
       throw new DomainException('SECTION_NOT_FOUND', 'Sección no encontrada');
     }
-    section.applyUpdate({ name: dto.name, color: dto.color });
+    section.applyUpdate({
+      name: dto.name,
+      color: dto.color,
+      isCollapsed: dto.isCollapsed,
+    });
     return this.repo.save(section);
   }
 }

@@ -37,6 +37,7 @@ export class SectionRepositoryImpl extends SectionRepository {
       name: section.name,
       color: section.color,
       position: section.position,
+      isCollapsed: section.isCollapsed,
       createdAt: section.createdAt,
       updatedAt: section.updatedAt,
     });
@@ -78,6 +79,7 @@ export class SectionRepositoryImpl extends SectionRepository {
       entity.name,
       entity.color,
       entity.position,
+      entity.isCollapsed,
       entity.createdAt,
       entity.updatedAt,
     );

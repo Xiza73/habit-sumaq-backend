@@ -3,7 +3,9 @@ import { DomainException } from '@common/exceptions/domain.exception';
 import { Section } from './section.entity';
 
 describe('Section entity', () => {
-  function build(overrides: { name?: string; color?: string | null } = {}): Section {
+  function build(
+    overrides: { name?: string; color?: string | null; isCollapsed?: boolean } = {},
+  ): Section {
     const now = new Date('2026-04-15T12:00:00.000Z');
     return new Section(
       'sec-1',
@@ -11,6 +13,7 @@ describe('Section entity', () => {
       overrides.name ?? 'Trabajo',
       overrides.color !== undefined ? overrides.color : null,
       1,
+      overrides.isCollapsed ?? false,
       now,
       now,
     );
@@ -59,5 +62,23 @@ describe('Section entity', () => {
     const s = build({ color: '#AABBCC' });
     s.applyUpdate({ color: null });
     expect(s.color).toBeNull();
+  });
+
+  it('defaults to expanded (isCollapsed=false)', () => {
+    expect(build().isCollapsed).toBe(false);
+  });
+
+  it('applyUpdate flips isCollapsed when provided', () => {
+    const s = build();
+    s.applyUpdate({ isCollapsed: true });
+    expect(s.isCollapsed).toBe(true);
+    s.applyUpdate({ isCollapsed: false });
+    expect(s.isCollapsed).toBe(false);
+  });
+
+  it('applyUpdate without isCollapsed leaves it untouched', () => {
+    const s = build({ isCollapsed: true });
+    s.applyUpdate({ name: 'Renamed' });
+    expect(s.isCollapsed).toBe(true);
   });
 });
