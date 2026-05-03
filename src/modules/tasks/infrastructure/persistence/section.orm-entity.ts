@@ -25,6 +25,9 @@ export class SectionOrmEntity {
   @Column({ type: 'integer', default: 1 })
   position: number;
 
+  @Column({ type: 'boolean', default: false })
+  isCollapsed: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

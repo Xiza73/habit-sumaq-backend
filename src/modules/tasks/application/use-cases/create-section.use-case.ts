@@ -25,6 +25,7 @@ export class CreateSectionUseCase {
       dto.name,
       dto.color ?? null,
       (maxPosition ?? 0) + 1,
+      false, // new sections start expanded by default
       now,
       now,
     );

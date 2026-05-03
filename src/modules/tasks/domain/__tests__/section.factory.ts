@@ -8,6 +8,7 @@ interface SectionOverrides {
   name?: string;
   color?: string | null;
   position?: number;
+  isCollapsed?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -20,6 +21,7 @@ export function makeSection(overrides: SectionOverrides = {}): Section {
     overrides.name ?? 'Trabajo',
     overrides.color !== undefined ? overrides.color : null,
     overrides.position ?? 1,
+    overrides.isCollapsed ?? false,
     overrides.createdAt ?? now,
     overrides.updatedAt ?? now,
   );
