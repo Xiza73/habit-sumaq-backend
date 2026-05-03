@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class UpdateSectionDto {
   @ApiPropertyOptional({ example: 'Trabajo', maxLength: 60 })
@@ -22,4 +30,13 @@ export class UpdateSectionDto {
   @IsString()
   @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'color must be a #RRGGBB hex string' })
   color?: string | null;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Si el header de la sección se renderiza colapsado en el dashboard de tareas. Default: false (expandido).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCollapsed?: boolean;
 }

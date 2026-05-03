@@ -19,6 +19,12 @@ export class Section {
     public name: string,
     public color: string | null,
     public position: number,
+    /**
+     * Whether the section header is rendered "collapsed" in the task
+     * dashboard. Owned by the user, persisted to the DB so the choice
+     * survives refreshes and follows them across devices.
+     */
+    public isCollapsed: boolean,
     public readonly createdAt: Date,
     public updatedAt: Date,
   ) {
@@ -39,7 +45,12 @@ export class Section {
     }
   }
 
-  applyUpdate(partial: { name?: string; color?: string | null; position?: number }): void {
+  applyUpdate(partial: {
+    name?: string;
+    color?: string | null;
+    position?: number;
+    isCollapsed?: boolean;
+  }): void {
     if (partial.name !== undefined) {
       Section.assertName(partial.name);
       this.name = partial.name;
@@ -49,6 +60,9 @@ export class Section {
     }
     if (partial.position !== undefined) {
       this.position = partial.position;
+    }
+    if (partial.isCollapsed !== undefined) {
+      this.isCollapsed = partial.isCollapsed;
     }
     this.updatedAt = new Date();
   }

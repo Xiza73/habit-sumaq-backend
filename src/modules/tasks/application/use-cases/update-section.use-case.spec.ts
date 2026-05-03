@@ -43,4 +43,18 @@ describe('UpdateSectionUseCase', () => {
       code: 'SECTION_NOT_FOUND',
     });
   });
+
+  it('toggles isCollapsed via the DTO', async () => {
+    const section = makeSection({ userId: 'user-1', isCollapsed: false });
+    repo.findById.mockResolvedValue(section);
+    const result = await useCase.execute(section.id, 'user-1', { isCollapsed: true });
+    expect(result.isCollapsed).toBe(true);
+  });
+
+  it('leaves isCollapsed untouched when not in DTO', async () => {
+    const section = makeSection({ userId: 'user-1', isCollapsed: true });
+    repo.findById.mockResolvedValue(section);
+    const result = await useCase.execute(section.id, 'user-1', { name: 'New' });
+    expect(result.isCollapsed).toBe(true);
+  });
 });
