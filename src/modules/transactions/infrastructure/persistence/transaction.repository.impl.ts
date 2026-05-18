@@ -134,6 +134,39 @@ export class TransactionRepositoryImpl extends TransactionRepository {
     return entities.map((e) => this.toDomain(e));
   }
 
+  async sumAmountByMonthlyServiceIdsInPeriod(
+    serviceIds: string[],
+    period: string,
+    timezone: string,
+  ): Promise<Map<string, number>> {
+    if (serviceIds.length === 0) return new Map();
+    // `AT TIME ZONE` shifts the stored UTC timestamp into the user's zone so
+    // `TO_CHAR(..., 'YYYY-MM')` reads the calendar month they care about —
+    // payments at the timezone boundary (e.g. a Lima user paying just before
+    // midnight on 30/04 in UTC = 30/04 19:00 Lima) land in the right bucket.
+    const rows = await this.repo.manager.query<
+      Array<{ monthly_service_id: string; total: string | number | null }>
+    >(
+      `
+      SELECT
+        tx."monthlyServiceId" AS monthly_service_id,
+        COALESCE(SUM(tx.amount), 0) AS total
+      FROM transactions tx
+      WHERE tx."monthlyServiceId" = ANY($1::uuid[])
+        AND tx."deletedAt" IS NULL
+        AND TO_CHAR(tx.date AT TIME ZONE $3, 'YYYY-MM') = $2
+      GROUP BY tx."monthlyServiceId"
+      `,
+      [serviceIds, period, timezone],
+    );
+    const map = new Map<string, number>();
+    rows.forEach((r) => {
+      const total = r.total ?? 0;
+      map.set(r.monthly_service_id, typeof total === 'number' ? total : parseFloat(total) || 0);
+    });
+    return map;
+  }
+
   async findByBudgetId(budgetId: string): Promise<Transaction[]> {
     const entities = await this.repo.find({
       where: { budgetId },

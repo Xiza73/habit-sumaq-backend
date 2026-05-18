@@ -869,8 +869,9 @@ Devuelve agregados de hábitos + tareas diarias. Las métricas "hoy" usan la tim
 
 Servicios mensuales recurrentes (Netflix, gym, internet). El sistema no cobra automáticamente —
 el usuario marca "pagar" y se crea un `Transaction EXPENSE` vinculado al servicio. Los períodos
-se manejan como `YYYY-MM`. `nextDuePeriod`, `isOverdue` e `isPaidForCurrentMonth` son campos
-calculados en cada respuesta, relativos al mes actual en la timezone del header `x-timezone`.
+se manejan como `YYYY-MM`. `nextDuePeriod`, `isOverdue`, `isPaidForCurrentMonth` y
+`paidAmountForCurrentMonth` son campos calculados en cada respuesta, relativos al mes actual en
+la timezone del header `x-timezone`.
 
 **Importante**: la moneda del servicio es inmutable y debe coincidir con la cuenta por defecto.
 `startPeriod` tampoco es editable una vez creado.
@@ -901,11 +902,22 @@ Lista los servicios activos del usuario. `includeArchived=true` trae también lo
     "nextDuePeriod": "2026-04",
     "isOverdue": false,
     "isPaidForCurrentMonth": false,
+    "paidAmountForCurrentMonth": 35.0,
     "createdAt": "2026-01-05T12:00:00.000Z",
     "updatedAt": "2026-04-01T20:10:00.000Z"
   }
 ]
 ```
+
+**`paidAmountForCurrentMonth`** (number, default `0`): suma de transacciones `EXPENSE` vinculadas
+a este servicio (vía `monthly_service_id`) durante el mes calendario actual en la timezone del
+cliente. Driver del KPI "Pagado / Estimado" en el dashboard de servicios.
+
+> Solo se popula con valor exacto en la **list response** (`GET /monthly-services`). Las demás
+> endpoints (`GET /:id`, `POST`, `PATCH`, `POST /:id/pay`, `POST /:id/skip`, `PATCH /:id/archive`)
+> emiten `0` — la list response es la única que necesita el cálculo y evita la query extra en el
+> resto de los endpoints. Si el frontend necesita el monto fresco post-pago, debe re-fetchear la
+> lista.
 
 ### `GET /monthly-services/:id`
 

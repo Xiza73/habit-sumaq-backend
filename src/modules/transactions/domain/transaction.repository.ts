@@ -95,6 +95,24 @@ export abstract class TransactionRepository {
     limit: number,
   ): Promise<Transaction[]>;
   /**
+   * Sum the amounts of non-soft-deleted transactions linked to each
+   * `serviceId`, restricted to the calendar month `period` (`YYYY-MM`) in
+   * the user's `timezone`. Returns a `Map<serviceId, total>` — services with
+   * no payments in the period are simply absent (caller treats missing as 0).
+   *
+   * Batched on purpose so the monthly-services list endpoint can build the
+   * "paid this month" total for the KPI in a single SQL round-trip, avoiding
+   * an N+1 across every service the user owns.
+   *
+   * Empty `serviceIds` is a no-op that returns an empty map (cheap guard so
+   * callers don't have to short-circuit).
+   */
+  abstract sumAmountByMonthlyServiceIdsInPeriod(
+    serviceIds: string[],
+    period: string,
+    timezone: string,
+  ): Promise<Map<string, number>>;
+  /**
    * Lists every non-soft-deleted transaction linked to a budget, ordered by
    * date DESC. Used to render the movements list inside a budget dashboard.
    */

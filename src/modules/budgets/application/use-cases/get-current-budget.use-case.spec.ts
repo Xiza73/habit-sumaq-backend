@@ -34,6 +34,7 @@ describe('GetCurrentBudgetUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
+      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
       findByBudgetId: jest.fn().mockResolvedValue([]),
       sumAmountByBudgetId: jest.fn().mockResolvedValue(0),
       clearBudgetIdForBudget: jest.fn(),
