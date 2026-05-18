@@ -50,6 +50,7 @@ describe('PayMonthlyServiceUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn().mockResolvedValue([]),
+      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
       findByBudgetId: jest.fn(),
       sumAmountByBudgetId: jest.fn(),
       clearBudgetIdForBudget: jest.fn(),

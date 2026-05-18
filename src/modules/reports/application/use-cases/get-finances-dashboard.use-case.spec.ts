@@ -40,6 +40,7 @@ describe('GetFinancesDashboardUseCase', () => {
       dailyNetFlowInRange: jest.fn().mockResolvedValue([]),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
+      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
       findByBudgetId: jest.fn(),
       sumAmountByBudgetId: jest.fn(),
       clearBudgetIdForBudget: jest.fn(),

@@ -24,6 +24,7 @@ describe('GetTransactionByIdUseCase', () => {
       dailyNetFlowInRange: jest.fn(),
       countByMonthlyServiceId: jest.fn(),
       findLastNByMonthlyServiceId: jest.fn(),
+      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
       findByBudgetId: jest.fn(),
       sumAmountByBudgetId: jest.fn(),
       clearBudgetIdForBudget: jest.fn(),

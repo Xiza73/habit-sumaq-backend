@@ -67,13 +67,34 @@ export class MonthlyServiceResponseDto {
   })
   isPaidForCurrentMonth: boolean;
 
+  @ApiProperty({
+    example: 35.0,
+    description:
+      'Suma de transacciones EXPENSE vinculadas a este servicio en el mes calendario actual ' +
+      '(según la timezone del cliente). Driver del KPI "Pagado / Estimado" en el dashboard de ' +
+      'servicios. Sólo se popula con valor exacto en GET /monthly-services (la list response); ' +
+      'el resto de endpoints lo emiten como 0 (no es información que el cliente consulte fuera ' +
+      'de la list view).',
+  })
+  paidAmountForCurrentMonth: number;
+
   @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()
   updatedAt: Date;
 
-  static fromDomain(entity: MonthlyService, currentPeriod: string): MonthlyServiceResponseDto {
+  /**
+   * @param entity Domain entity.
+   * @param currentPeriod 'YYYY-MM' in the user's timezone (used for the derived booleans).
+   * @param paidAmountForCurrentMonth Sum of transactions linked to this service for `currentPeriod`.
+   *   Pass `0` from endpoints that don't compute it (everything except the list view).
+   */
+  static fromDomain(
+    entity: MonthlyService,
+    currentPeriod: string,
+    paidAmountForCurrentMonth: number,
+  ): MonthlyServiceResponseDto {
     const dto = new MonthlyServiceResponseDto();
     dto.id = entity.id;
     dto.userId = entity.userId;
@@ -90,6 +111,7 @@ export class MonthlyServiceResponseDto {
     dto.nextDuePeriod = entity.nextDuePeriod();
     dto.isOverdue = entity.isOverdueFor(currentPeriod);
     dto.isPaidForCurrentMonth = entity.isPaidForMonth(currentPeriod);
+    dto.paidAmountForCurrentMonth = paidAmountForCurrentMonth;
     dto.createdAt = entity.createdAt;
     dto.updatedAt = entity.updatedAt;
     return dto;
