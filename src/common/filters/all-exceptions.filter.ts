@@ -50,7 +50,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
             : String((body as Record<string, unknown>).message)
           : exception.message;
 
-      const isValidation = status === (HttpStatus.BAD_REQUEST as number);
+      // `exception.getStatus()` returns a plain `number`, while
+      // `HttpStatus.BAD_REQUEST` is a member of the `HttpStatus` enum.
+      // Comparing them directly trips `no-unsafe-enum-comparison`, and
+      // casting either side trips `no-unnecessary-type-assertion` (the
+      // `--fix` autoremovedor strips it). `Number(...)` widens the enum
+      // member to a plain `number` so both sides are the same type — both
+      // rules are happy, and the runtime semantics are unchanged.
+      const isValidation = status === Number(HttpStatus.BAD_REQUEST);
       const details =
         isValidation &&
         typeof body === 'object' &&
