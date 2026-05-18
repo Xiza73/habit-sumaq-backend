@@ -81,10 +81,17 @@ export class MonthlyServicesController {
     @Query('includeArchived') includeArchived?: string,
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto[]>> {
     const includeArchivedFlag = includeArchived === 'true';
-    const services = await this.listMonthlyServices.execute(payload.sub, includeArchivedFlag);
     const currentPeriod = currentPeriodInTimezone(timezone);
+    const items = await this.listMonthlyServices.execute(
+      payload.sub,
+      includeArchivedFlag,
+      currentPeriod,
+      timezone,
+    );
     return ApiResponseDto.ok(
-      services.map((s) => MonthlyServiceResponseDto.fromDomain(s, currentPeriod)),
+      items.map((i) =>
+        MonthlyServiceResponseDto.fromDomain(i.service, currentPeriod, i.paidAmountForCurrentMonth),
+      ),
       'Servicios obtenidos exitosamente',
     );
   }
@@ -101,7 +108,9 @@ export class MonthlyServicesController {
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
     const service = await this.getMonthlyService.execute(id, payload.sub);
     return ApiResponseDto.ok(
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone)),
+      // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
+      // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
+      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
       'Servicio obtenido exitosamente',
     );
   }
@@ -128,7 +137,9 @@ export class MonthlyServicesController {
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
     const service = await this.createMonthlyService.execute(payload.sub, dto, timezone);
     return ApiResponseDto.ok(
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone)),
+      // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
+      // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
+      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
       'Servicio creado exitosamente',
     );
   }
@@ -156,7 +167,9 @@ export class MonthlyServicesController {
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
     const service = await this.updateMonthlyService.execute(id, payload.sub, dto);
     return ApiResponseDto.ok(
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone)),
+      // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
+      // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
+      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
       'Servicio actualizado exitosamente',
     );
   }
@@ -199,7 +212,8 @@ export class MonthlyServicesController {
     );
     return ApiResponseDto.ok(
       {
-        service: MonthlyServiceResponseDto.fromDomain(service, currentPeriod),
+        // Same convention as other single-service endpoints — see DTO doc.
+        service: MonthlyServiceResponseDto.fromDomain(service, currentPeriod, 0),
         transaction: TransactionResponseDto.fromDomain(transaction),
       },
       'Pago registrado exitosamente',
@@ -229,7 +243,9 @@ export class MonthlyServicesController {
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
     const service = await this.skipMonthlyServiceMonth.execute(id, payload.sub, dto);
     return ApiResponseDto.ok(
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone)),
+      // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
+      // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
+      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
       'Mes salteado exitosamente',
     );
   }
@@ -253,7 +269,9 @@ export class MonthlyServicesController {
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
     const service = await this.archiveMonthlyService.execute(id, payload.sub);
     return ApiResponseDto.ok(
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone)),
+      // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
+      // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
+      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
       service.isActive ? 'Servicio desarchivado exitosamente' : 'Servicio archivado exitosamente',
     );
   }
