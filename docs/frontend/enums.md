@@ -304,3 +304,40 @@ en la columna `chores.intervalUnit` — NO es un Postgres ENUM.
 
 **Uso:** campo `intervalUnit` en `POST /chores` y `PATCH /chores/:id`, junto con `intervalValue`
 (entero positivo) que indica la cantidad de unidades.
+
+---
+
+## AlertType
+
+Tipo de alerta in-app surfaceada por `GET /alerts`. Las alertas se recomputan al vuelo —
+no hay tabla persistida — así que este enum vive en el dominio (`AlertType`) y se exporta
+tal cual al frontend.
+
+| Valor                 | Policy     | Descripción                                                              |
+| --------------------- | ---------- | ------------------------------------------------------------------------ |
+| `service-due-today`   | per-day    | Servicio mensual a pagar este mes, aún no marcado como pagado            |
+| `service-overdue`     | persistent | Servicio cuyo `nextDuePeriod` es anterior al mes actual                  |
+| `habits-midday`       | per-day    | ≥1 hábito DAILY sin completar Y hora local del usuario ≥ 12:00           |
+| `budget-overspent`    | persistent | Budget del mes actual con `remaining < 0`                                |
+| `chore-overdue`       | persistent | Chore activo cuyo `nextDueDate < today`                                  |
+
+- **Per-day**: el usuario puede cerrarlas (`POST /alerts/:id/dismiss`) — vuelven a
+  medianoche en su TZ.
+- **Persistent**: no se pueden cerrar manualmente — `POST /:id/dismiss` → `409 ALR_001`.
+  Se van solas al resolverse la condición.
+
+**Uso:** campo `type` en `AlertResponseDto`. Ver shape completa en [api-reference.md → Alerts](api-reference.md#alerts-notificaciones-in-app).
+
+---
+
+## AlertSeverity
+
+Severidad visual de la alerta. Driver del color del ícono y del orden por defecto en el
+popover (warnings antes que infos).
+
+| Valor     | Descripción                                                          |
+| --------- | -------------------------------------------------------------------- |
+| `info`    | Recordatorio neutral (servicios due hoy, hábitos mediodía)           |
+| `warning` | Atención requerida (overdues + budget overspent)                     |
+
+**Uso:** campo `severity` en `AlertResponseDto`.

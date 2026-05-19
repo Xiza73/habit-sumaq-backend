@@ -112,6 +112,12 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `BDGT_002` | 409  | Ya existe un budget para ese período     | POST /budgets cuando ya hay un budget activo para esa combinación (year, month, currency).                     |
 | `BDGT_003` | 422  | Fecha del movimiento fuera del mes       | POST /budgets/:id/movements con `date` fuera del mes calendario del budget.                                    |
 
+### Alerts (Notificaciones in-app)
+
+| Código    | HTTP | Descripción                              | Cuándo ocurre                                                                                          |
+| --------- | ---- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ALR_001` | 409  | Esta alerta no se puede descartar        | POST /alerts/:alertId/dismiss sobre una alerta persistente (service-overdue, budget-overspent, chore-overdue) o un alertId con prefijo no reconocido. |
+
 ### Tasks + Sections (TODOs estilo proyectos con cleanup semanal)
 
 | Código    | HTTP | Descripción                                       | Cuándo ocurre                                                                          |

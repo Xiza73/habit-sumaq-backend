@@ -68,6 +68,8 @@ export const ERROR_CODES = {
   TASK_TITLE_TOO_LONG: 'TSK_007',
   TASK_DESCRIPTION_TOO_LONG: 'TSK_008',
   TASK_REORDER_INVALID_IDS: 'TSK_009',
+  // Alerts (in-app pseudo-notifications)
+  ALERT_NOT_DISMISSABLE: 'ALR_001',
   // Validation
   VALIDATION_ERROR: 'GEN_001',
 } as const;
