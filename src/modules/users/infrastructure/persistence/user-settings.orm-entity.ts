@@ -80,6 +80,19 @@ export class UserSettingsOrmEntity {
   @Column({ type: 'varchar', length: 4, default: MonthlyServicesOrderDir.ASC })
   monthlyServicesOrderDir: MonthlyServicesOrderDir;
 
+  /**
+   * Postgres `text[]` so order matters (mobile bottom-nav slot order is
+   * the array order) and equality checks stay simple. The cap (≤ 4) is
+   * enforced at two layers — DTO validator and SQL `CHECK` constraint
+   * declared in migration 1741000023000.
+   */
+  @Column({
+    type: 'text',
+    array: true,
+    default: () => `ARRAY['accounts','transactions','habits','quick-tasks']::text[]`,
+  })
+  favoriteKeys: string[];
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

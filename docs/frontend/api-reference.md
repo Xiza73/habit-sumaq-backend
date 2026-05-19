@@ -105,6 +105,7 @@ Actualiza parcialmente la configuración. Solo se modifican los campos enviados.
 | `monthlyServicesGroupBy`    | MonthlyServicesGroupBy     | Ver [enums.md](enums.md#monthlyservicesgroupby)                                |
 | `monthlyServicesOrderBy`    | MonthlyServicesOrderBy     | Ver [enums.md](enums.md#monthlyservicesorderby)                                |
 | `monthlyServicesOrderDir`   | MonthlyServicesOrderDir    | Ver [enums.md](enums.md#monthlyservicesorderdir)                               |
+| `favoriteKeys`              | string[]                   | Max 4, sin duplicados. Drives la bottom nav en mobile (4 slots + Settings fijo) y la ★ en la sidebar. Strings free-form — el set válido vive en el `NAV_REGISTRY` del frontend; el backend no valida el contenido para desacoplar repos. Array vacío es válido. |
 
 Todos los campos son opcionales. Si no existe configuración previa, se crea antes de aplicar los cambios.
 
@@ -124,12 +125,15 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "monthlyServicesGroupBy": "none",
   "monthlyServicesOrderBy": "name",
   "monthlyServicesOrderDir": "asc",
+  "favoriteKeys": ["accounts", "transactions", "habits", "quick-tasks"],
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
+
+> **`favoriteKeys` default:** La migration `1741000023000` setea el default a `['accounts','transactions','habits','quick-tasks']` para todos los users (los 4 items que mobile ya mostraba antes del feature). Usuarios pre-existentes obtienen ese default sin acción adicional. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
 
 ---
 
