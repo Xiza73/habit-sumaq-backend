@@ -25,6 +25,7 @@ export function buildUserSettings(overrides: Partial<UserSettings> = {}): UserSe
     overrides.monthlyServicesOrderBy ?? MonthlyServicesOrderBy.NAME,
     overrides.monthlyServicesOrderDir ?? MonthlyServicesOrderDir.ASC,
     overrides.favoriteKeys ?? ['accounts', 'transactions', 'habits', 'quick-tasks'],
+    overrides.lastAlertsSeenAt ?? null,
     overrides.createdAt ?? new Date('2026-01-01'),
     overrides.updatedAt ?? new Date('2026-01-01'),
   );

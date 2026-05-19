@@ -93,6 +93,14 @@ export class UserSettingsOrmEntity {
   })
   favoriteKeys: string[];
 
+  /**
+   * Timestamp the user last opened the alerts popover. Drives the bell
+   * badge — alerts whose `triggeredAt > lastAlertsSeenAt` are counted as
+   * unread. Null until the user opens the popover for the first time.
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  lastAlertsSeenAt: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
