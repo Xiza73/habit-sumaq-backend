@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-import { IsEnum, IsOptional } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsEnum, IsOptional, IsString } from 'class-validator';
 
 import { IsIanaTimezone } from '@common/validators/is-iana-timezone.validator';
 import { Currency } from '@modules/accounts/domain/enums/currency.enum';
@@ -94,4 +94,18 @@ export class UpdateUserSettingsDto {
   @IsOptional()
   @IsEnum(MonthlyServicesOrderDir)
   monthlyServicesOrderDir?: MonthlyServicesOrderDir;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Keys de navegación favoritas del usuario (max 4). Drives la bottom nav en mobile (4 slots + Settings fijo) y la marca ★ en la sidebar de desktop. Las keys son free-form strings — el set válido vive en el `NAV_REGISTRY` del frontend; backend no valida el contenido para desacoplar repos. Array vacío es válido (mobile queda con solo el slot de Settings).',
+    example: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+    maxItems: 4,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(4)
+  @ArrayUnique()
+  @IsString({ each: true })
+  favoriteKeys?: string[];
 }

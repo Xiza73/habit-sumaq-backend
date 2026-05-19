@@ -23,6 +23,15 @@ export class UserSettings {
     public monthlyServicesGroupBy: MonthlyServicesGroupBy,
     public monthlyServicesOrderBy: MonthlyServicesOrderBy,
     public monthlyServicesOrderDir: MonthlyServicesOrderDir,
+    /**
+     * User-picked keys (max 4) that drive the mobile bottom nav and the
+     * "★ favorite" mark in the desktop sidebar. The canonical list of
+     * available keys lives in the frontend's `NAV_REGISTRY` — we keep
+     * this side dumb-strings on purpose so we don't have to bump backend
+     * + frontend in lockstep every time a nav route is added or renamed.
+     * Frontend ignores unknown keys gracefully.
+     */
+    public favoriteKeys: string[],
     public readonly createdAt: Date,
     public updatedAt: Date,
   ) {}
@@ -37,6 +46,7 @@ export class UserSettings {
     monthlyServicesGroupBy?: MonthlyServicesGroupBy;
     monthlyServicesOrderBy?: MonthlyServicesOrderBy;
     monthlyServicesOrderDir?: MonthlyServicesOrderDir;
+    favoriteKeys?: string[];
   }): void {
     if (partial.language !== undefined) this.language = partial.language;
     if (partial.theme !== undefined) this.theme = partial.theme;
@@ -50,6 +60,7 @@ export class UserSettings {
       this.monthlyServicesOrderBy = partial.monthlyServicesOrderBy;
     if (partial.monthlyServicesOrderDir !== undefined)
       this.monthlyServicesOrderDir = partial.monthlyServicesOrderDir;
+    if (partial.favoriteKeys !== undefined) this.favoriteKeys = partial.favoriteKeys;
     this.updatedAt = new Date();
   }
 }
