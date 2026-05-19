@@ -41,9 +41,11 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       monthlyServicesGroupBy: settings.monthlyServicesGroupBy,
       monthlyServicesOrderBy: settings.monthlyServicesOrderBy,
       monthlyServicesOrderDir: settings.monthlyServicesOrderDir,
+      favoriteKeys: settings.favoriteKeys,
+      lastAlertsSeenAt: settings.lastAlertsSeenAt,
       updatedAt: settings.updatedAt,
     });
-    return this.toDomain(saved as UserSettingsOrmEntity);
+    return this.toDomain(saved);
   }
 
   private toDomain(orm: UserSettingsOrmEntity): UserSettings {
@@ -59,6 +61,8 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       orm.monthlyServicesGroupBy,
       orm.monthlyServicesOrderBy,
       orm.monthlyServicesOrderDir,
+      orm.favoriteKeys,
+      orm.lastAlertsSeenAt,
       orm.createdAt,
       orm.updatedAt,
     );

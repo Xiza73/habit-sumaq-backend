@@ -105,6 +105,7 @@ Actualiza parcialmente la configuración. Solo se modifican los campos enviados.
 | `monthlyServicesGroupBy`    | MonthlyServicesGroupBy     | Ver [enums.md](enums.md#monthlyservicesgroupby)                                |
 | `monthlyServicesOrderBy`    | MonthlyServicesOrderBy     | Ver [enums.md](enums.md#monthlyservicesorderby)                                |
 | `monthlyServicesOrderDir`   | MonthlyServicesOrderDir    | Ver [enums.md](enums.md#monthlyservicesorderdir)                               |
+| `favoriteKeys`              | string[]                   | Max 4, sin duplicados. Drives la bottom nav en mobile (4 slots + Settings fijo) y la ★ en la sidebar. Strings free-form — el set válido vive en el `NAV_REGISTRY` del frontend; el backend no valida el contenido para desacoplar repos. Array vacío es válido. |
 
 Todos los campos son opcionales. Si no existe configuración previa, se crea antes de aplicar los cambios.
 
@@ -124,12 +125,15 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "monthlyServicesGroupBy": "none",
   "monthlyServicesOrderBy": "name",
   "monthlyServicesOrderDir": "asc",
+  "favoriteKeys": ["accounts", "transactions", "habits", "quick-tasks"],
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
+
+> **`favoriteKeys` default:** La migration `1741000023000` setea el default a `['accounts','transactions','habits','quick-tasks']` para todos los users (los 4 items que mobile ya mostraba antes del feature). Usuarios pre-existentes obtienen ese default sin acción adicional. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
 
 ---
 
@@ -1447,4 +1451,110 @@ misma sección.
 - **Response:** `204 No Content`.
 - `404 TSK_001` sección no encontrada o ajena.
 - `422 TSK_009` algún ID no existe, no pertenece al usuario, o no está en la sección.
+
+---
+
+## Alerts (Notificaciones in-app)
+
+Pseudo-notificaciones que el frontend lee al abrir el bell del header. **No hay tabla de
+alertas** — se recomputan al vuelo desde monthly-services, habits, budgets y chores en
+cada `GET /alerts`. El backend filtra las que el usuario cerró (per-day), aplica el gate
+de mediodía server-side, y devuelve también `lastSeenAt` para que el frontend calcule el
+badge sin segundo roundtrip.
+
+**Cinco triggers** con dos políticas de dismiss:
+
+| Tipo                 | Policy     | Cuándo dispara                                                               |
+| -------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod` y no está pagado |
+| `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
+| `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
+| `budget-overspent`   | persistent | Budget del mes actual con `amount - spent < 0`                               |
+| `chore-overdue`      | persistent | Chore activo con `nextDueDate < today`                                       |
+
+- **Per-day**: el usuario puede cerrarlas y vuelven a aparecer al día siguiente (medianoche
+  en su TZ). El backend registra el dismiss con `expiresAt = endOfDayInTimezone(tz, now)`.
+- **Persistent**: NO se pueden cerrar manualmente — se van solas cuando la condición se
+  resuelve (pagás el servicio, ajustás el budget, hacés el chore). `POST /:id/dismiss`
+  sobre estas devuelve `409 ALR_001`.
+
+> **Mediodía gate:** el alerta `habits-midday` se filtra server-side cuando la hora local
+> del usuario es < 12. El frontend recibe la lista ya filtrada — no calcula horas.
+
+> **`x-timezone`:** `GET /alerts` lee el header `x-timezone` (mismo patrón que budgets/reports)
+> para resolver "hoy", "este mes" y la hora local del usuario. Si falta, se usa la TZ del
+> `user_settings`; si tampoco hay, fallback a `'UTC'`.
+
+Todos los endpoints requieren `Authorization: Bearer <accessToken>`.
+
+### `GET /alerts`
+
+Lista las alertas activas del usuario, ya filtradas por dismissals activos y por el gate
+de mediodía.
+
+- **Headers:** `x-timezone` (recomendado, IANA — ej. `America/Lima`).
+- **Response:** `200` — `AlertsListResponseDto`:
+
+```json
+{
+  "alerts": [
+    {
+      "id": "service-due-today:550e8400-e29b-41d4-a716-446655440000:2026-05",
+      "type": "service-due-today",
+      "severity": "info",
+      "isDismissable": true,
+      "triggeredAt": "2026-05-01T00:00:00.000Z",
+      "payload": {
+        "serviceId": "550e8400-...",
+        "serviceName": "Netflix",
+        "dueDay": 15,
+        "currency": "PEN",
+        "estimatedAmount": 45.9
+      }
+    }
+  ],
+  "lastSeenAt": "2026-05-18T22:30:00.000Z"
+}
+```
+
+- `id`: string estable. Los per-day embeben el período/fecha (`service-due-today:{uuid}:YYYY-MM`,
+  `habits-midday:YYYY-MM-DD`) para que la dismiss caduque a la próxima ventana. Los persistent
+  omiten el período (`service-overdue:{uuid}`, `budget-overspent:{uuid}`, `chore-overdue:{uuid}`)
+  porque la identidad de la alerta no depende del tiempo — se va al resolverse.
+- `type`: ver enum [`AlertType`](enums.md#alerttype).
+- `severity`: ver enum [`AlertSeverity`](enums.md#alertseverity).
+- `isDismissable`: refleja la policy. `true` para per-day, `false` para persistent. El
+  frontend lo usa para mostrar/ocultar el botón "Cerrar".
+- `triggeredAt`: UTC ISO. Para per-day = inicio del período/día. Para persistent (budget,
+  habits-midday): `now`. El frontend lo compara contra `lastSeenAt` para contar "nuevas".
+- `payload`: bag de keys según `type`. Shape por tipo:
+  - `service-due-today`: `serviceId, serviceName, dueDay, currency, estimatedAmount`.
+  - `service-overdue`: `serviceId, serviceName, overduePeriod, currency, estimatedAmount`.
+  - `habits-midday`: `missingCount, firstHabitName`.
+  - `budget-overspent`: `budgetId, currency, amount, spent, remaining` (remaining < 0).
+  - `chore-overdue`: `choreId, choreName, nextDueDate` (`YYYY-MM-DD`).
+- `lastSeenAt`: timestamp del último `POST /alerts/mark-seen`. `null` si el usuario nunca
+  abrió el popover. El badge del bell = `alerts.filter(a => a.triggeredAt > lastSeenAt).length`.
+
+### `POST /alerts/:alertId/dismiss`
+
+Cierra una alerta hasta medianoche en la TZ del usuario. Solo válido para per-day.
+
+- **Response:** `204 No Content` cuando el dismiss queda registrado.
+- `409 ALR_001` si la alerta es persistent (no se puede cerrar manualmente) o si el
+  prefijo de `alertId` no se reconoce (defensa contra inputs malformados).
+
+> **Idempotente:** llamar dos veces seguidas con el mismo `alertId` upsertea sobre el
+> UNIQUE `(userId, alertId)` — no rompe, refresca `expiresAt`. La UI no necesita
+> deduplicar.
+
+### `POST /alerts/mark-seen`
+
+Bumpea `user_settings.lastAlertsSeenAt` al timestamp actual del servidor. El frontend lo
+llama cuando el usuario abre el popover del bell.
+
+- **Response:** `204 No Content`.
+- **Importante:** este endpoint **NO** toca `user_settings.updatedAt`. La queryKey de
+  `useUserSettings` no se invalida automáticamente, así que la UI sigue cacheada y NO
+  refetcha el doc completo. Solo la próxima `GET /alerts` trae el nuevo `lastSeenAt`.
 

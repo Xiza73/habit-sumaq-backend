@@ -81,6 +81,14 @@ export class UserSettingsResponseDto {
   })
   monthlyServicesOrderDir: MonthlyServicesOrderDir;
 
+  @ApiProperty({
+    type: [String],
+    description:
+      'Keys de navegación favoritas del usuario (max 4) que drives la bottom nav en mobile y la marca ★ en sidebar de desktop. Default poblado en la migration con las 4 que ya muestra mobile hoy.',
+    example: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+  })
+  favoriteKeys: string[];
+
   @ApiProperty()
   createdAt: Date;
 
@@ -99,6 +107,7 @@ export class UserSettingsResponseDto {
     dto.monthlyServicesGroupBy = settings.monthlyServicesGroupBy;
     dto.monthlyServicesOrderBy = settings.monthlyServicesOrderBy;
     dto.monthlyServicesOrderDir = settings.monthlyServicesOrderDir;
+    dto.favoriteKeys = settings.favoriteKeys;
     dto.createdAt = settings.createdAt;
     dto.updatedAt = settings.updatedAt;
     return dto;

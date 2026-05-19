@@ -23,9 +23,40 @@ export class UserSettings {
     public monthlyServicesGroupBy: MonthlyServicesGroupBy,
     public monthlyServicesOrderBy: MonthlyServicesOrderBy,
     public monthlyServicesOrderDir: MonthlyServicesOrderDir,
+    /**
+     * User-picked keys (max 4) that drive the mobile bottom nav and the
+     * "★ favorite" mark in the desktop sidebar. The canonical list of
+     * available keys lives in the frontend's `NAV_REGISTRY` — we keep
+     * this side dumb-strings on purpose so we don't have to bump backend
+     * + frontend in lockstep every time a nav route is added or renamed.
+     * Frontend ignores unknown keys gracefully.
+     */
+    public favoriteKeys: string[],
+    /**
+     * Timestamp the user last opened the alerts popover. Drives the bell
+     * badge: an alert is considered unread when its `triggeredAt` is newer
+     * than this. Null = the user has never opened the popover.
+     *
+     * Updated by `MarkAlertsSeenUseCase` (in the alerts module) on every
+     * popover open. We deliberately use a single timestamp instead of a
+     * per-alert seen flag — the bell only needs "any new ones since I last
+     * checked", and one column is cheaper than a join.
+     */
+    public lastAlertsSeenAt: Date | null,
     public readonly createdAt: Date,
     public updatedAt: Date,
   ) {}
+
+  /**
+   * Bump `lastAlertsSeenAt` to `now`. Separate from `update()` because
+   * the alerts use case doesn't want to touch any other field — and
+   * crucially shouldn't bump `updatedAt`, which would invalidate the
+   * `useUserSettings` query on the web every time the user opens the
+   * popover.
+   */
+  markAlertsSeen(now: Date): void {
+    this.lastAlertsSeenAt = now;
+  }
 
   update(partial: {
     language?: Language;
@@ -37,6 +68,7 @@ export class UserSettings {
     monthlyServicesGroupBy?: MonthlyServicesGroupBy;
     monthlyServicesOrderBy?: MonthlyServicesOrderBy;
     monthlyServicesOrderDir?: MonthlyServicesOrderDir;
+    favoriteKeys?: string[];
   }): void {
     if (partial.language !== undefined) this.language = partial.language;
     if (partial.theme !== undefined) this.theme = partial.theme;
@@ -50,6 +82,7 @@ export class UserSettings {
       this.monthlyServicesOrderBy = partial.monthlyServicesOrderBy;
     if (partial.monthlyServicesOrderDir !== undefined)
       this.monthlyServicesOrderDir = partial.monthlyServicesOrderDir;
+    if (partial.favoriteKeys !== undefined) this.favoriteKeys = partial.favoriteKeys;
     this.updatedAt = new Date();
   }
 }

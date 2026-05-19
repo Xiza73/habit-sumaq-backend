@@ -10,6 +10,7 @@ import { ResponseTransformInterceptor } from './common/interceptors/response-tra
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/presentation/accounts.module';
+import { AlertsModule } from './modules/alerts/presentation/alerts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
 import { BudgetsModule } from './modules/budgets/presentation/budgets.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
@@ -41,6 +42,7 @@ import { AppService } from './app.service';
     BudgetsModule,
     TasksModule,
     ReportsModule,
+    AlertsModule,
     HealthModule,
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
     LoggerModule.forRoot({
