@@ -424,7 +424,10 @@ El `ResponseTransformInterceptor` envuelve automáticamente cualquier valor reto
 export const AppDataSource = new DataSource({
   type: 'postgres',
   synchronize: false,          // SIEMPRE false
-  migrationsRun: true,         // Corre migraciones al iniciar en producción
+  // NOTA: NO usamos `migrationsRun: true`. Las migrations se ejecutan
+  // explícitamente desde el start command de Railway (ver "Deploy y
+  // migrations" abajo). Esto separa concerns (migrate ≠ start) y deja
+  // los errores de migration aislados en los logs.
   entities: [...],
   migrations: ['dist/database/migrations/*.js'],
 });
@@ -441,6 +444,46 @@ pnpm typeorm migration:generate src/database/migrations/AddAccountType
 # 4. Aplicar
 pnpm typeorm migration:run
 ```
+
+### Deploy y migrations en Railway
+
+El servicio backend corre en Railway. El **Custom Start Command** está configurado en `Settings → Deploy`:
+
+```bash
+pnpm migration:run && node dist/main.js
+```
+
+Esto ejecuta las migrations pendientes ANTES de levantar el server HTTP. Si una migration falla, el proceso muere con exit code distinto de 0 y Railway marca el deploy como FAILED — la app no arranca con la DB desactualizada.
+
+**Variables requeridas en Railway**:
+
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` — usadas por `src/database/data-source.ts` para la CLI de TypeORM (migrations).
+- `GIT_COMMIT_SHA` — mapeada a `${{ RAILWAY_GIT_COMMIT_SHA }}`. La expone el endpoint `GET /api/v1/health` para verificar qué bundle está corriendo.
+
+#### Gotcha — Cache de Nixpacks en "Redeploy"
+
+El botón **"Redeploy"** del dashboard puede reutilizar capas cacheadas de Nixpacks y dejar el container corriendo un bundle viejo aunque el SHA visible en Railway diga otra cosa. Síntomas:
+
+- `pnpm migration:run` corre y retorna exit 0, pero no aplica las migrations nuevas (no las "ve" en el bundle viejo).
+- El endpoint que ya espera columnas nuevas tira validation errors o 500 por columnas inexistentes.
+- `/api/v1/health` sigue respondiendo `ok`, pero el `commit` apunta a un SHA viejo.
+
+**Workaround — forzar rebuild limpio con commit vacío**:
+
+```bash
+git commit --allow-empty -m "chore: force railway rebuild"
+git push
+```
+
+Un push fresh invalida las cache keys de Nixpacks y forza build desde cero. **Regla**: cuando dudes del estado del deploy, NUNCA usar "Redeploy" del dashboard — siempre push.
+
+**Verificación rápida del deploy actual**:
+
+```bash
+curl https://habit-sumaq-backend-production.up.railway.app/api/v1/health
+```
+
+Comparar el `data.commit` con `git log -1 --format=%H master` local.
 
 ---
 
