@@ -14,7 +14,7 @@ export class HealthController {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      commit: process.env.GIT_COMMIT_SHA ?? 'unknown',
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown',
     };
   }
 }
