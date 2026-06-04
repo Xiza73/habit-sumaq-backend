@@ -320,9 +320,15 @@ export class AccountRepositoryImpl extends AccountRepository {
 
   private toDomain(orm: AccountOrmEntity): Account {
     return new Account(
-      orm.id, orm.userId, orm.name, orm.type,
-      orm.currency, Number(orm.balance), orm.createdAt,
-      orm.updatedAt, orm.deletedAt,
+      orm.id,
+      orm.userId,
+      orm.name,
+      orm.type,
+      orm.currency,
+      Number(orm.balance),
+      orm.createdAt,
+      orm.updatedAt,
+      orm.deletedAt,
     );
   }
 
