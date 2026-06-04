@@ -10,7 +10,11 @@ export class HealthController {
   @Public()
   @ApiOperation({ summary: 'Estado del servicio' })
   @ApiResponse({ status: 200, description: 'Servicio en línea' })
-  check(): { status: string; timestamp: string } {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+  check(): { status: string; timestamp: string; commit: string } {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      commit: process.env.GIT_COMMIT_SHA ?? 'unknown',
+    };
   }
 }
