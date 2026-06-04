@@ -458,7 +458,10 @@ Esto ejecuta las migrations pendientes ANTES de levantar el server HTTP. Si una 
 **Variables requeridas en Railway**:
 
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` — usadas por `src/database/data-source.ts` para la CLI de TypeORM (migrations).
-- `GIT_COMMIT_SHA` — mapeada a `${{ RAILWAY_GIT_COMMIT_SHA }}`. La expone el endpoint `GET /api/v1/health` para verificar qué bundle está corriendo.
+- `RAILWAY_GIT_COMMIT_SHA` — **NO requiere setup**. Es una built-in que Railway inyecta automáticamente al proceso. La consume el endpoint `GET /api/v1/health` para reportar el SHA del bundle corriendo.
+- (Opcional) `GIT_COMMIT_SHA` — fallback vendor-neutral. Si algún día migrás a otro hosting (Fly, Render, VPS), seteala manualmente desde el CI/build con el SHA del commit. El endpoint la lee como secundaria.
+
+> ⚠️ **NO uses `GIT_COMMIT_SHA = ${{ RAILWAY_GIT_COMMIT_SHA }}` en las Variables de Railway.** La sintaxis `${{ }}` es para **reference variables** (otros servicios, como `${{ Redis.REDIS_PASSWORD }}`), NO para built-ins del propio servicio. Railway no resuelve esa expresión a la built-in — la deja en string vacío. Las built-ins ya están en `process.env` directamente, no requieren mapeo.
 
 #### Gotcha — Cache de Nixpacks en "Redeploy"
 
