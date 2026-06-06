@@ -61,5 +61,10 @@ export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
   TASK_DESCRIPTION_TOO_LONG: HttpStatus.UNPROCESSABLE_ENTITY,
   TASK_REORDER_INVALID_IDS: HttpStatus.UNPROCESSABLE_ENTITY,
   ALERT_NOT_DISMISSABLE: HttpStatus.CONFLICT,
+  // POOL_001 is migration-time only — never thrown from HTTP request handlers.
+  // The 500 mapping exists purely to satisfy the `Record<ErrorCodeKey, number>`
+  // exhaustiveness check. If this ever surfaces as an HTTP response, treat it
+  // as a bug (the audit-time error escaped its migration context).
+  BALANCE_DRIFT_DETECTED: HttpStatus.INTERNAL_SERVER_ERROR,
   VALIDATION_ERROR: HttpStatus.BAD_REQUEST,
 };

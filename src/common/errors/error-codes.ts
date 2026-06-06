@@ -70,6 +70,12 @@ export const ERROR_CODES = {
   TASK_REORDER_INVALID_IDS: 'TSK_009',
   // Alerts (in-app pseudo-notifications)
   ALERT_NOT_DISMISSABLE: 'ALR_001',
+  // Currency pools (internal-only — v1.0.0 refactor).
+  // Migration-time only: thrown by `BackfillCurrencyPools` and the
+  // `check-balance-consistency` audit script when `accounts.balance`
+  // diverges from the replayed transaction history. Never returned
+  // over HTTP — not in `domain-error.map.ts`.
+  BALANCE_DRIFT_DETECTED: 'POOL_001',
   // Validation
   VALIDATION_ERROR: 'GEN_001',
 } as const;
