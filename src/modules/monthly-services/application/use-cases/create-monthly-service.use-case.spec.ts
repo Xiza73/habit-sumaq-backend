@@ -1,10 +1,10 @@
 import { type PinoLogger } from 'nestjs-pino';
 
 import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 import { buildCategory } from '@modules/categories/domain/__tests__/category.factory';
 import { type CategoryRepository } from '@modules/categories/domain/category.repository';
 
@@ -40,7 +40,7 @@ describe('CreateMonthlyServiceUseCase', () => {
       findActiveByUserIdAndName: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
+    };
 
     accountRepo = {
       findByUserId: jest.fn(),
@@ -51,7 +51,7 @@ describe('CreateMonthlyServiceUseCase', () => {
       findByIds: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<AccountRepository>;
+    };
 
     categoryRepo = {
       findByUserId: jest.fn(),
@@ -59,7 +59,7 @@ describe('CreateMonthlyServiceUseCase', () => {
       findById: jest.fn().mockResolvedValue(buildCategory({ id: 'cat-1', userId })),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<CategoryRepository>;
+    };
 
     mockLogger = buildMockPinoLogger();
     useCase = new CreateMonthlyServiceUseCase(

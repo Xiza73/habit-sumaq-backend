@@ -1,7 +1,7 @@
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { buildTransaction } from '../../domain/__tests__/transaction.factory';
 import { TransactionStatus } from '../../domain/enums/transaction-status.enum';

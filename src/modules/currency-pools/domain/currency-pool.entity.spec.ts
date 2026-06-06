@@ -1,4 +1,4 @@
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 
 import { buildCurrencyPool } from './__tests__/currency-pool.factory';
 import { CurrencyPool } from './currency-pool.entity';

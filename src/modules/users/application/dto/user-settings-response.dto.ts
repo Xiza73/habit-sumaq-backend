@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 
 import { DateFormat } from '../../domain/enums/date-format.enum';
 import { Language } from '../../domain/enums/language.enum';

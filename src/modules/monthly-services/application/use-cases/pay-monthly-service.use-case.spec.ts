@@ -1,10 +1,10 @@
 import { type PinoLogger } from 'nestjs-pino';
 
 import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 import { buildTransaction } from '@modules/transactions/domain/__tests__/transaction.factory';
 import { TransactionType } from '@modules/transactions/domain/enums/transaction-type.enum';
 import { type TransactionRepository } from '@modules/transactions/domain/transaction.repository';

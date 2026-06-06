@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { Currency } from '@common/enums/currency.enum';
+
 import { AccountType } from '../../domain/enums/account-type.enum';
-import { Currency } from '../../domain/enums/currency.enum';
 
 import type { Account } from '../../domain/account.entity';
 

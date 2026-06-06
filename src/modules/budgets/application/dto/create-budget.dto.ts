@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { IsEnum, IsInt, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 
 export class CreateBudgetDto {
   @ApiPropertyOptional({

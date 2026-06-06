@@ -1,4 +1,4 @@
-import { type Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { type Currency } from '@common/enums/currency.enum';
 
 import { type DateFormat } from './enums/date-format.enum';
 import { type Language } from './enums/language.enum';

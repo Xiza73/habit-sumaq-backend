@@ -1,6 +1,6 @@
 import { type EntityManager } from 'typeorm';
 
-import { type Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { type Currency } from '@common/enums/currency.enum';
 
 import { type CurrencyPool } from './currency-pool.entity';
 

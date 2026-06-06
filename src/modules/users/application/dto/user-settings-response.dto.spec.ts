@@ -1,4 +1,4 @@
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 
 import { buildUserSettings } from '../../domain/__tests__/user-settings.factory';
 import { DateFormat } from '../../domain/enums/date-format.enum';

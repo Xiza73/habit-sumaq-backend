@@ -12,8 +12,9 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+import { Currency } from '@common/enums/currency.enum';
+
 import { AccountType } from '../../domain/enums/account-type.enum';
-import { Currency } from '../../domain/enums/currency.enum';
 
 export class CreateAccountDto {
   @ApiProperty({ example: 'Cuenta BCP' })

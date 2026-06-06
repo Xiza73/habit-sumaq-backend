@@ -1,6 +1,5 @@
+import { type Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
-
-import { type Currency } from '../enums/currency.enum';
 
 export class Money {
   constructor(

@@ -1,5 +1,5 @@
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 
 import { makeBudget } from '../../domain/__tests__/budget.factory';
 import { type BudgetRepository } from '../../domain/budget.repository';

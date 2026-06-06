@@ -8,8 +8,9 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { Currency } from '@common/enums/currency.enum';
+
 import { AccountType } from '../../domain/enums/account-type.enum';
-import { Currency } from '../../domain/enums/currency.enum';
 
 @Entity('accounts')
 @Index('IDX_accounts_userId', ['userId'])
