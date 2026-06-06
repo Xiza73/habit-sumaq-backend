@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/presentation/auth.module';
 import { BudgetsModule } from './modules/budgets/presentation/budgets.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
 import { ChoresModule } from './modules/chores/presentation/chores.module';
+import { CurrencyPoolsModule } from './modules/currency-pools/presentation/currency-pools.module';
 import { HabitsModule } from './modules/habits/presentation/habits.module';
 import { HealthModule } from './modules/health/health.module';
 import { MonthlyServicesModule } from './modules/monthly-services/presentation/monthly-services.module';
@@ -40,6 +41,7 @@ import { AppService } from './app.service';
     MonthlyServicesModule,
     ChoresModule,
     BudgetsModule,
+    CurrencyPoolsModule,
     TasksModule,
     ReportsModule,
     AlertsModule,
