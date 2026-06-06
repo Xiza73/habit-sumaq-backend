@@ -1,7 +1,7 @@
 import { type PinoLogger } from 'nestjs-pino';
 
 import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 
 import { buildCurrencyPool } from '../../domain/__tests__/currency-pool.factory';
 import { type CurrencyPoolRepository } from '../../domain/currency-pool.repository';

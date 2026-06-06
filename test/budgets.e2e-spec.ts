@@ -10,12 +10,13 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
+import { Currency } from '@common/enums/currency.enum';
+
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
 import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
 import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
-import { Currency } from '../src/modules/accounts/domain/enums/currency.enum';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 import { AddBudgetMovementUseCase } from '../src/modules/budgets/application/use-cases/add-budget-movement.use-case';
 import { CreateBudgetUseCase } from '../src/modules/budgets/application/use-cases/create-budget.use-case';

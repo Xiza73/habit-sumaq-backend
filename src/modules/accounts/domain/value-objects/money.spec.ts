@@ -1,6 +1,5 @@
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
-
-import { Currency } from '../enums/currency.enum';
 
 import { Money } from './money';
 

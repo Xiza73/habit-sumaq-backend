@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 
 import { DateFormat } from '../enums/date-format.enum';
 import { Language } from '../enums/language.enum';

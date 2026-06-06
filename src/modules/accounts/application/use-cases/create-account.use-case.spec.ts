@@ -1,12 +1,12 @@
 import { type PinoLogger } from 'nestjs-pino';
 
 import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
 
 import { buildAccount } from '../../domain/__tests__/account.factory';
 import { type AccountRepository } from '../../domain/account.repository';
 import { AccountType } from '../../domain/enums/account-type.enum';
-import { Currency } from '../../domain/enums/currency.enum';
 
 import { CreateAccountUseCase } from './create-account.use-case';
 

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { type EntityManager, IsNull, Repository } from 'typeorm';
 
-import { type Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { type Currency } from '@common/enums/currency.enum';
 
 import { CurrencyPool } from '../../domain/currency-pool.entity';
 import { CurrencyPoolRepository } from '../../domain/currency-pool.repository';

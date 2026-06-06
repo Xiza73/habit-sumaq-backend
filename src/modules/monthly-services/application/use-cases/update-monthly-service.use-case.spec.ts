@@ -1,7 +1,7 @@
+import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 import { buildCategory } from '@modules/categories/domain/__tests__/category.factory';
 import { type CategoryRepository } from '@modules/categories/domain/category.repository';
 
@@ -25,7 +25,7 @@ describe('UpdateMonthlyServiceUseCase', () => {
       findActiveByUserIdAndName: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
+    };
 
     accountRepo = {
       findByUserId: jest.fn(),
@@ -34,7 +34,7 @@ describe('UpdateMonthlyServiceUseCase', () => {
       findByIds: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<AccountRepository>;
+    };
 
     categoryRepo = {
       findByUserId: jest.fn(),
@@ -42,7 +42,7 @@ describe('UpdateMonthlyServiceUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<CategoryRepository>;
+    };
 
     useCase = new UpdateMonthlyServiceUseCase(serviceRepo, accountRepo, categoryRepo);
   });

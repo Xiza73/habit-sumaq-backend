@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
+import { Currency } from '@common/enums/currency.enum';
+
 import { Account } from '../account.entity';
 import { AccountType } from '../enums/account-type.enum';
-import { Currency } from '../enums/currency.enum';
 
 export function buildAccount(overrides: Partial<Account> = {}): Account {
   return new Account(

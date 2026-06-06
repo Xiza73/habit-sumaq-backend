@@ -1,6 +1,7 @@
+import { Currency } from '@common/enums/currency.enum';
+
 import { buildAccount } from '../../domain/__tests__/account.factory';
 import { AccountType } from '../../domain/enums/account-type.enum';
-import { Currency } from '../../domain/enums/currency.enum';
 
 import { AccountResponseDto } from './account-response.dto';
 

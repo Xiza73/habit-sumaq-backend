@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { type Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { type Currency } from '@common/enums/currency.enum';
 
 /**
  * Internal-only aggregate balance per `(userId, currency)`. NEVER exposed

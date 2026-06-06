@@ -1,6 +1,6 @@
 import type { Account } from './account.entity';
 import type { AccountType } from './enums/account-type.enum';
-import type { Currency } from './enums/currency.enum';
+import type { Currency } from '@common/enums/currency.enum';
 
 export interface CreateAccountData {
   userId: string;

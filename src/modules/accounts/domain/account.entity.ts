@@ -1,5 +1,6 @@
+import { type Currency } from '@common/enums/currency.enum';
+
 import { type AccountType } from './enums/account-type.enum';
-import { type Currency } from './enums/currency.enum';
 
 export class Account {
   constructor(

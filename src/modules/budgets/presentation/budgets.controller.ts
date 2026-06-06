@@ -22,7 +22,7 @@ import {
 import { ClientTimezone } from '@common/decorators/client-timezone.decorator';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
+import { Currency } from '@common/enums/currency.enum';
 import { TransactionResponseDto } from '@modules/transactions/application/dto/transaction-response.dto';
 
 import { AddBudgetMovementDto } from '../application/dto/add-budget-movement.dto';
