@@ -635,6 +635,36 @@ demanda real:
 
 ---
 
+## Refactor v1.0.0 — `accounts-to-modular-finance` (in progress)
+
+Reemplazo del módulo `accounts` + del subset DEBT/LOAN/TRANSFER de `transactions` por módulos
+outcome-driven (`debts-loans`, `budget-movements`, `monthly-service-payments`) respaldados por un
+`currency_pools` interno que el usuario nunca ve.
+
+Rollout en 7 fases (T-PRE-1 → A7), incremental y reversible hasta A7. Phase A6+ saca los módulos
+legacy del aire; A7 es point-of-no-return (DROP TABLE).
+
+| Phase    | Status         | PR                                | Notas                                                                 |
+| -------- | -------------- | --------------------------------- | --------------------------------------------------------------------- |
+| T-PRE-1  | ✅ DONE        | backend#36 + #37                  | DB snapshot procedure doc.                                            |
+| A1-B.1   | ✅ DONE        | backend#38                        | `currency_pools` module skeleton.                                     |
+| A1-B.2   | ✅ DONE        | backend#39                        | Balance audit + `BackfillCurrencyPools` migration.                    |
+| A2-B     | ✅ DONE        | backend#40                        | `Currency` enum → `@common/enums/`.                                   |
+| A2-W     | ✅ DONE        | web#85                            | `Currency` type → core enums (web).                                   |
+| T-PRE-2  | ✅ DONE        | backend#41                        | Pre-v1 JSON backup table de `accounts` + `transactions`.              |
+| A3-B.1   | ✅ DONE        | backend#42                        | `debts_loans` foundation: domain + ORM + migrations + error codes.    |
+| A3-B.2   | ✅ DONE        | backend#43 (current PR)           | Application + Presentation: 8 use cases, controller, E2E, docs.       |
+| A3-W     | ⏳ Pending     | —                                 | `/debts` web page + redirect desde `/transactions`.                   |
+| A4-B/W   | ⏳ Pending     | —                                 | `budget_movements` + `monthly_service_payments` (dual-shape DTOs).    |
+| A5-B/W   | ⏳ Pending     | —                                 | Reports rewire — sumar desde nuevos módulos.                          |
+| A6-B/W   | ⏳ Pending     | —                                 | Drop módulos legacy + alerts swap + favoriteKeys cleanup.             |
+| A7-B     | ⏳ Pending     | —                                 | DROP TABLE accounts + transactions (point of no return).              |
+
+Decisión de "listo para producción" del refactor: **7 días consecutivos post-A6 sin incidentes de
+data integrity** antes de hacer A7.
+
+---
+
 ## Lo que NO se implementa (backlog post-MVP actual)
 
 - Presupuestos por categoría con alertas (el v1 de Budgets es un único monto total por moneda)

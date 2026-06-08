@@ -301,6 +301,155 @@ Soft delete. Las categorías por defecto (`isDefault=true`) no se pueden elimina
 
 ---
 
+## Debts and Loans
+
+> **Refactor v1.0.0 (in progress — Phase A3-B):** estos endpoints viven en el módulo nuevo `debts_loans`,
+> introducido por el refactor `accounts-to-modular-finance`. Los endpoints viejos de DEBT/LOAN bajo
+> `/transactions` (settle, settle-by-reference, debts-summary, create con type=DEBT|LOAN) **permanecen
+> activos** hasta que Phase A6 retire el módulo legacy. Durante esa ventana, el frontend debería
+> migrar progresivamente al módulo nuevo.
+
+### `POST /debts`
+
+Crea una deuda o préstamo. La creación es NEUTRAL para el currency pool — el pool solo se mueve cuando
+se hace settle en real-payment mode.
+
+| Campo         | Tipo                    | Requerido | Notas                                                  |
+| ------------- | ----------------------- | --------- | ------------------------------------------------------ |
+| `type`        | `'DEBT' \| 'LOAN'`      | sí        | DEBT = el user debe; LOAN = al user le deben.          |
+| `currency`    | `'PEN' \| 'USD' \| 'EUR'` | sí      | Moneda de la obligación. Inmutable post-creación.     |
+| `amount`      | number                  | sí        | Monto total. > 0, hasta 2 decimales.                   |
+| `reference`   | string                  | sí        | Persona/contraparte. Vacío rechaza con `DBT_003`.      |
+| `description` | string                  | no        | Descripción libre. Max 255 chars.                      |
+| `date`        | ISO datetime            | no        | Default: ahora.                                         |
+| `categoryId`  | UUID                    | no        | Categoría opcional.                                    |
+
+**Respuesta:** `201 Created`, `data: DebtLoanResponseDto`.
+
+### `GET /debts`
+
+Lista las deudas y préstamos del usuario.
+
+| Query param | Tipo                                | Default     | Notas                                              |
+| ----------- | ----------------------------------- | ----------- | -------------------------------------------------- |
+| `status`    | `'pending' \| 'settled' \| 'all'`   | `'pending'` | Filtro por estado.                                 |
+
+**Respuesta:** `200 OK`, `data: DebtLoanResponseDto[]`.
+
+### `GET /debts/summary`
+
+Resumen agregado por `(LOWER(unaccent(reference)), currency)`. Misma shape que el endpoint legacy
+`/transactions/debts-summary` — el dashboard del web no necesita cambiar render.
+
+| Query param | Tipo                                | Default     |
+| ----------- | ----------------------------------- | ----------- |
+| `status`    | `'pending' \| 'settled' \| 'all'`   | `'pending'` |
+
+**Respuesta:** `200 OK`, `data: DebtsSummaryResponseDto[]`.
+
+### `GET /debts/:id`
+
+Obtener una deuda/préstamo por id.
+
+| Error code | HTTP | Cuándo                              |
+| ---------- | ---- | ----------------------------------- |
+| `DBT_001`  | 404  | El id no existe (o está soft-deleted) |
+| `DBT_002`  | 403  | El row pertenece a otro usuario     |
+
+**Respuesta exitosa:** `200 OK`, `data: DebtLoanResponseDto`.
+
+### `PATCH /debts/:id`
+
+Actualiza campos editables. Reglas:
+
+- **Si status = PENDING**: se pueden tocar `amount`, `description`, `date`, `categoryId`, `reference`.
+- **Si status = SETTLED**: solo `amount` es editable; cualquier otro campo presente rejecta con `DBT_005`.
+- `amount` nunca puede ser menor a `(amount - remainingAmount)` (lo ya liquidado) → `DBT_007`.
+- Subir `amount` en una SETTLED reabre el row a PENDING (recalcula `remainingAmount`).
+- `reference` vacío (solo whitespace) → `DBT_003`.
+
+| Campo         | Tipo                  | Notas                                        |
+| ------------- | --------------------- | -------------------------------------------- |
+| `amount`      | number                | > 0, 2 decimales, ≥ alreadySettled.          |
+| `description` | string \| null        | Pasar null para limpiar.                     |
+| `date`        | ISO datetime          |                                              |
+| `categoryId`  | UUID \| null          |                                              |
+| `reference`   | string (1..255)       |                                              |
+
+**Respuesta:** `200 OK`, `data: DebtLoanResponseDto`.
+
+### `DELETE /debts/:id`
+
+Soft-delete del row. **No revierte deltas de pool previos** — si la deuda tuvo real-payment settles,
+esos movimientos quedan registrados en el currency pool.
+
+**Respuesta:** `204 No Content`.
+
+### `POST /debts/:id/settle`
+
+Liquida (parcial o total) una deuda/préstamo. Dos modos:
+
+| Modo            | Trigger                  | Efecto en pool                                      |
+| --------------- | ------------------------ | --------------------------------------------------- |
+| Real-payment    | `currency` presente      | DEBT debita, LOAN credita. Atómico con el row write. |
+| Informal-close  | `currency` omitido       | Solo marca SETTLED; pool no se toca.                |
+
+Si el row pasa a `remainingAmount = 0`, status → SETTLED. En real-payment mode, `currency` DEBE
+coincidir con la currency del row; mismatch → `CURRENCY_MISMATCH`.
+
+| Campo           | Tipo                                | Requerido | Notas                                  |
+| --------------- | ----------------------------------- | --------- | -------------------------------------- |
+| `settledAmount` | number                              | sí        | > 0 y ≤ `remainingAmount`.             |
+| `currency`      | `'PEN' \| 'USD' \| 'EUR'`           | no        | Presencia → real-payment. Match obligatorio. |
+
+| Error code         | HTTP | Cuándo                                          |
+| ------------------ | ---- | ----------------------------------------------- |
+| `DBT_004`          | 409  | Row ya SETTLED.                                  |
+| `DBT_006`          | 422  | `settledAmount > remainingAmount`.               |
+| `CURRENCY_MISMATCH`| 422  | `currency` no coincide con la del row.           |
+
+**Respuesta:** `200 OK`, `data: DebtLoanResponseDto`.
+
+### `POST /debts/settle-by-reference`
+
+Liquida en una sola operación TODAS las rows PENDING de una misma `reference` (case + accent insensitive).
+
+| Campo       | Tipo                                | Requerido | Notas                                          |
+| ----------- | ----------------------------------- | --------- | ---------------------------------------------- |
+| `reference` | string                              | sí        | Match case + accent insensitive.               |
+| `currency`  | `'PEN' \| 'USD' \| 'EUR'`           | no        | Presente → solo esa currency + delta de pool. Omitido → todas las currencies, sin pool. |
+
+Devuelve el resumen del bulk. Si no había nada que liquidar, `settledCount: 0` (NO es error).
+
+**Respuesta:** `200 OK`, `data: BulkSettleResultDto`:
+
+| Campo                | Tipo                                | Notas                                                  |
+| -------------------- | ----------------------------------- | ------------------------------------------------------ |
+| `settledCount`       | number                              | Rows liquidadas en este bulk.                          |
+| `totalSettledAmount` | number                              | Suma de remainingAmount liquidados.                    |
+| `currency`           | `Currency \| null`                  | Null si fue informal-close cross-currency.             |
+| `settledIds`         | UUID[]                              | IDs de las rows afectadas.                             |
+
+### Respuesta de Debt/Loan (`DebtLoanResponseDto`)
+
+| Campo             | Tipo                                | Notas                                  |
+| ----------------- | ----------------------------------- | -------------------------------------- |
+| `id`              | UUID                                |                                        |
+| `userId`          | UUID                                |                                        |
+| `type`            | `'DEBT' \| 'LOAN'`                  |                                        |
+| `currency`        | `'PEN' \| 'USD' \| 'EUR'`           | Inmutable.                             |
+| `amount`          | number                              | Total de la obligación.                |
+| `remainingAmount` | number                              | Saldo pendiente. 0 ⇔ status = SETTLED. |
+| `status`          | `'PENDING' \| 'SETTLED'`            |                                        |
+| `reference`       | string                              |                                        |
+| `description`     | string \| null                      |                                        |
+| `categoryId`      | UUID \| null                        |                                        |
+| `date`            | ISO datetime                        |                                        |
+| `createdAt`       | ISO datetime                        |                                        |
+| `updatedAt`       | ISO datetime                        |                                        |
+
+---
+
 ## Transactions
 
 ### `POST /transactions`
