@@ -57,14 +57,26 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 
 ### Deudas y préstamos
 
+> **v1.0.0 refactor (in progress — phase A3-B):** los códigos `TXN_008`–`TXN_013`
+> permanecen activos contra el módulo legacy `transactions` y se retiran cuando
+> Phase A6 elimine ese módulo. El nuevo módulo `debts_loans` usa códigos `DBT_*`
+> con la misma semántica.
+
 | Código    | HTTP | Descripción                            | Cuándo ocurre                                   |
 | --------- | ---- | -------------------------------------- | ----------------------------------------------- |
-| `TXN_008` | 422  | DEBT/LOAN requiere campo `reference`   | Crear DEBT/LOAN sin `reference`                 |
-| `TXN_009` | 422  | Solo se pueden liquidar DEBT/LOAN      | POST settle en INCOME/EXPENSE/TRANSFER          |
-| `TXN_010` | 409  | Ya fue liquidada completamente         | POST settle en transacción con `status=SETTLED` |
-| `TXN_011` | 409  | No se puede modificar una tx liquidada | PATCH en DEBT/LOAN con `status=SETTLED`         |
-| `TXN_012` | 422  | El monto excede el saldo pendiente     | POST settle con `amount > remainingAmount`      |
-| `TXN_013` | 422  | Monto menor que lo ya liquidado        | PATCH amount en DEBT/LOAN por debajo de pagos   |
+| `TXN_008` | 422  | DEBT/LOAN requiere campo `reference`   | Crear DEBT/LOAN sin `reference` (legacy)        |
+| `TXN_009` | 422  | Solo se pueden liquidar DEBT/LOAN      | POST settle en INCOME/EXPENSE/TRANSFER (legacy) |
+| `TXN_010` | 409  | Ya fue liquidada completamente         | POST settle en transacción con `status=SETTLED` (legacy) |
+| `TXN_011` | 409  | No se puede modificar una tx liquidada | PATCH en DEBT/LOAN con `status=SETTLED` (legacy) |
+| `TXN_012` | 422  | El monto excede el saldo pendiente     | POST settle con `amount > remainingAmount` (legacy) |
+| `TXN_013` | 422  | Monto menor que lo ya liquidado        | PATCH amount en DEBT/LOAN por debajo de pagos (legacy) |
+| `DBT_001` | 404  | Debt/Loan no encontrado                | GET/PATCH/DELETE/settle con UUID inexistente    |
+| `DBT_002` | 403  | El debt/loan pertenece a otro usuario  | Acceso a un id de otro user                     |
+| `DBT_003` | 422  | DEBT/LOAN requiere campo `reference`   | Crear sin `reference`                           |
+| `DBT_004` | 409  | Ya fue liquidado completamente         | POST settle sobre un row con `status=SETTLED`   |
+| `DBT_005` | 409  | No se puede modificar un debt/loan liquidado | PATCH con campos distintos a `amount` en `status=SETTLED` |
+| `DBT_006` | 422  | El monto de liquidación excede el pendiente | POST settle con `settledAmount > remainingAmount` |
+| `DBT_007` | 422  | El nuevo monto es menor a lo ya liquidado | PATCH amount por debajo de `(amount - remainingAmount)` |
 
 ### Hábitos
 
