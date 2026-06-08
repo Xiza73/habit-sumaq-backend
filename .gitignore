@@ -54,3 +54,8 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Offsite backups written by `pnpm migration:export-pre-v1-backup`
+# (T-PRE-2 of the accounts-to-modular-finance v1.0.0 refactor).
+# Contains potentially sensitive per-user JSON of accounts + transactions.
+/backups
