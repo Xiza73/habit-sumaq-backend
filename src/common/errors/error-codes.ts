@@ -70,6 +70,15 @@ export const ERROR_CODES = {
   TASK_REORDER_INVALID_IDS: 'TSK_009',
   // Alerts (in-app pseudo-notifications)
   ALERT_NOT_DISMISSABLE: 'ALR_001',
+  // Debts and Loans module (v1.0.0 standalone module — replaces the
+  // DEBT/LOAN subset of transactions).
+  DEBT_LOAN_NOT_FOUND: 'DBT_001',
+  DEBT_LOAN_BELONGS_TO_OTHER_USER: 'DBT_002',
+  DEBT_LOAN_REFERENCE_REQUIRED: 'DBT_003',
+  DEBT_LOAN_ALREADY_SETTLED: 'DBT_004',
+  CANNOT_UPDATE_SETTLED_DEBT_LOAN: 'DBT_005',
+  DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING: 'DBT_006',
+  DEBT_LOAN_AMOUNT_BELOW_SETTLED: 'DBT_007',
   // Currency pools (internal-only — v1.0.0 refactor).
   // Migration-time only: thrown by `BackfillCurrencyPools` and the
   // `check-balance-consistency` audit script when `accounts.balance`
