@@ -44,6 +44,28 @@ export class MigrateDebtLoanTransactions1741000029000 implements MigrationInterf
   name = 'MigrateDebtLoanTransactions1741000029000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Clamp `remainingAmount` to the [0, amount] range. The legacy
+    // `transactions` table did NOT enforce this invariant; in the wild
+    // we've seen rows where `remainingAmount > amount` (typically because
+    // the user edited the amount DOWN after a partial settle without
+    // recomputing remaining, or because of an old settle bug). The new
+    // schema's CK_debts_loans_remaining_within_amount enforces this
+    // invariant strictly, so we clamp on the way in.
+    //
+    // Interpretation when clamping:
+    //   - remaining > amount → cap at amount (the worst case: full
+    //     amount still owed, as if no settle ever happened).
+    //   - remaining < 0     → floor at 0 (over-settled rows become
+    //     fully SETTLED on the next status calc).
+    //
+    // We also skip rows where `amount <= 0` — the new schema's
+    // `CK_debts_loans_amount_positive` would reject them anyway, and a
+    // DEBT/LOAN of zero magnitude is meaningless.
+    //
+    // Status is recomputed: if the (clamped) remaining is 0, force
+    // SETTLED — otherwise PENDING. This catches legacy rows that were
+    // marked PENDING but had no remainder, and rows whose remainder we
+    // just floored to 0.
     await queryRunner.query(`
       INSERT INTO "debts_loans" (
         "id",
@@ -68,8 +90,13 @@ export class MigrateDebtLoanTransactions1741000029000 implements MigrationInterf
         t."categoryId",
         a."currency",
         t."amount",
-        COALESCE(t."remainingAmount", t."amount"),
-        COALESCE(t."status", 'PENDING'),
+        GREATEST(0, LEAST(COALESCE(t."remainingAmount", t."amount"), t."amount"))
+          AS clamped_remaining,
+        CASE
+          WHEN GREATEST(0, LEAST(COALESCE(t."remainingAmount", t."amount"), t."amount")) = 0
+            THEN 'SETTLED'
+          ELSE 'PENDING'
+        END AS computed_status,
         t."reference",
         t."description",
         t."date",
@@ -81,6 +108,7 @@ export class MigrateDebtLoanTransactions1741000029000 implements MigrationInterf
       WHERE t."type" IN ('DEBT', 'LOAN')
         AND t."reference" IS NOT NULL
         AND t."reference" <> ''
+        AND t."amount" > 0
       ON CONFLICT ("id") DO NOTHING
     `);
   }
