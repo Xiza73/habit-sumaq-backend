@@ -20,6 +20,7 @@ import { CurrencyPoolsModule } from './modules/currency-pools/presentation/curre
 import { DebtsLoansModule } from './modules/debts-loans/presentation/debts-loans.module';
 import { HabitsModule } from './modules/habits/presentation/habits.module';
 import { HealthModule } from './modules/health/health.module';
+import { MonthlyServicePaymentsModule } from './modules/monthly-service-payments/presentation/monthly-service-payments.module';
 import { MonthlyServicesModule } from './modules/monthly-services/presentation/monthly-services.module';
 import { QuickTasksModule } from './modules/quick-tasks/presentation/quick-tasks.module';
 import { ReportsModule } from './modules/reports/presentation/reports.module';
@@ -46,6 +47,7 @@ import { AppService } from './app.service';
     CurrencyPoolsModule,
     DebtsLoansModule,
     BudgetMovementsModule,
+    MonthlyServicePaymentsModule,
     TasksModule,
     ReportsModule,
     AlertsModule,

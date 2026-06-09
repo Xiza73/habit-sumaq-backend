@@ -657,7 +657,9 @@ legacy del aire; A7 es point-of-no-return (DROP TABLE).
 | A3-W     | ✅ DONE        | web#86                            | Web `/debts` page wired to new module.                                |
 | FIX-MIG  | ✅ DONE        | backend#44                        | Migration relaxations: IMMUTABLE index drop + soft audit + remaining clamp. |
 | A4-B.1   | ✅ DONE        | backend#45                        | `budget_movements` foundation: domain + ORM + migrations + error codes. |
-| A4-B.2   | ✅ DONE        | backend#46 (current PR)           | Budget-movements Application + Presentation: 5 use cases, controller, E2E. |
+| A4-B.2   | ✅ DONE        | backend#46                        | Budget-movements Application + Presentation: 5 use cases, controller, E2E. |
+| A4-B.3   | ✅ DONE        | backend#47                        | `monthly_service_payments` foundation. DISTINCT ON dedup for legacy double-payments. |
+| A4-B.4   | ✅ DONE        | backend#48 (current PR)           | Monthly-service-payments Application + Presentation: 5 use cases, controller, E2E. Closes A4-B backend side. |
 | A3-W     | ⏳ Pending     | —                                 | `/debts` web page + redirect desde `/transactions`.                   |
 | A4-B/W   | ⏳ Pending     | —                                 | `budget_movements` + `monthly_service_payments` (dual-shape DTOs).    |
 | A5-B/W   | ⏳ Pending     | —                                 | Reports rewire — sumar desde nuevos módulos.                          |
