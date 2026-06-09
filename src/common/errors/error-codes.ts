@@ -79,6 +79,12 @@ export const ERROR_CODES = {
   CANNOT_UPDATE_SETTLED_DEBT_LOAN: 'DBT_005',
   DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING: 'DBT_006',
   DEBT_LOAN_AMOUNT_BELOW_SETTLED: 'DBT_007',
+  // Budget movements module (v1.0.0 standalone module — replaces the
+  // EXPENSE subset of legacy transactions where `budgetId IS NOT NULL`).
+  BUDGET_MOVEMENT_NOT_FOUND: 'BMV_001',
+  BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER: 'BMV_002',
+  BUDGET_MOVEMENT_DATE_OUT_OF_BUDGET_RANGE: 'BMV_003',
+  BUDGET_MOVEMENT_CURRENCY_MISMATCH: 'BMV_004',
   // Currency pools (internal-only — v1.0.0 refactor).
   // Migration-time only: thrown by `BackfillCurrencyPools` and the
   // `check-balance-consistency` audit script when `accounts.balance`
