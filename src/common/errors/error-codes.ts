@@ -85,6 +85,14 @@ export const ERROR_CODES = {
   BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER: 'BMV_002',
   BUDGET_MOVEMENT_DATE_OUT_OF_BUDGET_RANGE: 'BMV_003',
   BUDGET_MOVEMENT_CURRENCY_MISMATCH: 'BMV_004',
+  // Monthly service payments module (v1.0.0 standalone module —
+  // replaces the EXPENSE subset of legacy transactions where
+  // `monthlyServiceId IS NOT NULL`).
+  MONTHLY_SERVICE_PAYMENT_NOT_FOUND: 'MSP_001',
+  MONTHLY_SERVICE_PAYMENT_BELONGS_TO_OTHER_USER: 'MSP_002',
+  MONTHLY_SERVICE_PAYMENT_ALREADY_EXISTS_FOR_PERIOD: 'MSP_003',
+  MONTHLY_SERVICE_PAYMENT_CURRENCY_MISMATCH: 'MSP_004',
+  MONTHLY_SERVICE_PAYMENT_INVALID_PERIOD_FORMAT: 'MSP_005',
   // Currency pools (internal-only — v1.0.0 refactor).
   // Migration-time only: thrown by `BackfillCurrencyPools` and the
   // `check-balance-consistency` audit script when `accounts.balance`
