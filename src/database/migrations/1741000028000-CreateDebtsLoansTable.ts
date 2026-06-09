@@ -73,22 +73,18 @@ export class CreateDebtsLoansTable1741000028000 implements MigrationInterface {
     );
 
     // Postgres' `unaccent` function lives in the `unaccent` extension.
-    // It's already enabled in this repo (used by the legacy transactions
-    // debts-summary query) — verify by listing extensions.
+    // It's used by `aggregateByReference` and `findPendingByNormalizedReference`
+    // in their `LOWER(unaccent(reference))` lookups (case + accent insensitive).
+    // No functional index here: `unaccent` is `STABLE`, not `IMMUTABLE`, so
+    // Postgres rejects it inside `CREATE INDEX`. Wrapping it in an
+    // `IMMUTABLE` SQL function would work, but at single-user-prod scale the
+    // queries are fast as sequential scans within the per-user dataset
+    // (already filtered by the `(userId, status)` index). When N grows we
+    // can revisit with either pg_trgm or an `immutable_unaccent` wrapper.
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS unaccent`);
-
-    // Functional index so the case+accent-insensitive lookups
-    // (`LOWER(unaccent(reference))`) used by the summary aggregation and
-    // bulk-settle-by-reference run on an indexed path rather than a
-    // sequential scan.
-    await queryRunner.query(
-      `CREATE INDEX "IDX_debts_loans_user_normalized_reference"
-       ON "debts_loans" ("userId", (LOWER(unaccent("reference"))))`,
-    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_debts_loans_user_normalized_reference"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_debts_loans_user_status"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "debts_loans"`);
     // Intentionally NOT dropping the `unaccent` extension — other queries
