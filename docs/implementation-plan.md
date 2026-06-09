@@ -653,7 +653,11 @@ legacy del aire; A7 es point-of-no-return (DROP TABLE).
 | A2-W     | ✅ DONE        | web#85                            | `Currency` type → core enums (web).                                   |
 | T-PRE-2  | ✅ DONE        | backend#41                        | Pre-v1 JSON backup table de `accounts` + `transactions`.              |
 | A3-B.1   | ✅ DONE        | backend#42                        | `debts_loans` foundation: domain + ORM + migrations + error codes.    |
-| A3-B.2   | ✅ DONE        | backend#43 (current PR)           | Application + Presentation: 8 use cases, controller, E2E, docs.       |
+| A3-B.2   | ✅ DONE        | backend#43                        | Debts-loans Application + Presentation: 8 use cases, controller, E2E. |
+| A3-W     | ✅ DONE        | web#86                            | Web `/debts` page wired to new module.                                |
+| FIX-MIG  | ✅ DONE        | backend#44                        | Migration relaxations: IMMUTABLE index drop + soft audit + remaining clamp. |
+| A4-B.1   | ✅ DONE        | backend#45                        | `budget_movements` foundation: domain + ORM + migrations + error codes. |
+| A4-B.2   | ✅ DONE        | backend#46 (current PR)           | Budget-movements Application + Presentation: 5 use cases, controller, E2E. |
 | A3-W     | ⏳ Pending     | —                                 | `/debts` web page + redirect desde `/transactions`.                   |
 | A4-B/W   | ⏳ Pending     | —                                 | `budget_movements` + `monthly_service_payments` (dual-shape DTOs).    |
 | A5-B/W   | ⏳ Pending     | —                                 | Reports rewire — sumar desde nuevos módulos.                          |

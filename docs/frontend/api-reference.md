@@ -301,6 +301,94 @@ Soft delete. Las categorías por defecto (`isDefault=true`) no se pueden elimina
 
 ---
 
+## Budget Movements (v1.0.0)
+
+> **Refactor v1.0.0 (in progress — Phase A4-B):** estos endpoints viven en el módulo nuevo
+> `budget_movements`. Los EXPENSE legacy con `budgetId IS NOT NULL` siguen funcionando bajo
+> `/transactions` hasta que Phase A6 retire el módulo viejo. El frontend debería migrar
+> progresivamente al módulo nuevo.
+
+### `GET /budget-movements`
+
+Lista movimientos de un budget. Ordenados por fecha desc.
+
+| Query param | Tipo | Requerido | Notas |
+| --- | --- | --- | --- |
+| `budgetId` | UUID | sí | ID del budget a listar. |
+
+**Respuesta:** `200 OK`, `data: BudgetMovementResponseDto[]`.
+
+| Error code | HTTP | Cuándo |
+| --- | --- | --- |
+| `BUDGET_NOT_FOUND` | 404 | `budgetId` no existe |
+| `BMV_002` | 403 | El budget pertenece a otro usuario |
+
+### `GET /budget-movements/:id`
+
+Obtiene un movimiento por id.
+
+| Error code | HTTP | Cuándo |
+| --- | --- | --- |
+| `BMV_001` | 404 | id no existe |
+| `BMV_002` | 403 | El movimiento pertenece a otro usuario |
+
+### `POST /budget-movements`
+
+Crea un movimiento contra un budget. NEUTRAL para el budget (la tabla `budgets` no se toca),
+pero **DEBITA el currency pool** del user por `amount`. La currency se hereda del budget —
+NO se pasa en el DTO.
+
+| Campo | Tipo | Requerido | Notas |
+| --- | --- | --- | --- |
+| `budgetId` | UUID | sí | Budget contra el que se imputa. |
+| `amount` | number | sí | > 0, hasta 2 decimales. |
+| `date` | ISO datetime | no | Debe caer en el mes del budget. Default: ahora. |
+| `description` | string | no | Max 255 chars. |
+| `categoryId` | UUID | no | Categoría opcional. |
+
+**Respuesta:** `201 Created`, `data: BudgetMovementResponseDto`.
+
+| Error code | HTTP | Cuándo |
+| --- | --- | --- |
+| `BMV_003` | 422 | `date` no cae dentro del `(year, month)` del budget |
+
+### `PATCH /budget-movements/:id`
+
+Actualiza `amount`, `date`, `description`, `categoryId`. `budgetId` y `currency` son
+inmutables — para "mover" un movement, delete + recreate.
+
+Si cambia el `amount`, el pool aplica la diferencia `(oldAmount - newAmount)` en una sola tx:
+- Bajar el amount 100 → 80 → pool **+20** (reembolso parcial).
+- Subir el amount 100 → 120 → pool **-20** (débito extra).
+
+Si cambia el `date`, se revalida contra el mes del budget.
+
+**Respuesta:** `200 OK`, `data: BudgetMovementResponseDto`.
+
+### `DELETE /budget-movements/:id`
+
+Soft-deletea el movimiento Y **revierte el pool** (`+amount`). El gasto se "deshace" — a
+diferencia de `DELETE /debts/:id` que NO toca el pool.
+
+**Respuesta:** `204 No Content`.
+
+### Respuesta de Budget Movement (`BudgetMovementResponseDto`)
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `id` | UUID | |
+| `userId` | UUID | |
+| `budgetId` | UUID | Inmutable. |
+| `currency` | `'PEN' \| 'USD' \| 'EUR'` | Heredado del budget. Inmutable. |
+| `amount` | number | |
+| `description` | string \| null | |
+| `categoryId` | UUID \| null | |
+| `date` | ISO datetime | |
+| `createdAt` | ISO datetime | |
+| `updatedAt` | ISO datetime | |
+
+---
+
 ## Debts and Loans
 
 > **Refactor v1.0.0 (in progress — Phase A3-B):** estos endpoints viven en el módulo nuevo `debts_loans`,
