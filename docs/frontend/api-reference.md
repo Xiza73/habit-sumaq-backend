@@ -301,6 +301,83 @@ Soft delete. Las categorías por defecto (`isDefault=true`) no se pueden elimina
 
 ---
 
+## Monthly Service Payments (v1.0.0)
+
+> **Refactor v1.0.0 (in progress — Phase A4-B.4):** estos endpoints viven en el módulo nuevo
+> `monthly_service_payments`. Los EXPENSE legacy con `monthlyServiceId IS NOT NULL` siguen
+> funcionando bajo `/transactions` hasta que Phase A6 retire el módulo viejo.
+
+### `GET /monthly-service-payments`
+
+Lista pagos de un servicio mensual. Ordenados por `period` desc.
+
+| Query param | Tipo | Requerido | Notas |
+| --- | --- | --- | --- |
+| `monthlyServiceId` | UUID | sí | ID del servicio mensual a listar. |
+
+**Respuesta:** `200 OK`, `data: MonthlyServicePaymentResponseDto[]`.
+
+### `GET /monthly-service-payments/:id`
+
+Obtiene un pago por id.
+
+| Error code | HTTP | Cuándo |
+| --- | --- | --- |
+| `MSP_001` | 404 | id no existe |
+| `MSP_002` | 403 | El pago pertenece a otro usuario |
+
+### `POST /monthly-service-payments`
+
+Registra un pago. **DEBITA el currency pool** del user por `amount`. Currency se hereda del
+servicio. `period` (`YYYY-MM`) es explícito — se puede back-pay o pay-ahead. La combinación
+`(monthlyServiceId, period)` es única entre rows activas.
+
+| Campo | Tipo | Requerido | Notas |
+| --- | --- | --- | --- |
+| `monthlyServiceId` | UUID | sí | Servicio que se paga. |
+| `period` | `YYYY-MM` | sí | Período al que aplica el pago. |
+| `amount` | number | sí | > 0, hasta 2 decimales. |
+| `date` | ISO datetime | no | Fecha real del pago. Default: ahora. NO determina el period. |
+| `description` | string | no | Max 255 chars. |
+
+**Respuesta:** `201 Created`, `data: MonthlyServicePaymentResponseDto`.
+
+| Error code | HTTP | Cuándo |
+| --- | --- | --- |
+| `MSP_003` | 409 | Ya existe un pago activo para ese `(service, period)` |
+| `MSP_005` | 422 | `period` mal formado |
+
+### `PATCH /monthly-service-payments/:id`
+
+Actualiza `amount`, `date`, `description`. `monthlyServiceId`, `currency`, y `period` son
+inmutables. Si cambia el `amount`, el pool ajusta la diferencia en una sola tx.
+
+**Respuesta:** `200 OK`, `data: MonthlyServicePaymentResponseDto`.
+
+### `DELETE /monthly-service-payments/:id`
+
+Soft-deletea el pago Y **revierte el pool** (`+amount`). Mismo patrón que
+`DELETE /budget-movements/:id`.
+
+**Respuesta:** `204 No Content`.
+
+### Respuesta de Monthly Service Payment (`MonthlyServicePaymentResponseDto`)
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `id` | UUID | |
+| `userId` | UUID | |
+| `monthlyServiceId` | UUID | Inmutable. |
+| `currency` | `'PEN' \| 'USD' \| 'EUR'` | Heredado del servicio. Inmutable. |
+| `amount` | number | |
+| `period` | `YYYY-MM` | Inmutable. |
+| `description` | string \| null | |
+| `date` | ISO datetime | Fecha real del pago. Distinta del period. |
+| `createdAt` | ISO datetime | |
+| `updatedAt` | ISO datetime | |
+
+---
+
 ## Budget Movements (v1.0.0)
 
 > **Refactor v1.0.0 (in progress — Phase A4-B):** estos endpoints viven en el módulo nuevo
