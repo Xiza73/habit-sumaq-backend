@@ -43,5 +43,6 @@ import { MonthlyServicePaymentsController } from './monthly-service-payments.con
     UpdateMonthlyServicePaymentUseCase,
     DeleteMonthlyServicePaymentUseCase,
   ],
+  exports: [MonthlyServicePaymentRepository],
 })
 export class MonthlyServicePaymentsModule {}

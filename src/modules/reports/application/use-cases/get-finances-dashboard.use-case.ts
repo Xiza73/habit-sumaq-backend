@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
+import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
+import { MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
 import { StartOfWeek } from '@modules/users/domain/enums/start-of-week.enum';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
@@ -18,6 +20,8 @@ export class GetFinancesDashboardUseCase {
   constructor(
     private readonly accountRepo: AccountRepository,
     private readonly poolRepo: CurrencyPoolRepository,
+    private readonly budgetMovementRepo: BudgetMovementRepository,
+    private readonly mspRepo: MonthlyServicePaymentRepository,
     private readonly txRepo: TransactionRepository,
     private readonly settingsRepo: UserSettingsRepository,
   ) {}
@@ -32,14 +36,21 @@ export class GetFinancesDashboardUseCase {
 
     const range = computePeriodRange(period, timezone, startOfWeek);
 
-    const [accounts, pools, flow, topCategories, dailyFlow, debts] = await Promise.all([
-      this.accountRepo.findByUserId(userId, false),
-      this.poolRepo.findByUserId(userId),
-      this.txRepo.sumFlowByCurrencyInRange(userId, range.from, range.to),
-      this.txRepo.topExpenseCategoriesInRange(userId, range.from, range.to, TOP_CATEGORIES_LIMIT),
-      this.txRepo.dailyNetFlowInRange(userId, range.from, range.to),
-      this.txRepo.aggregateDebtsByReference(userId, 'pending'),
-    ]);
+    const [accounts, pools, budgetMovementSums, mspSums, topCategories, dailyFlow, debts] =
+      await Promise.all([
+        this.accountRepo.findByUserId(userId, false),
+        this.poolRepo.findByUserId(userId),
+        this.budgetMovementRepo.sumByCurrencyInRange(userId, range.from, range.to),
+        this.mspRepo.sumByCurrencyInRange(userId, range.from, range.to),
+        this.budgetMovementRepo.topCategoriesByCurrencyInRange(
+          userId,
+          range.from,
+          range.to,
+          TOP_CATEGORIES_LIMIT,
+        ),
+        this.txRepo.dailyNetFlowInRange(userId, range.from, range.to),
+        this.txRepo.aggregateDebtsByReference(userId, 'pending'),
+      ]);
 
     // Widget 1: totalBalance — pool balances per currency, with the
     // legacy `accountCount` derived from the still-living `accounts`
@@ -72,12 +83,34 @@ export class GetFinancesDashboardUseCase {
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
     // Widget 2: periodFlow — income + expense per currency in range.
-    const periodFlow = flow.map((f) => ({
-      currency: f.currency,
-      income: round(f.income),
-      expense: round(f.expense),
-      net: round(f.income - f.expense),
-    }));
+    //
+    // v1.0.0 semantics (Phase A5-B.2 — Path A, pure new-module):
+    //   - **expense** = SUM(budget_movements) + SUM(monthly_service_payments)
+    //     in range, grouped by currency. The new model has NO loose
+    //     expense — every expense is tagged with a budget or a service.
+    //   - **income** = 0 for now. There is no general INCOME concept in
+    //     the new model. The only "money in" source is LOAN settle
+    //     real-payments, which arrives in A5-B.3 (the debt-loan repo
+    //     doesn't yet expose settle-event aggregation by time range).
+    //
+    // The widget's response shape stays the same so the web doesn't
+    // need to change. Numbers WILL differ from the legacy dashboard —
+    // by design.
+    const expenseByCurrency = new Map<string, number>();
+    for (const bm of budgetMovementSums) {
+      expenseByCurrency.set(bm.currency, (expenseByCurrency.get(bm.currency) ?? 0) + bm.total);
+    }
+    for (const msp of mspSums) {
+      expenseByCurrency.set(msp.currency, (expenseByCurrency.get(msp.currency) ?? 0) + msp.total);
+    }
+    const periodFlow = Array.from(expenseByCurrency.entries())
+      .map(([currency, expense]) => ({
+        currency,
+        income: 0,
+        expense: round(expense),
+        net: round(-expense),
+      }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     // Widget 3: topExpenseCategories — add percentage (of total EXPENSE for the
     // same currency). Uncategorized rows surface with name=null for the UI.

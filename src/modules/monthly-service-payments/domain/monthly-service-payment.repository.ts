@@ -29,6 +29,18 @@ export abstract class MonthlyServicePaymentRepository {
     period: string,
   ): Promise<MonthlyServicePayment | null>;
 
+  /**
+   * Sum of `amount` per currency for payments whose `date` falls in
+   * `[from, to)`. Used by the finances-dashboard `periodFlow` widget.
+   * Filters out soft-deleted rows. Half-open range, same convention
+   * as the budget-movements counterpart.
+   */
+  abstract sumByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ currency: string; total: number }>>;
+
   abstract save(
     payment: MonthlyServicePayment,
     manager?: EntityManager,

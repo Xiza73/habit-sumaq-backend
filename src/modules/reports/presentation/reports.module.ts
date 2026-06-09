@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 
 import { AccountsModule } from '../../accounts/presentation/accounts.module';
+import { BudgetMovementsModule } from '../../budget-movements/presentation/budget-movements.module';
 import { CurrencyPoolsModule } from '../../currency-pools/presentation/currency-pools.module';
 import { HabitsModule } from '../../habits/presentation/habits.module';
+import { MonthlyServicePaymentsModule } from '../../monthly-service-payments/presentation/monthly-service-payments.module';
 import { QuickTasksModule } from '../../quick-tasks/presentation/quick-tasks.module';
 import { TransactionsModule } from '../../transactions/presentation/transactions.module';
 import { UsersModule } from '../../users/presentation/users.module';
@@ -19,6 +21,8 @@ import { ReportsController } from './reports.controller';
     UsersModule,
     AccountsModule,
     CurrencyPoolsModule,
+    BudgetMovementsModule,
+    MonthlyServicePaymentsModule,
     TransactionsModule,
     HabitsModule,
     QuickTasksModule,

@@ -18,6 +18,7 @@ import { ResponseTransformInterceptor } from '../src/common/interceptors/respons
 import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
 import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
+import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
 import { buildCurrencyPool } from '../src/modules/currency-pools/domain/__tests__/currency-pool.factory';
 import { CurrencyPoolRepository } from '../src/modules/currency-pools/domain/currency-pool.repository';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
@@ -25,6 +26,7 @@ import { buildHabitLog } from '../src/modules/habits/domain/__tests__/habit-log.
 import { HabitFrequency } from '../src/modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
+import { MonthlyServicePaymentRepository } from '../src/modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { buildQuickTask } from '../src/modules/quick-tasks/domain/__tests__/quick-task.factory';
 import { QuickTaskRepository } from '../src/modules/quick-tasks/domain/quick-task.repository';
 import { GetFinancesDashboardUseCase } from '../src/modules/reports/application/use-cases/get-finances-dashboard.use-case';
@@ -57,6 +59,25 @@ describe('ReportsController (e2e)', () => {
     findByUserIdAndCurrency: jest.fn(),
     findByUserId: jest.fn(),
     save: jest.fn(),
+  };
+
+  const mockBudgetMovementRepo: jest.Mocked<BudgetMovementRepository> = {
+    findByBudgetId: jest.fn(),
+    findById: jest.fn(),
+    sumByBudgetId: jest.fn(),
+    sumByCurrencyInRange: jest.fn(),
+    topCategoriesByCurrencyInRange: jest.fn(),
+    save: jest.fn(),
+    softDelete: jest.fn(),
+  };
+
+  const mockMspRepo: jest.Mocked<MonthlyServicePaymentRepository> = {
+    findByServiceId: jest.fn(),
+    findById: jest.fn(),
+    findByServiceAndPeriod: jest.fn(),
+    sumByCurrencyInRange: jest.fn(),
+    save: jest.fn(),
+    softDelete: jest.fn(),
   };
 
   const mockTxRepo: jest.Mocked<TransactionRepository> = {
@@ -130,6 +151,8 @@ describe('ReportsController (e2e)', () => {
         GetRoutinesDashboardUseCase,
         { provide: AccountRepository, useValue: mockAccountRepo },
         { provide: CurrencyPoolRepository, useValue: mockPoolRepo },
+        { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
+        { provide: MonthlyServicePaymentRepository, useValue: mockMspRepo },
         { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
@@ -168,6 +191,9 @@ describe('ReportsController (e2e)', () => {
     jest.clearAllMocks();
     mockAccountRepo.findByUserId.mockResolvedValue([]);
     mockPoolRepo.findByUserId.mockResolvedValue([]);
+    mockBudgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([]);
+    mockBudgetMovementRepo.topCategoriesByCurrencyInRange.mockResolvedValue([]);
+    mockMspRepo.sumByCurrencyInRange.mockResolvedValue([]);
     mockTxRepo.sumFlowByCurrencyInRange.mockResolvedValue([]);
     mockTxRepo.topExpenseCategoriesInRange.mockResolvedValue([]);
     mockTxRepo.dailyNetFlowInRange.mockResolvedValue([]);
@@ -223,10 +249,14 @@ describe('ReportsController (e2e)', () => {
         buildAccount({ currency: Currency.PEN }),
         buildAccount({ currency: Currency.USD }),
       ]);
-      mockTxRepo.sumFlowByCurrencyInRange.mockResolvedValue([
-        { currency: 'PEN', income: 3000, expense: 1800 },
+      // periodFlow now derives from budget_movements + monthly_service_payments.
+      // No general INCOME concept in v1.0.0 (Phase A5-B.2 Path A).
+      mockBudgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([
+        { currency: 'PEN', total: 1200 },
       ]);
-      mockTxRepo.topExpenseCategoriesInRange.mockResolvedValue([
+      mockMspRepo.sumByCurrencyInRange.mockResolvedValue([{ currency: 'PEN', total: 600 }]);
+      // topExpenseCategories now comes from budget_movements.
+      mockBudgetMovementRepo.topCategoriesByCurrencyInRange.mockResolvedValue([
         { categoryId: 'c1', name: 'Comida', color: '#f00', currency: 'PEN', total: 800 },
       ]);
 
@@ -237,7 +267,14 @@ describe('ReportsController (e2e)', () => {
         .expect(({ body }) => {
           expect(body.data.period).toBe('week');
           expect(body.data.totalBalance).toHaveLength(2);
-          expect(body.data.periodFlow[0]).toMatchObject({ currency: 'PEN', net: 1200 });
+          // Pure new-module sums: 1200 (BM) + 600 (MSP) = 1800 expense.
+          // No income source yet → net = -1800.
+          expect(body.data.periodFlow[0]).toMatchObject({
+            currency: 'PEN',
+            income: 0,
+            expense: 1800,
+            net: -1800,
+          });
           expect(body.data.topExpenseCategories[0]).toMatchObject({
             name: 'Comida',
             percentage: 100,

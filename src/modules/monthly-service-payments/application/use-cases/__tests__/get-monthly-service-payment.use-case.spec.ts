@@ -13,6 +13,7 @@ describe('GetMonthlyServicePaymentUseCase', () => {
       findByServiceId: jest.fn(),
       findById: jest.fn(),
       findByServiceAndPeriod: jest.fn(),
+      sumByCurrencyInRange: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
     };
