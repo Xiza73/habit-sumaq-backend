@@ -12,6 +12,7 @@ import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AlertsModule } from './modules/alerts/presentation/alerts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
+import { BudgetMovementsModule } from './modules/budget-movements/presentation/budget-movements.module';
 import { BudgetsModule } from './modules/budgets/presentation/budgets.module';
 import { CategoriesModule } from './modules/categories/presentation/categories.module';
 import { ChoresModule } from './modules/chores/presentation/chores.module';
@@ -44,6 +45,7 @@ import { AppService } from './app.service';
     BudgetsModule,
     CurrencyPoolsModule,
     DebtsLoansModule,
+    BudgetMovementsModule,
     TasksModule,
     ReportsModule,
     AlertsModule,
