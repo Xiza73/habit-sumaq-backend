@@ -90,6 +90,19 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `BMV_003` | 422  | Fecha fuera del rango del budget           | `date` no cae dentro del `(year, month)` del budget |
 | `BMV_004` | 422  | Currency del movimiento ≠ currency del budget | POST/PATCH con currency distinta a la del budget |
 
+### Monthly Service Payments (v1.0.0)
+
+> Introducidos en Phase A4-B del refactor `accounts-to-modular-finance`. Coexisten con
+> los EXPENSE legacy en `/transactions` (con `monthlyServiceId IS NOT NULL`) hasta Phase A6.
+
+| Código    | HTTP | Descripción                                        | Cuándo ocurre                                       |
+| --------- | ---- | -------------------------------------------------- | --------------------------------------------------- |
+| `MSP_001` | 404  | Pago no encontrado                                 | GET/PATCH/DELETE con UUID inexistente              |
+| `MSP_002` | 403  | El pago pertenece a otro usuario                   | Acceso a un id de otro user                         |
+| `MSP_003` | 409  | Ya existe un pago para esa `(service, period)`     | POST sobre un par que ya tiene una row activa       |
+| `MSP_004` | 422  | Currency del pago ≠ currency del servicio          | POST con currency distinta a la del monthly service |
+| `MSP_005` | 422  | Formato de período inválido (esperado `YYYY-MM`)   | POST con period malformado                          |
+
 ### Hábitos
 
 | Código    | HTTP | Descripción                        | Cuándo ocurre                            |
