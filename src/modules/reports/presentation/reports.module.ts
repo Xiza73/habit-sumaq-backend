@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AccountsModule } from '../../accounts/presentation/accounts.module';
+import { CurrencyPoolsModule } from '../../currency-pools/presentation/currency-pools.module';
 import { HabitsModule } from '../../habits/presentation/habits.module';
 import { QuickTasksModule } from '../../quick-tasks/presentation/quick-tasks.module';
 import { TransactionsModule } from '../../transactions/presentation/transactions.module';
@@ -14,7 +15,14 @@ import { ReportsController } from './reports.controller';
   // Reports aggregates — it imports the feature modules that own the repos
   // we read from. Each of those modules must export the repositories we
   // depend on.
-  imports: [UsersModule, AccountsModule, TransactionsModule, HabitsModule, QuickTasksModule],
+  imports: [
+    UsersModule,
+    AccountsModule,
+    CurrencyPoolsModule,
+    TransactionsModule,
+    HabitsModule,
+    QuickTasksModule,
+  ],
   controllers: [ReportsController],
   providers: [GetFinancesDashboardUseCase, GetRoutinesDashboardUseCase],
 })

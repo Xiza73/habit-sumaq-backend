@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
+import { CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
 import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
 import { StartOfWeek } from '@modules/users/domain/enums/start-of-week.enum';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
@@ -16,6 +17,7 @@ const DEFAULT_TIMEZONE = 'UTC';
 export class GetFinancesDashboardUseCase {
   constructor(
     private readonly accountRepo: AccountRepository,
+    private readonly poolRepo: CurrencyPoolRepository,
     private readonly txRepo: TransactionRepository,
     private readonly settingsRepo: UserSettingsRepository,
   ) {}
@@ -30,27 +32,42 @@ export class GetFinancesDashboardUseCase {
 
     const range = computePeriodRange(period, timezone, startOfWeek);
 
-    const [accounts, flow, topCategories, dailyFlow, debts] = await Promise.all([
+    const [accounts, pools, flow, topCategories, dailyFlow, debts] = await Promise.all([
       this.accountRepo.findByUserId(userId, false),
+      this.poolRepo.findByUserId(userId),
       this.txRepo.sumFlowByCurrencyInRange(userId, range.from, range.to),
       this.txRepo.topExpenseCategoriesInRange(userId, range.from, range.to, TOP_CATEGORIES_LIMIT),
       this.txRepo.dailyNetFlowInRange(userId, range.from, range.to),
       this.txRepo.aggregateDebtsByReference(userId, 'pending'),
     ]);
 
-    // Widget 1: totalBalance — sum active-account balances per currency.
-    const balanceByCurrency = new Map<string, { amount: number; count: number }>();
+    // Widget 1: totalBalance — pool balances per currency, with the
+    // legacy `accountCount` derived from the still-living `accounts`
+    // table for backwards-compatible response shape.
+    //
+    // v1.0.0 transition note (Phase A5-B.1):
+    //   - `amount` now comes from `currency_pools` (the new source of
+    //     truth — internal aggregate balance per `(userId, currency)`),
+    //     NOT from `SUM(accounts.balance)`. They should agree during
+    //     the parallel-run window, but the pool is authoritative going
+    //     forward.
+    //   - `accountCount` still reads from `accounts` for shape
+    //     compatibility with the web's dashboard cards. When Phase A6
+    //     drops the accounts module, the web migrates to a pool-only
+    //     shape (no count, since one pool per currency) and this read
+    //     goes away.
+    const accountCountByCurrency = new Map<string, number>();
     for (const account of accounts) {
-      const current = balanceByCurrency.get(account.currency) ?? { amount: 0, count: 0 };
-      current.amount += account.balance;
-      current.count += 1;
-      balanceByCurrency.set(account.currency, current);
+      accountCountByCurrency.set(
+        account.currency,
+        (accountCountByCurrency.get(account.currency) ?? 0) + 1,
+      );
     }
-    const totalBalance = Array.from(balanceByCurrency.entries())
-      .map(([currency, { amount, count }]) => ({
-        currency,
-        amount: round(amount),
-        accountCount: count,
+    const totalBalance = pools
+      .map((pool) => ({
+        currency: pool.currency,
+        amount: round(pool.balance),
+        accountCount: accountCountByCurrency.get(pool.currency) ?? 0,
       }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
 

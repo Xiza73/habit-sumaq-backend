@@ -32,6 +32,14 @@ export class CurrencyPoolRepositoryImpl extends CurrencyPoolRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByUserId(userId: string): Promise<CurrencyPool[]> {
+    const rows = await this.ormRepo.find({
+      where: { userId, deletedAt: IsNull() },
+      order: { currency: 'ASC' },
+    });
+    return rows.map((r) => this.toDomain(r));
+  }
+
   async save(pool: CurrencyPool, manager?: EntityManager): Promise<CurrencyPool> {
     const m = manager ?? this.ormRepo.manager;
     // `m.save(EntityClass, plainObject)` upserts on PK if present, inserts

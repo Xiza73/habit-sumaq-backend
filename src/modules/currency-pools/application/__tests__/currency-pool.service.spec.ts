@@ -17,6 +17,7 @@ describe('CurrencyPoolService', () => {
   beforeEach(() => {
     repo = {
       findByUserIdAndCurrency: jest.fn(),
+      findByUserId: jest.fn(),
       save: jest.fn().mockImplementation((p) => Promise.resolve(p)),
     };
 
