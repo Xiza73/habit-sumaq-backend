@@ -26,5 +26,14 @@ export abstract class CurrencyPoolRepository {
     options?: { lock?: 'pessimistic_write'; manager?: EntityManager },
   ): Promise<CurrencyPool | null>;
 
+  /**
+   * Returns every pool owned by `userId`. Used by read-only
+   * aggregators (reports, balance KPI cards) that need to enumerate
+   * all of the user's currencies in one call.
+   *
+   * Excludes soft-deleted rows. Order is currency ASC.
+   */
+  abstract findByUserId(userId: string): Promise<CurrencyPool[]>;
+
   abstract save(pool: CurrencyPool, manager?: EntityManager): Promise<CurrencyPool>;
 }

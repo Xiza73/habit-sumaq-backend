@@ -18,6 +18,8 @@ import { ResponseTransformInterceptor } from '../src/common/interceptors/respons
 import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
 import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
+import { buildCurrencyPool } from '../src/modules/currency-pools/domain/__tests__/currency-pool.factory';
+import { CurrencyPoolRepository } from '../src/modules/currency-pools/domain/currency-pool.repository';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
 import { buildHabitLog } from '../src/modules/habits/domain/__tests__/habit-log.factory';
 import { HabitFrequency } from '../src/modules/habits/domain/enums/habit-frequency.enum';
@@ -49,6 +51,12 @@ describe('ReportsController (e2e)', () => {
     findByIds: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
+  };
+
+  const mockPoolRepo: jest.Mocked<CurrencyPoolRepository> = {
+    findByUserIdAndCurrency: jest.fn(),
+    findByUserId: jest.fn(),
+    save: jest.fn(),
   };
 
   const mockTxRepo: jest.Mocked<TransactionRepository> = {
@@ -121,6 +129,7 @@ describe('ReportsController (e2e)', () => {
         GetFinancesDashboardUseCase,
         GetRoutinesDashboardUseCase,
         { provide: AccountRepository, useValue: mockAccountRepo },
+        { provide: CurrencyPoolRepository, useValue: mockPoolRepo },
         { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
@@ -158,6 +167,7 @@ describe('ReportsController (e2e)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockAccountRepo.findByUserId.mockResolvedValue([]);
+    mockPoolRepo.findByUserId.mockResolvedValue([]);
     mockTxRepo.sumFlowByCurrencyInRange.mockResolvedValue([]);
     mockTxRepo.topExpenseCategoriesInRange.mockResolvedValue([]);
     mockTxRepo.dailyNetFlowInRange.mockResolvedValue([]);
@@ -201,9 +211,17 @@ describe('ReportsController (e2e)', () => {
     });
 
     it('wires the response shape end-to-end with populated data', () => {
+      // Pool drives the totalBalance.amount in v1.0.0 (Phase A5-B.1).
+      mockPoolRepo.findByUserId.mockResolvedValue([
+        buildCurrencyPool({ currency: Currency.PEN, balance: 1000 }),
+        buildCurrencyPool({ currency: Currency.USD, balance: 500 }),
+      ]);
+      // Accounts still drive `accountCount` until A6 retires the
+      // accounts module; the totalBalance.amount field NO longer
+      // reads account.balance.
       mockAccountRepo.findByUserId.mockResolvedValue([
-        buildAccount({ currency: Currency.PEN, balance: 1000 }),
-        buildAccount({ currency: Currency.USD, balance: 500 }),
+        buildAccount({ currency: Currency.PEN }),
+        buildAccount({ currency: Currency.USD }),
       ]);
       mockTxRepo.sumFlowByCurrencyInRange.mockResolvedValue([
         { currency: 'PEN', income: 3000, expense: 1800 },

@@ -35,7 +35,7 @@ describe('GetRoutinesDashboardUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<HabitRepository>;
+    };
 
     habitLogRepo = {
       findByHabitIdAndDate: jest.fn(),
@@ -45,7 +45,7 @@ describe('GetRoutinesDashboardUseCase', () => {
       findByHabitIdAndDateRange: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
-    } as jest.Mocked<HabitLogRepository>;
+    };
 
     quickTaskRepo = {
       findByUserId: jest.fn().mockResolvedValue([]),
@@ -55,13 +55,13 @@ describe('GetRoutinesDashboardUseCase', () => {
       deleteCompletedBefore: jest.fn(),
       maxPositionByUserId: jest.fn(),
       updatePositions: jest.fn(),
-    } as jest.Mocked<QuickTaskRepository>;
+    };
 
     settingsRepo = {
       findByUserId: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
       save: jest.fn(),
-    } as jest.Mocked<UserSettingsRepository>;
+    };
 
     useCase = new GetRoutinesDashboardUseCase(habitRepo, habitLogRepo, quickTaskRepo, settingsRepo);
   });

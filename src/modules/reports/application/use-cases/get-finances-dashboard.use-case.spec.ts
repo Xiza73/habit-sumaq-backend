@@ -1,6 +1,8 @@
 import { Currency } from '@common/enums/currency.enum';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
+import { buildCurrencyPool } from '@modules/currency-pools/domain/__tests__/currency-pool.factory';
+import { type CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
 import {
   type DebtsSummaryRow,
   type TransactionRepository,
@@ -13,6 +15,7 @@ import { GetFinancesDashboardUseCase } from './get-finances-dashboard.use-case';
 describe('GetFinancesDashboardUseCase', () => {
   let useCase: GetFinancesDashboardUseCase;
   let accountRepo: jest.Mocked<AccountRepository>;
+  let poolRepo: jest.Mocked<CurrencyPoolRepository>;
   let txRepo: jest.Mocked<TransactionRepository>;
   let settingsRepo: jest.Mocked<UserSettingsRepository>;
 
@@ -24,6 +27,12 @@ describe('GetFinancesDashboardUseCase', () => {
       findByIds: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
+    };
+
+    poolRepo = {
+      findByUserIdAndCurrency: jest.fn(),
+      findByUserId: jest.fn().mockResolvedValue([]),
+      save: jest.fn(),
     };
 
     txRepo = {
@@ -52,7 +61,7 @@ describe('GetFinancesDashboardUseCase', () => {
       save: jest.fn(),
     };
 
-    useCase = new GetFinancesDashboardUseCase(accountRepo, txRepo, settingsRepo);
+    useCase = new GetFinancesDashboardUseCase(accountRepo, poolRepo, txRepo, settingsRepo);
   });
 
   it('returns an empty-ish payload for a user with no activity', async () => {
@@ -69,11 +78,18 @@ describe('GetFinancesDashboardUseCase', () => {
     expect(result.range.to).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('groups active account balances by currency and rounds to 2 decimals', async () => {
+  it('reads totalBalance.amount from currency_pools and accountCount from accounts (rounds to 2 decimals)', async () => {
+    // Pool is the authoritative balance source from v1.0.0 (Phase A5-B.1).
+    poolRepo.findByUserId.mockResolvedValue([
+      buildCurrencyPool({ currency: Currency.PEN, balance: 150.33 }),
+      buildCurrencyPool({ currency: Currency.USD, balance: 75 }),
+    ]);
+    // Accounts still produces the legacy `accountCount` field for response
+    // compatibility — drops away in A6 when accounts module is retired.
     accountRepo.findByUserId.mockResolvedValue([
-      buildAccount({ currency: Currency.PEN, balance: 100.126 }),
-      buildAccount({ currency: Currency.PEN, balance: 50.2 }),
-      buildAccount({ currency: Currency.USD, balance: 75 }),
+      buildAccount({ currency: Currency.PEN }),
+      buildAccount({ currency: Currency.PEN }),
+      buildAccount({ currency: Currency.USD }),
     ]);
 
     const result = await useCase.execute('user-1');
@@ -82,6 +98,17 @@ describe('GetFinancesDashboardUseCase', () => {
       { currency: 'PEN', amount: 150.33, accountCount: 2 },
       { currency: 'USD', amount: 75, accountCount: 1 },
     ]);
+  });
+
+  it('treats accountCount as 0 when the user has a pool but no active accounts (post-A6 surface)', async () => {
+    poolRepo.findByUserId.mockResolvedValue([
+      buildCurrencyPool({ currency: Currency.EUR, balance: 250 }),
+    ]);
+    accountRepo.findByUserId.mockResolvedValue([]);
+
+    const result = await useCase.execute('user-1');
+
+    expect(result.totalBalance).toEqual([{ currency: 'EUR', amount: 250, accountCount: 0 }]);
   });
 
   it('maps income/expense rows into periodFlow with net', async () => {

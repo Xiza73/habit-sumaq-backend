@@ -13,6 +13,6 @@ export class GetReportsQueryDto {
     default: 'month',
   })
   @IsOptional()
-  @IsIn(PERIOD_VALUES as unknown as string[])
+  @IsIn(PERIOD_VALUES)
   period?: Period;
 }
