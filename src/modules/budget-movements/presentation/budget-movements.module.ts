@@ -43,5 +43,6 @@ import { BudgetMovementsController } from './budget-movements.controller';
     UpdateBudgetMovementUseCase,
     DeleteBudgetMovementUseCase,
   ],
+  exports: [BudgetMovementRepository],
 })
 export class BudgetMovementsModule {}

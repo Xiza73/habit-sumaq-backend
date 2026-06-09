@@ -1,8 +1,10 @@
 import { Currency } from '@common/enums/currency.enum';
 import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
 import { type AccountRepository } from '@modules/accounts/domain/account.repository';
+import { type BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { buildCurrencyPool } from '@modules/currency-pools/domain/__tests__/currency-pool.factory';
 import { type CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
+import { type MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import {
   type DebtsSummaryRow,
   type TransactionRepository,
@@ -16,6 +18,8 @@ describe('GetFinancesDashboardUseCase', () => {
   let useCase: GetFinancesDashboardUseCase;
   let accountRepo: jest.Mocked<AccountRepository>;
   let poolRepo: jest.Mocked<CurrencyPoolRepository>;
+  let budgetMovementRepo: jest.Mocked<BudgetMovementRepository>;
+  let mspRepo: jest.Mocked<MonthlyServicePaymentRepository>;
   let txRepo: jest.Mocked<TransactionRepository>;
   let settingsRepo: jest.Mocked<UserSettingsRepository>;
 
@@ -33,6 +37,25 @@ describe('GetFinancesDashboardUseCase', () => {
       findByUserIdAndCurrency: jest.fn(),
       findByUserId: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
+    };
+
+    budgetMovementRepo = {
+      findByBudgetId: jest.fn(),
+      findById: jest.fn(),
+      sumByBudgetId: jest.fn(),
+      sumByCurrencyInRange: jest.fn().mockResolvedValue([]),
+      topCategoriesByCurrencyInRange: jest.fn().mockResolvedValue([]),
+      save: jest.fn(),
+      softDelete: jest.fn(),
+    };
+
+    mspRepo = {
+      findByServiceId: jest.fn(),
+      findById: jest.fn(),
+      findByServiceAndPeriod: jest.fn(),
+      sumByCurrencyInRange: jest.fn().mockResolvedValue([]),
+      save: jest.fn(),
+      softDelete: jest.fn(),
     };
 
     txRepo = {
@@ -61,7 +84,14 @@ describe('GetFinancesDashboardUseCase', () => {
       save: jest.fn(),
     };
 
-    useCase = new GetFinancesDashboardUseCase(accountRepo, poolRepo, txRepo, settingsRepo);
+    useCase = new GetFinancesDashboardUseCase(
+      accountRepo,
+      poolRepo,
+      budgetMovementRepo,
+      mspRepo,
+      txRepo,
+      settingsRepo,
+    );
   });
 
   it('returns an empty-ish payload for a user with no activity', async () => {
@@ -111,22 +141,60 @@ describe('GetFinancesDashboardUseCase', () => {
     expect(result.totalBalance).toEqual([{ currency: 'EUR', amount: 250, accountCount: 0 }]);
   });
 
-  it('maps income/expense rows into periodFlow with net', async () => {
-    txRepo.sumFlowByCurrencyInRange.mockResolvedValue([
-      { currency: 'PEN', income: 3000, expense: 1800 },
-      { currency: 'USD', income: 100, expense: 120 },
-    ]);
+  describe('periodFlow (v1.0.0 Path A — pure new-module)', () => {
+    it('sums budget_movements + monthly_service_payments per currency; income = 0', async () => {
+      budgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([
+        { currency: 'PEN', total: 1000 },
+        { currency: 'USD', total: 100 },
+      ]);
+      mspRepo.sumByCurrencyInRange.mockResolvedValue([
+        { currency: 'PEN', total: 800 },
+        { currency: 'USD', total: 20 },
+      ]);
 
-    const result = await useCase.execute('user-1');
+      const result = await useCase.execute('user-1');
 
-    expect(result.periodFlow).toEqual([
-      { currency: 'PEN', income: 3000, expense: 1800, net: 1200 },
-      { currency: 'USD', income: 100, expense: 120, net: -20 },
-    ]);
+      // PEN expense = 1000 + 800 = 1800. USD = 100 + 20 = 120.
+      // Income = 0 by design (no general INCOME concept in v1.0.0 yet —
+      // LOAN settle deltas arrive in A5-B.3).
+      expect(result.periodFlow).toEqual([
+        { currency: 'PEN', income: 0, expense: 1800, net: -1800 },
+        { currency: 'USD', income: 0, expense: 120, net: -120 },
+      ]);
+    });
+
+    it('still returns rows even when only one module contributes for that currency', async () => {
+      budgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([{ currency: 'PEN', total: 500 }]);
+      mspRepo.sumByCurrencyInRange.mockResolvedValue([{ currency: 'USD', total: 75 }]);
+
+      const result = await useCase.execute('user-1');
+
+      expect(result.periodFlow).toEqual([
+        { currency: 'PEN', income: 0, expense: 500, net: -500 },
+        { currency: 'USD', income: 0, expense: 75, net: -75 },
+      ]);
+    });
+
+    it('rounds to 2 decimal places to defeat float drift across the merge', async () => {
+      budgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([
+        { currency: 'PEN', total: 100.336 },
+      ]);
+      mspRepo.sumByCurrencyInRange.mockResolvedValue([{ currency: 'PEN', total: 50.124 }]);
+
+      const result = await useCase.execute('user-1');
+
+      // 100.336 + 50.124 = 150.46 (rounded to 150.46).
+      expect(result.periodFlow[0]).toEqual({
+        currency: 'PEN',
+        income: 0,
+        expense: 150.46,
+        net: -150.46,
+      });
+    });
   });
 
-  it('computes category percentages relative to the currency total', async () => {
-    txRepo.topExpenseCategoriesInRange.mockResolvedValue([
+  it('computes category percentages relative to the currency total (from budget-movements)', async () => {
+    budgetMovementRepo.topCategoriesByCurrencyInRange.mockResolvedValue([
       { categoryId: 'c1', name: 'Comida', color: '#f00', currency: 'PEN', total: 600 },
       { categoryId: 'c2', name: 'Transporte', color: '#00f', currency: 'PEN', total: 200 },
       { categoryId: 'c3', name: 'Dining', color: '#0f0', currency: 'USD', total: 100 },
@@ -204,12 +272,17 @@ describe('GetFinancesDashboardUseCase', () => {
     );
     await useCase.execute('user-1', 'month');
 
-    // The first argument to sumFlowByCurrencyInRange is userId, and the
-    // second is the `from` Date. We don't assert the exact instant (that's
-    // the period helper's job) but we make sure a Date was passed through.
-    const call = txRepo.sumFlowByCurrencyInRange.mock.calls[0];
-    expect(call[0]).toBe('user-1');
-    expect(call[1]).toBeInstanceOf(Date);
-    expect(call[2]).toBeInstanceOf(Date);
+    // Period range gets passed through to the new-module sum methods.
+    // We don't assert the exact instant (that's the period helper's
+    // job) but we verify userId + Dates are propagated.
+    const bmCall = budgetMovementRepo.sumByCurrencyInRange.mock.calls[0];
+    expect(bmCall[0]).toBe('user-1');
+    expect(bmCall[1]).toBeInstanceOf(Date);
+    expect(bmCall[2]).toBeInstanceOf(Date);
+
+    const mspCall = mspRepo.sumByCurrencyInRange.mock.calls[0];
+    expect(mspCall[0]).toBe('user-1');
+    expect(mspCall[1]).toBeInstanceOf(Date);
+    expect(mspCall[2]).toBeInstanceOf(Date);
   });
 });

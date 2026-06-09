@@ -40,6 +40,25 @@ export class MonthlyServicePaymentRepositoryImpl extends MonthlyServicePaymentRe
     return row ? this.toDomain(row) : null;
   }
 
+  async sumByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ currency: string; total: number }>> {
+    const rows = await this.ormRepo
+      .createQueryBuilder('p')
+      .select('p.currency', 'currency')
+      .addSelect('COALESCE(SUM(p.amount), 0)', 'total')
+      .where('p.userId = :userId', { userId })
+      .andWhere('p.deletedAt IS NULL')
+      .andWhere('p.date >= :from', { from })
+      .andWhere('p.date < :to', { to })
+      .groupBy('p.currency')
+      .orderBy('p.currency', 'ASC')
+      .getRawMany<{ currency: string; total: string }>();
+    return rows.map((r) => ({ currency: r.currency, total: Number(r.total) }));
+  }
+
   async save(
     payment: MonthlyServicePayment,
     manager?: EntityManager,

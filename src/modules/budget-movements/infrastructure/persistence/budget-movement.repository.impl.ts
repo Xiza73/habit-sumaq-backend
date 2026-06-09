@@ -40,6 +40,89 @@ export class BudgetMovementRepositoryImpl extends BudgetMovementRepository {
     return Number(result?.total ?? 0);
   }
 
+  async sumByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ currency: string; total: number }>> {
+    const rows = await this.ormRepo
+      .createQueryBuilder('m')
+      .select('m.currency', 'currency')
+      .addSelect('COALESCE(SUM(m.amount), 0)', 'total')
+      .where('m.userId = :userId', { userId })
+      .andWhere('m.deletedAt IS NULL')
+      .andWhere('m.date >= :from', { from })
+      .andWhere('m.date < :to', { to })
+      .groupBy('m.currency')
+      .orderBy('m.currency', 'ASC')
+      .getRawMany<{ currency: string; total: string }>();
+    return rows.map((r) => ({ currency: r.currency, total: Number(r.total) }));
+  }
+
+  async topCategoriesByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<
+    Array<{
+      categoryId: string | null;
+      name: string | null;
+      color: string | null;
+      currency: string;
+      total: number;
+    }>
+  > {
+    // LEFT JOIN to surface uncategorized movements (categoryId IS NULL)
+    // alongside categorized ones. Uses ROW_NUMBER per currency so the
+    // limit applies PER-currency, not globally — mirrors the legacy
+    // `txRepo.topExpenseCategoriesInRange` behavior.
+    const rows = await this.ormRepo.manager.query<
+      Array<{
+        categoryId: string | null;
+        name: string | null;
+        color: string | null;
+        currency: string;
+        total: string;
+      }>
+    >(
+      `
+      WITH grouped AS (
+        SELECT
+          m."categoryId"                     AS "categoryId",
+          c.name                             AS name,
+          c.color                            AS color,
+          m.currency                         AS currency,
+          COALESCE(SUM(m.amount), 0)         AS total
+        FROM budget_movements m
+        LEFT JOIN categories c ON c.id = m."categoryId"
+        WHERE m."userId" = $1
+          AND m."deletedAt" IS NULL
+          AND m.date >= $2
+          AND m.date <  $3
+        GROUP BY m."categoryId", c.name, c.color, m.currency
+      ),
+      ranked AS (
+        SELECT *,
+          ROW_NUMBER() OVER (PARTITION BY currency ORDER BY total DESC) AS rn
+        FROM grouped
+      )
+      SELECT "categoryId", name, color, currency, total
+      FROM ranked
+      WHERE rn <= $4
+      ORDER BY currency ASC, total DESC
+      `,
+      [userId, from, to, limit],
+    );
+    return rows.map((r) => ({
+      categoryId: r.categoryId,
+      name: r.name,
+      color: r.color,
+      currency: r.currency,
+      total: Number(r.total),
+    }));
+  }
+
   async save(movement: BudgetMovement, manager?: EntityManager): Promise<BudgetMovement> {
     const m = manager ?? this.ormRepo.manager;
     const saved = await m.save(BudgetMovementOrmEntity, {

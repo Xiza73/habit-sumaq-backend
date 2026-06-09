@@ -13,6 +13,8 @@ describe('GetBudgetMovementUseCase', () => {
       findByBudgetId: jest.fn(),
       findById: jest.fn(),
       sumByBudgetId: jest.fn(),
+      sumByCurrencyInRange: jest.fn(),
+      topCategoriesByCurrencyInRange: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
     };

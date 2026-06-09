@@ -26,6 +26,44 @@ export abstract class BudgetMovementRepository {
    */
   abstract sumByBudgetId(budgetId: string): Promise<number>;
 
+  /**
+   * Sum of `amount` per currency for movements in `[from, to)`. Used by
+   * the finances-dashboard `periodFlow` widget. Filters out
+   * soft-deleted rows. Range is half-open: `from` inclusive, `to`
+   * exclusive (same convention as the legacy
+   * `txRepo.sumFlowByCurrencyInRange`).
+   */
+  abstract sumByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ currency: string; total: number }>>;
+
+  /**
+   * Top N expense categories by `SUM(amount)` over `[from, to)`,
+   * grouped by `(categoryId, currency)`. Rows with `categoryId IS NULL`
+   * are surfaced with `name = null` so the UI can render an
+   * "Uncategorized" slice — same convention the legacy
+   * `txRepo.topExpenseCategoriesInRange` followed.
+   *
+   * JOINs `categories` for name + color so a single roundtrip
+   * delivers the rendered shape.
+   */
+  abstract topCategoriesByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+    limit: number,
+  ): Promise<
+    Array<{
+      categoryId: string | null;
+      name: string | null;
+      color: string | null;
+      currency: string;
+      total: number;
+    }>
+  >;
+
   abstract save(movement: BudgetMovement, manager?: EntityManager): Promise<BudgetMovement>;
 
   abstract softDelete(id: string, manager?: EntityManager): Promise<void>;
