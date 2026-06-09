@@ -78,6 +78,18 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `DBT_006` | 422  | El monto de liquidación excede el pendiente | POST settle con `settledAmount > remainingAmount` |
 | `DBT_007` | 422  | El nuevo monto es menor a lo ya liquidado | PATCH amount por debajo de `(amount - remainingAmount)` |
 
+### Budget Movements (v1.0.0)
+
+> Introducidos en Phase A4-B del refactor `accounts-to-modular-finance`. Coexisten con
+> los EXPENSE legacy en `/transactions` (con `budgetId IS NOT NULL`) hasta Phase A6.
+
+| Código    | HTTP | Descripción                                | Cuándo ocurre                                  |
+| --------- | ---- | ------------------------------------------ | ---------------------------------------------- |
+| `BMV_001` | 404  | Movimiento no encontrado                   | GET/PATCH/DELETE con UUID inexistente         |
+| `BMV_002` | 403  | El movimiento pertenece a otro usuario     | Acceso a un id de otro user                    |
+| `BMV_003` | 422  | Fecha fuera del rango del budget           | `date` no cae dentro del `(year, month)` del budget |
+| `BMV_004` | 422  | Currency del movimiento ≠ currency del budget | POST/PATCH con currency distinta a la del budget |
+
 ### Hábitos
 
 | Código    | HTTP | Descripción                        | Cuándo ocurre                            |

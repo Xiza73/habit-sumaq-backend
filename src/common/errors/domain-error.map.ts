@@ -68,6 +68,10 @@ export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
   CANNOT_UPDATE_SETTLED_DEBT_LOAN: HttpStatus.CONFLICT,
   DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING: HttpStatus.UNPROCESSABLE_ENTITY,
   DEBT_LOAN_AMOUNT_BELOW_SETTLED: HttpStatus.UNPROCESSABLE_ENTITY,
+  BUDGET_MOVEMENT_NOT_FOUND: HttpStatus.NOT_FOUND,
+  BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER: HttpStatus.FORBIDDEN,
+  BUDGET_MOVEMENT_DATE_OUT_OF_BUDGET_RANGE: HttpStatus.UNPROCESSABLE_ENTITY,
+  BUDGET_MOVEMENT_CURRENCY_MISMATCH: HttpStatus.UNPROCESSABLE_ENTITY,
   // POOL_001 is migration-time only — never thrown from HTTP request handlers.
   // The 500 mapping exists purely to satisfy the `Record<ErrorCodeKey, number>`
   // exhaustiveness check. If this ever surfaces as an HTTP response, treat it
