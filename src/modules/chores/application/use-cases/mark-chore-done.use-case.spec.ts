@@ -25,13 +25,13 @@ describe('MarkChoreDoneUseCase', () => {
       findById: jest.fn(),
       save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
       softDelete: jest.fn(),
-    } as jest.Mocked<ChoreRepository>;
+    };
 
     logRepo = {
       findByChoreId: jest.fn(),
       countByChoreId: jest.fn(),
       save: jest.fn().mockImplementation((l) => Promise.resolve(l)),
-    } as jest.Mocked<ChoreLogRepository>;
+    };
 
     mockLogger = buildMockPinoLogger();
     useCase = new MarkChoreDoneUseCase(choreRepo, logRepo, mockLogger as unknown as PinoLogger);

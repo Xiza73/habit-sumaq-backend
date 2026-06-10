@@ -1,12 +1,9 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { AccountsModule } from '@modules/accounts/presentation/accounts.module';
 import { BudgetMovementsModule } from '@modules/budget-movements/presentation/budget-movements.module';
 import { CategoriesModule } from '@modules/categories/presentation/categories.module';
-import { TransactionsModule } from '@modules/transactions/presentation/transactions.module';
 
-import { AddBudgetMovementUseCase } from '../application/use-cases/add-budget-movement.use-case';
 import { CreateBudgetUseCase } from '../application/use-cases/create-budget.use-case';
 import { DeleteBudgetUseCase } from '../application/use-cases/delete-budget.use-case';
 import { GetBudgetUseCase } from '../application/use-cases/get-budget.use-case';
@@ -22,7 +19,6 @@ import { BudgetsController } from './budgets.controller';
 @Module({
   imports: [
     TypeOrmModule.forFeature([BudgetOrmEntity]),
-    AccountsModule,
     // forwardRef breaks the cycle: BudgetMovementsModule imports this module
     // for `BudgetRepository` (to validate budget ownership/currency when
     // creating a movement); this module needs the movements module for the
@@ -30,7 +26,6 @@ import { BudgetsController } from './budgets.controller';
     // v1.0.0 table.
     forwardRef(() => BudgetMovementsModule),
     CategoriesModule,
-    TransactionsModule,
   ],
   controllers: [BudgetsController],
   providers: [
@@ -41,7 +36,6 @@ import { BudgetsController } from './budgets.controller';
     CreateBudgetUseCase,
     UpdateBudgetUseCase,
     DeleteBudgetUseCase,
-    AddBudgetMovementUseCase,
   ],
   exports: [BudgetRepository],
 })

@@ -17,7 +17,7 @@ describe('ArchiveChoreUseCase', () => {
       findById: jest.fn(),
       save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
       softDelete: jest.fn(),
-    } as jest.Mocked<ChoreRepository>;
+    };
     useCase = new ArchiveChoreUseCase(repo);
   });
 

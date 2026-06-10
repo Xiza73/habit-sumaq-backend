@@ -18,7 +18,7 @@ describe('GetDailySummaryUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<HabitRepository>;
+    };
 
     habitLogRepo = {
       findByHabitIdAndDate: jest.fn(),
@@ -28,7 +28,7 @@ describe('GetDailySummaryUseCase', () => {
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
-    } as jest.Mocked<HabitLogRepository>;
+    };
 
     useCase = new GetDailySummaryUseCase(habitRepo, habitLogRepo);
   });

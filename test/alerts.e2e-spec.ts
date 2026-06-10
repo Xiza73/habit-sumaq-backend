@@ -28,7 +28,6 @@ import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
-import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 import { buildUserSettings } from '../src/modules/users/domain/__tests__/user-settings.factory';
 import { UserSettingsRepository } from '../src/modules/users/domain/user-settings.repository';
 
@@ -77,10 +76,6 @@ describe('AlertsController (e2e)', () => {
     softDelete: jest.fn(),
   };
 
-  const mockTxRepo = {
-    sumAmountByBudgetId: jest.fn(),
-  } as unknown as jest.Mocked<TransactionRepository>;
-
   // v1.0.0: budget-overspent alert now reads movement sums from
   // `budget_movements`, not legacy transactions.
   const mockBudgetMovementRepo = {
@@ -126,7 +121,6 @@ describe('AlertsController (e2e)', () => {
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
         { provide: BudgetRepository, useValue: mockBudgetRepo },
         { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
-        { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: ChoreRepository, useValue: mockChoreRepo },
         { provide: UserSettingsRepository, useValue: mockUserSettingsRepo },
         { provide: UserAlertDismissalRepository, useValue: mockDismissalsRepo },

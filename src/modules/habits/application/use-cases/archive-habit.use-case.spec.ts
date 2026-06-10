@@ -19,7 +19,7 @@ describe('ArchiveHabitUseCase', () => {
       findById: jest.fn(),
       save: jest.fn().mockImplementation((h) => Promise.resolve(h)),
       softDelete: jest.fn(),
-    } as jest.Mocked<HabitRepository>;
+    };
 
     useCase = new ArchiveHabitUseCase(mockRepo);
   });

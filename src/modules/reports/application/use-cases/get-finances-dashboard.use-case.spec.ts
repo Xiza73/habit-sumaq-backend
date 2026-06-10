@@ -1,6 +1,4 @@
 import { Currency } from '@common/enums/currency.enum';
-import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
-import { type AccountRepository } from '@modules/accounts/domain/account.repository';
 import { type BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { buildCurrencyPool } from '@modules/currency-pools/domain/__tests__/currency-pool.factory';
 import { type CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
@@ -16,7 +14,6 @@ import { GetFinancesDashboardUseCase } from './get-finances-dashboard.use-case';
 
 describe('GetFinancesDashboardUseCase', () => {
   let useCase: GetFinancesDashboardUseCase;
-  let accountRepo: jest.Mocked<AccountRepository>;
   let poolRepo: jest.Mocked<CurrencyPoolRepository>;
   let budgetMovementRepo: jest.Mocked<BudgetMovementRepository>;
   let mspRepo: jest.Mocked<MonthlyServicePaymentRepository>;
@@ -24,15 +21,6 @@ describe('GetFinancesDashboardUseCase', () => {
   let settingsRepo: jest.Mocked<UserSettingsRepository>;
 
   beforeEach(() => {
-    accountRepo = {
-      findByUserId: jest.fn().mockResolvedValue([]),
-      findByUserIdAndName: jest.fn(),
-      findById: jest.fn(),
-      findByIds: jest.fn(),
-      save: jest.fn(),
-      softDelete: jest.fn(),
-    };
-
     poolRepo = {
       findByUserIdAndCurrency: jest.fn(),
       findByUserId: jest.fn().mockResolvedValue([]),
@@ -78,7 +66,6 @@ describe('GetFinancesDashboardUseCase', () => {
     };
 
     useCase = new GetFinancesDashboardUseCase(
-      accountRepo,
       poolRepo,
       budgetMovementRepo,
       mspRepo,
@@ -101,37 +88,20 @@ describe('GetFinancesDashboardUseCase', () => {
     expect(result.range.to).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('reads totalBalance.amount from currency_pools and accountCount from accounts (rounds to 2 decimals)', async () => {
-    // Pool is the authoritative balance source from v1.0.0 (Phase A5-B.1).
+  it('reads totalBalance.amount from currency_pools (rounded to 2 decimals)', async () => {
+    // v1.0.0: pool is the authoritative balance source. The legacy
+    // `accountCount` field is gone from the response shape (A6-B).
     poolRepo.findByUserId.mockResolvedValue([
       buildCurrencyPool({ currency: Currency.PEN, balance: 150.33 }),
       buildCurrencyPool({ currency: Currency.USD, balance: 75 }),
-    ]);
-    // Accounts still produces the legacy `accountCount` field for response
-    // compatibility — drops away in A6 when accounts module is retired.
-    accountRepo.findByUserId.mockResolvedValue([
-      buildAccount({ currency: Currency.PEN }),
-      buildAccount({ currency: Currency.PEN }),
-      buildAccount({ currency: Currency.USD }),
     ]);
 
     const result = await useCase.execute('user-1');
 
     expect(result.totalBalance).toEqual([
-      { currency: 'PEN', amount: 150.33, accountCount: 2 },
-      { currency: 'USD', amount: 75, accountCount: 1 },
+      { currency: 'PEN', amount: 150.33 },
+      { currency: 'USD', amount: 75 },
     ]);
-  });
-
-  it('treats accountCount as 0 when the user has a pool but no active accounts (post-A6 surface)', async () => {
-    poolRepo.findByUserId.mockResolvedValue([
-      buildCurrencyPool({ currency: Currency.EUR, balance: 250 }),
-    ]);
-    accountRepo.findByUserId.mockResolvedValue([]);
-
-    const result = await useCase.execute('user-1');
-
-    expect(result.totalBalance).toEqual([{ currency: 'EUR', amount: 250, accountCount: 0 }]);
   });
 
   describe('periodFlow (v1.0.0 Path A — pure new-module)', () => {

@@ -22,7 +22,7 @@ describe('SkipMonthlyServiceMonthUseCase', () => {
       findActiveByUserIdAndName: jest.fn(),
       save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
+    };
 
     mockLogger = buildMockPinoLogger();
     useCase = new SkipMonthlyServiceMonthUseCase(repo, mockLogger as unknown as PinoLogger);

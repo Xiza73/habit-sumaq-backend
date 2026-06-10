@@ -41,7 +41,7 @@ export class UserRepositoryImpl extends UserRepository {
       isActive: user.isActive,
       updatedAt: user.updatedAt,
     });
-    return this.toDomain(saved as UserOrmEntity);
+    return this.toDomain(saved);
   }
 
   private toDomain(orm: UserOrmEntity): User {

@@ -20,7 +20,7 @@ describe('CreateQuickTaskUseCase', () => {
       deleteCompletedBefore: jest.fn(),
       maxPositionByUserId: jest.fn(),
       updatePositions: jest.fn(),
-    } as jest.Mocked<QuickTaskRepository>;
+    };
 
     mockLogger = buildMockPinoLogger();
     useCase = new CreateQuickTaskUseCase(mockRepo, mockLogger as unknown as PinoLogger);

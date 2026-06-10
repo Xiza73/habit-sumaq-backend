@@ -9,7 +9,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
-import { AccountsModule } from './modules/accounts/presentation/accounts.module';
 import { AlertsModule } from './modules/alerts/presentation/alerts.module';
 import { AuthModule } from './modules/auth/presentation/auth.module';
 import { BudgetMovementsModule } from './modules/budget-movements/presentation/budget-movements.module';
@@ -25,7 +24,6 @@ import { MonthlyServicesModule } from './modules/monthly-services/presentation/m
 import { QuickTasksModule } from './modules/quick-tasks/presentation/quick-tasks.module';
 import { ReportsModule } from './modules/reports/presentation/reports.module';
 import { TasksModule } from './modules/tasks/presentation/tasks.module';
-import { TransactionsModule } from './modules/transactions/presentation/transactions.module';
 import { UsersModule } from './modules/users/presentation/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -36,9 +34,7 @@ import { AppService } from './app.service';
     DatabaseModule,
     UsersModule,
     AuthModule,
-    AccountsModule,
     CategoriesModule,
-    TransactionsModule,
     HabitsModule,
     QuickTasksModule,
     MonthlyServicesModule,
