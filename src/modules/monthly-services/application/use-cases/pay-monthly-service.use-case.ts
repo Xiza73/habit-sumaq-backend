@@ -58,7 +58,18 @@ export class PayMonthlyServiceUseCase {
       );
     }
 
+    // v1.0.0 (A6-W.4): `service.defaultAccountId` may be null for services
+    // created without a default account. The legacy pay endpoint can still
+    // be invoked but requires an explicit `accountIdOverride` in that case.
+    // Web stopped calling this endpoint entirely in A6-W.2 — this whole
+    // use case will be dropped in A6-B.
     const accountId = dto.accountIdOverride ?? service.defaultAccountId;
+    if (accountId === null) {
+      throw new DomainException(
+        'ACCOUNT_NOT_FOUND',
+        'No hay una cuenta asociada al servicio; se requiere `accountIdOverride`',
+      );
+    }
     const account = await this.accountRepo.findById(accountId);
     if (!account || account.userId !== userId) {
       throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta no encontrada');

@@ -7,7 +7,7 @@ export function buildMonthlyService(
     id: string;
     userId: string;
     name: string;
-    defaultAccountId: string;
+    defaultAccountId: string | null;
     categoryId: string;
     currency: string;
     frequencyMonths: number;
