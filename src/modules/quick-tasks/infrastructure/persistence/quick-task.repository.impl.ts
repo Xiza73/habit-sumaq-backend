@@ -42,7 +42,7 @@ export class QuickTaskRepositoryImpl extends QuickTaskRepository {
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     });
-    return this.toDomain(saved as QuickTaskOrmEntity);
+    return this.toDomain(saved);
   }
 
   async deleteById(id: string): Promise<void> {

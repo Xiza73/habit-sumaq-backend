@@ -6,7 +6,6 @@ import { BudgetsModule } from '@modules/budgets/presentation/budgets.module';
 import { ChoresModule } from '@modules/chores/presentation/chores.module';
 import { HabitsModule } from '@modules/habits/presentation/habits.module';
 import { MonthlyServicesModule } from '@modules/monthly-services/presentation/monthly-services.module';
-import { TransactionsModule } from '@modules/transactions/presentation/transactions.module';
 import { UsersModule } from '@modules/users/presentation/users.module';
 
 import { DismissAlertUseCase } from '../application/use-cases/dismiss-alert.use-case';
@@ -36,7 +35,6 @@ import { AlertsController } from './alerts.controller';
     ChoresModule,
     HabitsModule,
     MonthlyServicesModule,
-    TransactionsModule,
     UsersModule,
   ],
   controllers: [AlertsController],

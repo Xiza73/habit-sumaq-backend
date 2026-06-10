@@ -23,10 +23,8 @@ import { ClientTimezone } from '@common/decorators/client-timezone.decorator';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
-import { TransactionResponseDto } from '../../transactions/application/dto/transaction-response.dto';
 import { CreateMonthlyServiceDto } from '../application/dto/create-monthly-service.dto';
 import { MonthlyServiceResponseDto } from '../application/dto/monthly-service-response.dto';
-import { PayMonthlyServiceDto } from '../application/dto/pay-monthly-service.dto';
 import { SkipMonthDto } from '../application/dto/skip-month.dto';
 import { UpdateMonthlyServiceDto } from '../application/dto/update-monthly-service.dto';
 import { ArchiveMonthlyServiceUseCase } from '../application/use-cases/archive-monthly-service.use-case';
@@ -34,7 +32,6 @@ import { CreateMonthlyServiceUseCase } from '../application/use-cases/create-mon
 import { DeleteMonthlyServiceUseCase } from '../application/use-cases/delete-monthly-service.use-case';
 import { GetMonthlyServiceUseCase } from '../application/use-cases/get-monthly-service.use-case';
 import { ListMonthlyServicesUseCase } from '../application/use-cases/list-monthly-services.use-case';
-import { PayMonthlyServiceUseCase } from '../application/use-cases/pay-monthly-service.use-case';
 import { SkipMonthlyServiceMonthUseCase } from '../application/use-cases/skip-monthly-service-month.use-case';
 import { UpdateMonthlyServiceUseCase } from '../application/use-cases/update-monthly-service.use-case';
 import { currentPeriodInTimezone } from '../infrastructure/timezone/current-period-in-timezone';
@@ -50,7 +47,6 @@ export class MonthlyServicesController {
     private readonly getMonthlyService: GetMonthlyServiceUseCase,
     private readonly createMonthlyService: CreateMonthlyServiceUseCase,
     private readonly updateMonthlyService: UpdateMonthlyServiceUseCase,
-    private readonly payMonthlyService: PayMonthlyServiceUseCase,
     private readonly skipMonthlyServiceMonth: SkipMonthlyServiceMonthUseCase,
     private readonly archiveMonthlyService: ArchiveMonthlyServiceUseCase,
     private readonly deleteMonthlyService: DeleteMonthlyServiceUseCase,
@@ -171,52 +167,6 @@ export class MonthlyServicesController {
       // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
       MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
       'Servicio actualizado exitosamente',
-    );
-  }
-
-  @Post(':id/pay')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Registrar un pago del servicio',
-    description:
-      'Crea una transacción EXPENSE vinculada al servicio, debita la cuenta de pago, avanza ' +
-      'lastPaidPeriod al período facturado y recalcula estimatedAmount como promedio de las ' +
-      'últimas 3 transacciones.',
-  })
-  @ApiParam({ name: 'id', description: 'UUID del servicio' })
-  @ApiResponse({
-    status: 201,
-    description: 'Pago registrado. Retorna el servicio actualizado y la transacción creada.',
-  })
-  @ApiResponse({ status: 404, description: 'Servicio o cuenta no encontrados' })
-  @ApiResponse({
-    status: 409,
-    description: 'El servicio ya está pagado para el mes actual (idempotency guard)',
-  })
-  @ApiResponse({ status: 422, description: 'Monedas incompatibles' })
-  async pay(
-    @CurrentUser() payload: JwtPayload,
-    @ClientTimezone() timezone: string,
-    @Param('id') id: string,
-    @Body() dto: PayMonthlyServiceDto,
-  ): Promise<
-    ApiResponseDto<{ service: MonthlyServiceResponseDto; transaction: TransactionResponseDto }>
-  > {
-    const currentPeriod = currentPeriodInTimezone(timezone);
-    const { service, transaction } = await this.payMonthlyService.execute(
-      id,
-      payload.sub,
-      dto,
-      currentPeriod,
-      timezone,
-    );
-    return ApiResponseDto.ok(
-      {
-        // Same convention as other single-service endpoints — see DTO doc.
-        service: MonthlyServiceResponseDto.fromDomain(service, currentPeriod, 0),
-        transaction: TransactionResponseDto.fromDomain(transaction),
-      },
-      'Pago registrado exitosamente',
     );
   }
 

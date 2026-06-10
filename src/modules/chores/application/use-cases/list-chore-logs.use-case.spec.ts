@@ -20,13 +20,13 @@ describe('ListChoreLogsUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<ChoreRepository>;
+    };
 
     logRepo = {
       findByChoreId: jest.fn(),
       countByChoreId: jest.fn(),
       save: jest.fn(),
-    } as jest.Mocked<ChoreLogRepository>;
+    };
 
     useCase = new ListChoreLogsUseCase(choreRepo, logRepo);
   });

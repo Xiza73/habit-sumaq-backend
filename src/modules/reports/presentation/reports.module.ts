@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 
-import { AccountsModule } from '../../accounts/presentation/accounts.module';
 import { BudgetMovementsModule } from '../../budget-movements/presentation/budget-movements.module';
 import { CurrencyPoolsModule } from '../../currency-pools/presentation/currency-pools.module';
 import { DebtsLoansModule } from '../../debts-loans/presentation/debts-loans.module';
@@ -19,7 +18,6 @@ import { ReportsController } from './reports.controller';
   // depend on.
   imports: [
     UsersModule,
-    AccountsModule,
     CurrencyPoolsModule,
     BudgetMovementsModule,
     MonthlyServicePaymentsModule,

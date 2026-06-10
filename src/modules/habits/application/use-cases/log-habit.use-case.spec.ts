@@ -36,7 +36,7 @@ describe('LogHabitUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<HabitRepository>;
+    };
 
     habitLogRepo = {
       findByHabitIdAndDate: jest.fn(),
@@ -46,7 +46,7 @@ describe('LogHabitUseCase', () => {
       save: jest.fn().mockImplementation((l) => Promise.resolve(l)),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
-    } as jest.Mocked<HabitLogRepository>;
+    };
 
     mockLogger = {
       info: jest.fn(),

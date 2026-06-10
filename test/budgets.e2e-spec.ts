@@ -10,16 +10,11 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
-import { Currency } from '@common/enums/currency.enum';
-
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
-import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
-import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
-import { AddBudgetMovementUseCase } from '../src/modules/budgets/application/use-cases/add-budget-movement.use-case';
 import { CreateBudgetUseCase } from '../src/modules/budgets/application/use-cases/create-budget.use-case';
 import { DeleteBudgetUseCase } from '../src/modules/budgets/application/use-cases/delete-budget.use-case';
 import { GetBudgetUseCase } from '../src/modules/budgets/application/use-cases/get-budget.use-case';
@@ -29,17 +24,12 @@ import { UpdateBudgetUseCase } from '../src/modules/budgets/application/use-case
 import { makeBudget } from '../src/modules/budgets/domain/__tests__/budget.factory';
 import { BudgetRepository } from '../src/modules/budgets/domain/budget.repository';
 import { BudgetsController } from '../src/modules/budgets/presentation/budgets.controller';
-import { buildCategory } from '../src/modules/categories/domain/__tests__/category.factory';
 import { CategoryRepository } from '../src/modules/categories/domain/category.repository';
-import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 
 import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
 
 const TEST_JWT_SECRET = 'e2e-budgets-jwt-secret-min-32-characters!!';
 const USER_ID = 'e2e-user-uuid-bdgt-0001';
-const ACC_PEN = '00000000-0000-4000-a000-000000000021';
-const ACC_USD = '00000000-0000-4000-a000-000000000022';
-const CAT_ID = '00000000-0000-4000-b000-000000000021';
 const BUDGET_ID = '00000000-0000-4000-c000-000000000021';
 
 describe('BudgetsController (e2e)', () => {
@@ -64,35 +54,6 @@ describe('BudgetsController (e2e)', () => {
     sumByCurrencyInRange: jest.fn(),
     topCategoriesByCurrencyInRange: jest.fn(),
     dailyByCurrencyInRange: jest.fn(),
-    save: jest.fn(),
-    softDelete: jest.fn(),
-  };
-
-  const mockTxRepo: jest.Mocked<TransactionRepository> = {
-    findByUserId: jest.fn(),
-    findById: jest.fn(),
-    findByRelatedTransactionId: jest.fn(),
-    save: jest.fn(),
-    softDelete: jest.fn(),
-    existsByAccountId: jest.fn(),
-    aggregateDebtsByReference: jest.fn(),
-    findPendingDebtOrLoanByNormalizedReference: jest.fn(),
-    sumFlowByCurrencyInRange: jest.fn(),
-    topExpenseCategoriesInRange: jest.fn(),
-    dailyNetFlowInRange: jest.fn(),
-    countByMonthlyServiceId: jest.fn(),
-    findLastNByMonthlyServiceId: jest.fn(),
-    sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
-    findByBudgetId: jest.fn(),
-    sumAmountByBudgetId: jest.fn(),
-    clearBudgetIdForBudget: jest.fn(),
-  };
-
-  const mockAccountRepo: jest.Mocked<AccountRepository> = {
-    findByUserId: jest.fn(),
-    findByUserIdAndName: jest.fn(),
-    findById: jest.fn(),
-    findByIds: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };
@@ -124,11 +85,8 @@ describe('BudgetsController (e2e)', () => {
         CreateBudgetUseCase,
         UpdateBudgetUseCase,
         DeleteBudgetUseCase,
-        AddBudgetMovementUseCase,
         { provide: BudgetRepository, useValue: mockBudgetRepo },
         { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
-        { provide: TransactionRepository, useValue: mockTxRepo },
-        { provide: AccountRepository, useValue: mockAccountRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
         JwtAccessStrategy,
         { provide: ConfigService, useValue: mockConfigService },
@@ -136,11 +94,7 @@ describe('BudgetsController (e2e)', () => {
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
         { provide: APP_INTERCEPTOR, useClass: ResponseTransformInterceptor },
 
-        ...buildPinoLoggerProviders([
-          AllExceptionsFilter.name,
-          DeleteBudgetUseCase.name,
-          AddBudgetMovementUseCase.name,
-        ]),
+        ...buildPinoLoggerProviders([AllExceptionsFilter.name, DeleteBudgetUseCase.name]),
       ],
     }).compile();
 
@@ -163,10 +117,7 @@ describe('BudgetsController (e2e)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default save behavior — return what was saved.
     mockBudgetRepo.save.mockImplementation((b) => Promise.resolve(b));
-    mockTxRepo.save.mockImplementation((t) => Promise.resolve(t));
-    mockAccountRepo.save.mockImplementation((a) => Promise.resolve(a));
   });
 
   // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -246,88 +197,13 @@ describe('BudgetsController (e2e)', () => {
     });
   });
 
-  // ─── POST /budgets/:id/movements ──────────────────────────────────────────────
-
-  describe('POST /api/v1/budgets/:id/movements', () => {
-    it('creates an EXPENSE transaction tagged with budgetId and debits the account', async () => {
-      const budget = makeBudget({ id: BUDGET_ID, userId: USER_ID, currency: 'PEN' });
-      const account = buildAccount({
-        id: ACC_PEN,
-        userId: USER_ID,
-        currency: Currency.PEN,
-        balance: 800,
-      });
-      const category = buildCategory({ id: CAT_ID, userId: USER_ID });
-      mockBudgetRepo.findById.mockResolvedValue(budget);
-      mockAccountRepo.findById.mockResolvedValue(account);
-      mockCategoryRepo.findById.mockResolvedValue(category);
-
-      const res = await request(app.getHttpServer())
-        .post(`/api/v1/budgets/${BUDGET_ID}/movements`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          amount: 50,
-          accountId: ACC_PEN,
-          categoryId: CAT_ID,
-          date: '2026-04-15T12:00:00.000Z',
-          description: 'Cena',
-        })
-        .expect(201);
-
-      expect(res.body.data.transaction.type).toBe('EXPENSE');
-      expect(res.body.data.transaction.budgetId).toBe(BUDGET_ID);
-      expect(res.body.data.transaction.amount).toBe(50);
-      expect(account.balance).toBe(750); // debited
-    });
-
-    it('returns 422 CURRENCY_MISMATCH when account currency != budget currency', async () => {
-      const budget = makeBudget({ id: BUDGET_ID, userId: USER_ID, currency: 'PEN' });
-      const account = buildAccount({ id: ACC_USD, userId: USER_ID, currency: Currency.USD });
-      mockBudgetRepo.findById.mockResolvedValue(budget);
-      mockAccountRepo.findById.mockResolvedValue(account);
-
-      const res = await request(app.getHttpServer())
-        .post(`/api/v1/budgets/${BUDGET_ID}/movements`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          amount: 50,
-          accountId: ACC_USD,
-          categoryId: CAT_ID,
-          date: '2026-04-15T12:00:00.000Z',
-        })
-        .expect(422);
-
-      expect(res.body.error.code).toBe('VAL_002');
-      expect(mockTxRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('returns 422 MOVEMENT_DATE_OUT_OF_RANGE when date is outside the budget month', async () => {
-      const budget = makeBudget({ id: BUDGET_ID, userId: USER_ID, year: 2026, month: 4 });
-      const account = buildAccount({ id: ACC_PEN, userId: USER_ID, currency: Currency.PEN });
-      const category = buildCategory({ id: CAT_ID, userId: USER_ID });
-      mockBudgetRepo.findById.mockResolvedValue(budget);
-      mockAccountRepo.findById.mockResolvedValue(account);
-      mockCategoryRepo.findById.mockResolvedValue(category);
-
-      const res = await request(app.getHttpServer())
-        .post(`/api/v1/budgets/${BUDGET_ID}/movements`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          amount: 50,
-          accountId: ACC_PEN,
-          categoryId: CAT_ID,
-          date: '2026-05-01T12:00:00.000Z',
-        })
-        .expect(422);
-
-      expect(res.body.error.code).toBe('BDGT_003');
-    });
-  });
-
   // ─── DELETE /budgets/:id ──────────────────────────────────────────────────────
+  // v1.0.0 (A6-B): the `POST /budgets/:id/movements` endpoint is gone —
+  // the web uses `POST /budget-movements` directly. Delete no longer
+  // nullifies tx.budgetId (the transactions module is gone too).
 
   describe('DELETE /api/v1/budgets/:id', () => {
-    it('clears budgetId on transactions and soft-deletes the budget (204)', async () => {
+    it('soft-deletes the budget (204)', async () => {
       const budget = makeBudget({ id: BUDGET_ID, userId: USER_ID });
       mockBudgetRepo.findById.mockResolvedValue(budget);
 
@@ -336,7 +212,6 @@ describe('BudgetsController (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(204);
 
-      expect(mockTxRepo.clearBudgetIdForBudget).toHaveBeenCalledWith(BUDGET_ID);
       expect(mockBudgetRepo.softDelete).toHaveBeenCalledWith(BUDGET_ID);
     });
   });

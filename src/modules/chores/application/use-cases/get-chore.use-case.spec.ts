@@ -15,7 +15,7 @@ describe('GetChoreUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<ChoreRepository>;
+    };
     useCase = new GetChoreUseCase(repo);
   });
 

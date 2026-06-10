@@ -10,13 +10,9 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
-import { Currency } from '@common/enums/currency.enum';
-
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
-import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
-import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 import { buildCategory } from '../src/modules/categories/domain/__tests__/category.factory';
 import { CategoryRepository } from '../src/modules/categories/domain/category.repository';
@@ -26,22 +22,16 @@ import { CreateMonthlyServiceUseCase } from '../src/modules/monthly-services/app
 import { DeleteMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/delete-monthly-service.use-case';
 import { GetMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/get-monthly-service.use-case';
 import { ListMonthlyServicesUseCase } from '../src/modules/monthly-services/application/use-cases/list-monthly-services.use-case';
-import { PayMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/pay-monthly-service.use-case';
 import { SkipMonthlyServiceMonthUseCase } from '../src/modules/monthly-services/application/use-cases/skip-monthly-service-month.use-case';
 import { UpdateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/update-monthly-service.use-case';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
 import { MonthlyServicesController } from '../src/modules/monthly-services/presentation/monthly-services.controller';
-import { buildTransaction } from '../src/modules/transactions/domain/__tests__/transaction.factory';
-import { TransactionType } from '../src/modules/transactions/domain/enums/transaction-type.enum';
-import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 
 import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
 
 const TEST_JWT_SECRET = 'e2e-msvc-jwt-secret-min-32-characters!!';
 const USER_ID = 'e2e-user-uuid-msvc-0001';
-const ACC_ID_1 = '00000000-0000-4000-a000-000000000011';
-const ACC_ID_2 = '00000000-0000-4000-a000-000000000012';
 const CAT_ID = '00000000-0000-4000-b000-000000000011';
 const SVC_ID = '00000000-0000-4000-c000-000000000011';
 
@@ -72,41 +62,12 @@ describe('MonthlyServicesController (e2e)', () => {
     softDelete: jest.fn(),
   };
 
-  const mockAccountRepo: jest.Mocked<AccountRepository> = {
-    findByUserId: jest.fn(),
-    findByUserIdAndName: jest.fn(),
-    findById: jest.fn(),
-    findByIds: jest.fn(),
-    save: jest.fn(),
-    softDelete: jest.fn(),
-  };
-
   const mockCategoryRepo: jest.Mocked<CategoryRepository> = {
     findByUserId: jest.fn(),
     findByUserIdAndName: jest.fn(),
     findById: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
-  };
-
-  const mockTxRepo: jest.Mocked<TransactionRepository> = {
-    findByUserId: jest.fn(),
-    findById: jest.fn(),
-    findByRelatedTransactionId: jest.fn(),
-    save: jest.fn(),
-    softDelete: jest.fn(),
-    existsByAccountId: jest.fn(),
-    aggregateDebtsByReference: jest.fn(),
-    findPendingDebtOrLoanByNormalizedReference: jest.fn(),
-    sumFlowByCurrencyInRange: jest.fn(),
-    topExpenseCategoriesInRange: jest.fn(),
-    dailyNetFlowInRange: jest.fn(),
-    countByMonthlyServiceId: jest.fn(),
-    findLastNByMonthlyServiceId: jest.fn(),
-    sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
-    findByBudgetId: jest.fn(),
-    sumAmountByBudgetId: jest.fn(),
-    clearBudgetIdForBudget: jest.fn(),
   };
 
   const mockConfigService = {
@@ -126,15 +87,12 @@ describe('MonthlyServicesController (e2e)', () => {
         GetMonthlyServiceUseCase,
         CreateMonthlyServiceUseCase,
         UpdateMonthlyServiceUseCase,
-        PayMonthlyServiceUseCase,
         SkipMonthlyServiceMonthUseCase,
         ArchiveMonthlyServiceUseCase,
         DeleteMonthlyServiceUseCase,
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
         { provide: MonthlyServicePaymentRepository, useValue: mockPaymentRepo },
-        { provide: AccountRepository, useValue: mockAccountRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
-        { provide: TransactionRepository, useValue: mockTxRepo },
         JwtAccessStrategy,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -145,7 +103,6 @@ describe('MonthlyServicesController (e2e)', () => {
         ...buildPinoLoggerProviders([
           AllExceptionsFilter.name,
           CreateMonthlyServiceUseCase.name,
-          PayMonthlyServiceUseCase.name,
           SkipMonthlyServiceMonthUseCase.name,
         ]),
       ],
@@ -181,9 +138,11 @@ describe('MonthlyServicesController (e2e)', () => {
   // ─── POST /monthly-services ───────────────────────────────────────────────────
 
   describe('POST /api/v1/monthly-services', () => {
+    // v1.0.0 (A6-B): `defaultAccountId` is gone from the create flow. The
+    // schema accepts it as optional for legacy clients, but the form sends
+    // it as undefined.
     const minimalBody = {
       name: 'Netflix',
-      defaultAccountId: ACC_ID_1,
       categoryId: CAT_ID,
       currency: 'PEN',
     };
@@ -196,9 +155,6 @@ describe('MonthlyServicesController (e2e)', () => {
     };
 
     it('should create a service using defaults when only the minimal body is sent', async () => {
-      mockAccountRepo.findById.mockResolvedValue(
-        buildAccount({ id: ACC_ID_1, userId: USER_ID, currency: Currency.PEN }),
-      );
       mockCategoryRepo.findById.mockResolvedValue(buildCategory({ id: CAT_ID, userId: USER_ID }));
       mockServiceRepo.findActiveByUserIdAndName.mockResolvedValue(null);
       mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
@@ -224,9 +180,6 @@ describe('MonthlyServicesController (e2e)', () => {
     });
 
     it('should create a service with the full body and return 201', async () => {
-      mockAccountRepo.findById.mockResolvedValue(
-        buildAccount({ id: ACC_ID_1, userId: USER_ID, currency: Currency.PEN }),
-      );
       mockCategoryRepo.findById.mockResolvedValue(buildCategory({ id: CAT_ID, userId: USER_ID }));
       mockServiceRepo.findActiveByUserIdAndName.mockResolvedValue(null);
       mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
@@ -246,9 +199,6 @@ describe('MonthlyServicesController (e2e)', () => {
     });
 
     it('should return 409 MSVC_003 when an active service with the same name already exists', async () => {
-      mockAccountRepo.findById.mockResolvedValue(
-        buildAccount({ id: ACC_ID_1, userId: USER_ID, currency: Currency.PEN }),
-      );
       mockCategoryRepo.findById.mockResolvedValue(buildCategory({ id: CAT_ID, userId: USER_ID }));
       mockServiceRepo.findActiveByUserIdAndName.mockResolvedValue(
         buildMonthlyService({ userId: USER_ID, name: 'Netflix' }),
@@ -497,139 +447,8 @@ describe('MonthlyServicesController (e2e)', () => {
     });
   });
 
-  // ─── POST /monthly-services/:id/pay ──────────────────────────────────────────
-
-  describe('POST /api/v1/monthly-services/:id/pay', () => {
-    it('should create an EXPENSE tx, advance lastPaidPeriod, debit the default account and return 201', async () => {
-      const service = buildMonthlyService({
-        id: SVC_ID,
-        userId: USER_ID,
-        currency: 'PEN',
-        startPeriod: '2026-04',
-        lastPaidPeriod: null,
-        defaultAccountId: ACC_ID_1,
-        estimatedAmount: null,
-      });
-      const account = buildAccount({
-        id: ACC_ID_1,
-        userId: USER_ID,
-        currency: Currency.PEN,
-        balance: 500,
-      });
-
-      mockServiceRepo.findById.mockResolvedValue(service);
-      mockAccountRepo.findById.mockResolvedValue(account);
-      mockAccountRepo.save.mockImplementation((a) => Promise.resolve(a));
-      mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
-      mockTxRepo.save.mockImplementation((tx) => Promise.resolve(tx));
-      // After the first payment the recompute query returns [the new tx] — AVG(42) = 42.
-      mockTxRepo.findLastNByMonthlyServiceId.mockResolvedValue([
-        buildTransaction({ amount: 42, userId: USER_ID, monthlyServiceId: SVC_ID }),
-      ]);
-
-      return request(app.getHttpServer())
-        .post(`/api/v1/monthly-services/${SVC_ID}/pay`)
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-timezone', 'America/Lima')
-        .send({ amount: 42 })
-        .expect(201)
-        .expect(({ body }) => {
-          expect(body.success).toBe(true);
-          // Response shape: { service, transaction }
-          expect(body.data.transaction.type).toBe(TransactionType.EXPENSE);
-          expect(body.data.transaction.amount).toBe(42);
-          expect(body.data.transaction.accountId).toBe(ACC_ID_1);
-          expect(body.data.transaction.monthlyServiceId).toBe(SVC_ID);
-          expect(body.data.service.lastPaidPeriod).toBe('2026-04');
-          // estimatedAmount got recomputed from the moving-average query result.
-          expect(body.data.service.estimatedAmount).toBe(42);
-          // Account was debited by the paid amount.
-          expect(account.balance).toBe(458);
-        });
-    });
-
-    it('should use accountIdOverride when provided instead of the default account', async () => {
-      const service = buildMonthlyService({
-        id: SVC_ID,
-        userId: USER_ID,
-        currency: 'PEN',
-        defaultAccountId: ACC_ID_1,
-        lastPaidPeriod: '2026-03',
-      });
-      const override = buildAccount({
-        id: ACC_ID_2,
-        userId: USER_ID,
-        currency: Currency.PEN,
-        balance: 1000,
-      });
-      mockServiceRepo.findById.mockResolvedValue(service);
-      mockAccountRepo.findById.mockImplementation((id) =>
-        id === ACC_ID_2 ? Promise.resolve(override) : Promise.resolve(null),
-      );
-      mockAccountRepo.save.mockImplementation((a) => Promise.resolve(a));
-      mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
-      mockTxRepo.save.mockImplementation((tx) => Promise.resolve(tx));
-      mockTxRepo.findLastNByMonthlyServiceId.mockResolvedValue([]);
-
-      return request(app.getHttpServer())
-        .post(`/api/v1/monthly-services/${SVC_ID}/pay`)
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-timezone', 'America/Lima')
-        .send({ amount: 20, accountIdOverride: ACC_ID_2 })
-        .expect(201)
-        .expect(({ body }) => {
-          expect(body.data.transaction.accountId).toBe(ACC_ID_2);
-          expect(override.balance).toBe(980);
-        });
-    });
-
-    it('should return 404 MSVC_002 when the service does not exist', async () => {
-      mockServiceRepo.findById.mockResolvedValue(null);
-
-      return request(app.getHttpServer())
-        .post(`/api/v1/monthly-services/${SVC_ID}/pay`)
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-timezone', 'America/Lima')
-        .send({ amount: 42 })
-        .expect(404)
-        .expect(({ body }) => {
-          expect(body.error.code).toBe('MSVC_002');
-        });
-    });
-
-    it('should return 409 MSVC_004 when the service is already paid for the current month', async () => {
-      // Service paid for the ongoing month in America/Lima — a direct API call
-      // (bypassing the web, which hides the button in this state) must not be
-      // allowed to create a duplicate transaction.
-      const now = new Date();
-      const currentPeriod = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-      const service = buildMonthlyService({
-        id: SVC_ID,
-        userId: USER_ID,
-        currency: 'PEN',
-        startPeriod: currentPeriod,
-        lastPaidPeriod: currentPeriod,
-        defaultAccountId: ACC_ID_1,
-      });
-      mockServiceRepo.findById.mockResolvedValue(service);
-
-      return request(app.getHttpServer())
-        .post(`/api/v1/monthly-services/${SVC_ID}/pay`)
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-timezone', 'America/Lima')
-        .send({ amount: 42 })
-        .expect(409)
-        .expect(({ body }) => {
-          expect(body.error.code).toBe('MSVC_004');
-        })
-        .expect(() => {
-          // No side effects: no tx created, no account debit, no service update.
-          expect(mockAccountRepo.save).not.toHaveBeenCalled();
-          expect(mockTxRepo.save).not.toHaveBeenCalled();
-          expect(mockServiceRepo.save).not.toHaveBeenCalled();
-        });
-    });
-  });
+  // POST /monthly-services/:id/pay (legacy) was DROPPED in A6-B. The web
+  // uses `POST /monthly-service-payments` directly from A6-W.2 onward.
 
   // ─── POST /monthly-services/:id/skip ─────────────────────────────────────────
 
@@ -655,8 +474,9 @@ describe('MonthlyServicesController (e2e)', () => {
           expect(body.data.lastPaidPeriod).toBe('2026-04');
         });
 
-      // Key invariant: skip NEVER creates a transaction.
-      expect(mockTxRepo.save).not.toHaveBeenCalled();
+      // v1.0.0 (A6-B): skip never creates a payment (the new MSP module
+      // owns the create flow; skip just advances `lastPaidPeriod`).
+      expect(mockPaymentRepo.save).not.toHaveBeenCalled();
     });
   });
 
@@ -693,10 +513,10 @@ describe('MonthlyServicesController (e2e)', () => {
   // ─── DELETE /monthly-services/:id ────────────────────────────────────────────
 
   describe('DELETE /api/v1/monthly-services/:id', () => {
-    it('should soft-delete the service when it has no linked transactions and return 204', async () => {
+    it('should soft-delete the service when it has no linked payments and return 204', async () => {
       const service = buildMonthlyService({ id: SVC_ID, userId: USER_ID });
       mockServiceRepo.findById.mockResolvedValue(service);
-      mockTxRepo.countByMonthlyServiceId.mockResolvedValue(0);
+      mockPaymentRepo.findByServiceId.mockResolvedValue([]);
       mockServiceRepo.softDelete.mockResolvedValue(undefined);
 
       await request(app.getHttpServer())
@@ -723,7 +543,11 @@ describe('MonthlyServicesController (e2e)', () => {
     it('should return 409 MSVC_001 when the service has registered payments', async () => {
       const service = buildMonthlyService({ id: SVC_ID, userId: USER_ID });
       mockServiceRepo.findById.mockResolvedValue(service);
-      mockTxRepo.countByMonthlyServiceId.mockResolvedValue(3);
+      // Has at least one active payment → delete forbidden.
+      mockPaymentRepo.findByServiceId.mockResolvedValue([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { id: 'pmt-1' } as any,
+      ]);
 
       return request(app.getHttpServer())
         .delete(`/api/v1/monthly-services/${SVC_ID}`)
@@ -747,11 +571,11 @@ describe('MonthlyServicesController (e2e)', () => {
         id: SVC_ID,
         userId: USER_ID,
         name: 'Netflix',
-        defaultAccountId: ACC_ID_1,
+        defaultAccountId: null,
         categoryId: CAT_ID,
       });
       mockServiceRepo.findById.mockResolvedValue(original);
-      mockTxRepo.countByMonthlyServiceId.mockResolvedValue(0);
+      mockPaymentRepo.findByServiceId.mockResolvedValue([]);
       mockServiceRepo.softDelete.mockResolvedValue(undefined);
 
       // 1. Delete the original service.
@@ -763,9 +587,6 @@ describe('MonthlyServicesController (e2e)', () => {
       // 2. Now create another service with the SAME name. After the migration
       //    the active-name uniqueness check excludes soft-deleted rows.
       mockServiceRepo.findActiveByUserIdAndName.mockResolvedValue(null);
-      mockAccountRepo.findById.mockResolvedValue(
-        buildAccount({ id: ACC_ID_1, userId: USER_ID, currency: Currency.PEN }),
-      );
       mockCategoryRepo.findById.mockResolvedValue(buildCategory({ id: CAT_ID, userId: USER_ID }));
       mockServiceRepo.save.mockImplementation((s) => Promise.resolve(s));
 
@@ -775,7 +596,6 @@ describe('MonthlyServicesController (e2e)', () => {
         .set('x-timezone', 'America/Lima')
         .send({
           name: 'Netflix',
-          defaultAccountId: ACC_ID_1,
           categoryId: CAT_ID,
           currency: 'PEN',
         })

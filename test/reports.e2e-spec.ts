@@ -15,8 +15,6 @@ import { Currency } from '@common/enums/currency.enum';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
-import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
-import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
 import { buildCurrencyPool } from '../src/modules/currency-pools/domain/__tests__/currency-pool.factory';
@@ -45,15 +43,6 @@ describe('ReportsController (e2e)', () => {
   let app: INestApplication;
   let jwtService: JwtService;
   let token: string;
-
-  const mockAccountRepo: jest.Mocked<AccountRepository> = {
-    findByUserId: jest.fn(),
-    findByUserIdAndName: jest.fn(),
-    findById: jest.fn(),
-    findByIds: jest.fn(),
-    save: jest.fn(),
-    softDelete: jest.fn(),
-  };
 
   const mockPoolRepo: jest.Mocked<CurrencyPoolRepository> = {
     findByUserIdAndCurrency: jest.fn(),
@@ -142,7 +131,6 @@ describe('ReportsController (e2e)', () => {
       providers: [
         GetFinancesDashboardUseCase,
         GetRoutinesDashboardUseCase,
-        { provide: AccountRepository, useValue: mockAccountRepo },
         { provide: CurrencyPoolRepository, useValue: mockPoolRepo },
         { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: MonthlyServicePaymentRepository, useValue: mockMspRepo },
@@ -182,7 +170,6 @@ describe('ReportsController (e2e)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockAccountRepo.findByUserId.mockResolvedValue([]);
     mockPoolRepo.findByUserId.mockResolvedValue([]);
     mockBudgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([]);
     mockBudgetMovementRepo.topCategoriesByCurrencyInRange.mockResolvedValue([]);
@@ -233,13 +220,6 @@ describe('ReportsController (e2e)', () => {
       mockPoolRepo.findByUserId.mockResolvedValue([
         buildCurrencyPool({ currency: Currency.PEN, balance: 1000 }),
         buildCurrencyPool({ currency: Currency.USD, balance: 500 }),
-      ]);
-      // Accounts still drive `accountCount` until A6 retires the
-      // accounts module; the totalBalance.amount field NO longer
-      // reads account.balance.
-      mockAccountRepo.findByUserId.mockResolvedValue([
-        buildAccount({ currency: Currency.PEN }),
-        buildAccount({ currency: Currency.USD }),
       ]);
       // periodFlow now derives from budget_movements + monthly_service_payments.
       // No general INCOME concept in v1.0.0 (Phase A5-B.2 Path A).

@@ -13,7 +13,7 @@ describe('ListChoresUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<ChoreRepository>;
+    };
     useCase = new ListChoresUseCase(repo);
   });
 

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { AccountRepository } from '@modules/accounts/domain/account.repository';
 import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
 import { DebtLoanRepository } from '@modules/debts-loans/domain/debt-loan.repository';
@@ -18,7 +17,6 @@ const DEFAULT_TIMEZONE = 'UTC';
 @Injectable()
 export class GetFinancesDashboardUseCase {
   constructor(
-    private readonly accountRepo: AccountRepository,
     private readonly poolRepo: CurrencyPoolRepository,
     private readonly budgetMovementRepo: BudgetMovementRepository,
     private readonly mspRepo: MonthlyServicePaymentRepository,
@@ -37,7 +35,6 @@ export class GetFinancesDashboardUseCase {
     const range = computePeriodRange(period, timezone, startOfWeek);
 
     const [
-      accounts,
       pools,
       budgetMovementSums,
       mspSums,
@@ -46,7 +43,6 @@ export class GetFinancesDashboardUseCase {
       mspDaily,
       debts,
     ] = await Promise.all([
-      this.accountRepo.findByUserId(userId, false),
       this.poolRepo.findByUserId(userId),
       this.budgetMovementRepo.sumByCurrencyInRange(userId, range.from, range.to),
       this.mspRepo.sumByCurrencyInRange(userId, range.from, range.to),
@@ -61,33 +57,15 @@ export class GetFinancesDashboardUseCase {
       this.debtLoanRepo.aggregateByReference(userId, 'pending'),
     ]);
 
-    // Widget 1: totalBalance — pool balances per currency, with the
-    // legacy `accountCount` derived from the still-living `accounts`
-    // table for backwards-compatible response shape.
+    // Widget 1: totalBalance — pool balances per currency.
     //
-    // v1.0.0 transition note (Phase A5-B.1):
-    //   - `amount` now comes from `currency_pools` (the new source of
-    //     truth — internal aggregate balance per `(userId, currency)`),
-    //     NOT from `SUM(accounts.balance)`. They should agree during
-    //     the parallel-run window, but the pool is authoritative going
-    //     forward.
-    //   - `accountCount` still reads from `accounts` for shape
-    //     compatibility with the web's dashboard cards. When Phase A6
-    //     drops the accounts module, the web migrates to a pool-only
-    //     shape (no count, since one pool per currency) and this read
-    //     goes away.
-    const accountCountByCurrency = new Map<string, number>();
-    for (const account of accounts) {
-      accountCountByCurrency.set(
-        account.currency,
-        (accountCountByCurrency.get(account.currency) ?? 0) + 1,
-      );
-    }
+    // v1.0.0 (Phase A6-B): the legacy `accountCount` field is gone. The
+    // accounts module was dropped — there's no per-currency account count
+    // anymore. The web already stopped reading it in A6-W.5.
     const totalBalance = pools
       .map((pool) => ({
         currency: pool.currency,
         amount: round(pool.balance),
-        accountCount: accountCountByCurrency.get(pool.currency) ?? 0,
       }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
