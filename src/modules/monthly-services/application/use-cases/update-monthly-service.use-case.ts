@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
 import { DomainException } from '@common/exceptions/domain.exception';
-import { AccountRepository } from '@modules/accounts/domain/account.repository';
 import { CategoryRepository } from '@modules/categories/domain/category.repository';
 
 import { MonthlyService } from '../../domain/monthly-service.entity';
@@ -13,12 +12,16 @@ import type { UpdateMonthlyServiceDto } from '../dto/update-monthly-service.dto'
  * Partial-update use case. Currency and startPeriod are non-editable at the
  * DTO level — the DTO omits them. Name changes re-check the active-name
  * uniqueness guard.
+ *
+ * v1.0.0 (Phase A6-W.4): `defaultAccountId` is now decorative — it gets
+ * stored as-is when provided, no lookup, no currency-derivation. The
+ * "moving the service to a different currency by switching accounts"
+ * trick goes away too: currency is immutable post-creation, period.
  */
 @Injectable()
 export class UpdateMonthlyServiceUseCase {
   constructor(
     private readonly serviceRepo: MonthlyServiceRepository,
-    private readonly accountRepo: AccountRepository,
     private readonly categoryRepo: CategoryRepository,
   ) {}
 
@@ -29,20 +32,7 @@ export class UpdateMonthlyServiceUseCase {
     }
 
     if (dto.defaultAccountId !== undefined) {
-      const account = await this.accountRepo.findById(dto.defaultAccountId);
-      if (!account || account.userId !== userId) {
-        throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta no encontrada');
-      }
-      service.defaultAccountId = dto.defaultAccountId;
-
-      // If the new account has a different currency, the service "moves" to
-      // that currency. estimatedAmount was computed from past transactions in
-      // the old currency so it's meaningless now — reset to null and let the
-      // next /pay recompute it.
-      if (String(account.currency) !== service.currency) {
-        service.currency = String(account.currency);
-        service.estimatedAmount = null;
-      }
+      service.defaultAccountId = dto.defaultAccountId ?? null;
     }
 
     if (dto.categoryId !== undefined) {

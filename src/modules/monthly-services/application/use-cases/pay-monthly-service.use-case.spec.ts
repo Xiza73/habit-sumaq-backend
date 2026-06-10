@@ -141,7 +141,7 @@ describe('PayMonthlyServiceUseCase', () => {
     const service = buildMonthlyService({ userId, name: 'Netflix', currency: 'PEN' });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+      buildAccount({ id: service.defaultAccountId ?? undefined, userId, currency: Currency.PEN }),
     );
 
     const { transaction } = await useCase.execute(
@@ -166,7 +166,7 @@ describe('PayMonthlyServiceUseCase', () => {
     });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+      buildAccount({ id: service.defaultAccountId ?? undefined, userId, currency: Currency.PEN }),
     );
 
     const { service: updated } = await useCase.execute(
@@ -187,7 +187,7 @@ describe('PayMonthlyServiceUseCase', () => {
     const service = buildMonthlyService({ userId, currency: 'PEN', dueDay: null });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+      buildAccount({ id: service.defaultAccountId ?? undefined, userId, currency: Currency.PEN }),
     );
     // Days 14, 16, 15 in America/Lima -> avg = 15.
     txRepo.findLastNByMonthlyServiceId.mockResolvedValue([
@@ -215,7 +215,7 @@ describe('PayMonthlyServiceUseCase', () => {
     const service = buildMonthlyService({ userId, currency: 'PEN', dueDay: 10 });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+      buildAccount({ id: service.defaultAccountId ?? undefined, userId, currency: Currency.PEN }),
     );
     txRepo.findLastNByMonthlyServiceId.mockResolvedValue([]);
 
@@ -234,7 +234,7 @@ describe('PayMonthlyServiceUseCase', () => {
     const service = buildMonthlyService({ userId, currency: 'PEN', estimatedAmount: 100 });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.PEN }),
+      buildAccount({ id: service.defaultAccountId ?? undefined, userId, currency: Currency.PEN }),
     );
     txRepo.findLastNByMonthlyServiceId.mockResolvedValue([
       buildTransaction({ amount: 60 }),
@@ -303,7 +303,7 @@ describe('PayMonthlyServiceUseCase', () => {
     const service = buildMonthlyService({ userId, currency: 'PEN' });
     serviceRepo.findById.mockResolvedValue(service);
     accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: service.defaultAccountId, userId, currency: Currency.USD }),
+      buildAccount({ id: service.defaultAccountId ?? undefined, userId, currency: Currency.USD }),
     );
 
     await expect(

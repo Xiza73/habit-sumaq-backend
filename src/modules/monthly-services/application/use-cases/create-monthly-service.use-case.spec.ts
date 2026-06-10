@@ -1,10 +1,7 @@
 import { type PinoLogger } from 'nestjs-pino';
 
 import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
-import { Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
-import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
-import { type AccountRepository } from '@modules/accounts/domain/account.repository';
 import { buildCategory } from '@modules/categories/domain/__tests__/category.factory';
 import { type CategoryRepository } from '@modules/categories/domain/category.repository';
 
@@ -18,14 +15,16 @@ import type { CreateMonthlyServiceDto } from '../dto/create-monthly-service.dto'
 describe('CreateMonthlyServiceUseCase', () => {
   let useCase: CreateMonthlyServiceUseCase;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
-  let accountRepo: jest.Mocked<AccountRepository>;
   let categoryRepo: jest.Mocked<CategoryRepository>;
   let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   const userId = 'user-1';
   const baseDto: CreateMonthlyServiceDto = {
     name: 'Netflix',
-    defaultAccountId: 'acc-1',
+    // v1.0.0 (A6-W.4): `defaultAccountId` is now OPTIONAL. The use case
+    // doesn't validate it against the accounts module anymore — payments
+    // debit the currency pool. We still pass it in some scenarios to make
+    // sure the value round-trips on the saved entity.
     categoryId: 'cat-1',
     currency: 'PEN',
     estimatedAmount: 45,
@@ -42,17 +41,6 @@ describe('CreateMonthlyServiceUseCase', () => {
       softDelete: jest.fn(),
     };
 
-    accountRepo = {
-      findByUserId: jest.fn(),
-      findByUserIdAndName: jest.fn(),
-      findById: jest
-        .fn()
-        .mockResolvedValue(buildAccount({ id: 'acc-1', userId, currency: Currency.PEN })),
-      findByIds: jest.fn(),
-      save: jest.fn(),
-      softDelete: jest.fn(),
-    };
-
     categoryRepo = {
       findByUserId: jest.fn(),
       findByUserIdAndName: jest.fn(),
@@ -64,7 +52,6 @@ describe('CreateMonthlyServiceUseCase', () => {
     mockLogger = buildMockPinoLogger();
     useCase = new CreateMonthlyServiceUseCase(
       serviceRepo,
-      accountRepo,
       categoryRepo,
       mockLogger as unknown as PinoLogger,
     );
@@ -80,6 +67,23 @@ describe('CreateMonthlyServiceUseCase', () => {
     expect(result.estimatedAmount).toBe(45);
     expect(result.dueDay).toBe(15);
     expect(serviceRepo.save).toHaveBeenCalled();
+  });
+
+  it('persists `defaultAccountId` as null when the DTO omits it (v1.0.0 default)', async () => {
+    const result = await useCase.execute(userId, baseDto, 'UTC');
+    expect(result.defaultAccountId).toBeNull();
+  });
+
+  it('round-trips a provided `defaultAccountId` without account-existence validation', async () => {
+    // The use case no longer fetches the account or validates ownership /
+    // currency. A garbage UUID is accepted as-is — it'll be dropped from
+    // the column in A7-B.
+    const result = await useCase.execute(
+      userId,
+      { ...baseDto, defaultAccountId: '00000000-0000-4000-8000-000000000099' },
+      'UTC',
+    );
+    expect(result.defaultAccountId).toBe('00000000-0000-4000-8000-000000000099');
   });
 
   it('defaults frequencyMonths to 1 (monthly) when not provided', async () => {
@@ -103,34 +107,10 @@ describe('CreateMonthlyServiceUseCase', () => {
     expect(result.startPeriod).toMatch(/^\d{4}-\d{2}$/);
   });
 
-  it('throws ACCOUNT_NOT_FOUND when default account does not exist', async () => {
-    accountRepo.findById.mockResolvedValue(null);
-
-    await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow(DomainException);
-    await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow('Cuenta no encontrada');
-  });
-
-  it('throws ACCOUNT_NOT_FOUND when account is owned by another user', async () => {
-    accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: 'acc-1', userId: 'other', currency: Currency.PEN }),
-    );
-
-    await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow('Cuenta no encontrada');
-  });
-
-  it('throws CURRENCY_MISMATCH when dto currency does not match account currency', async () => {
-    accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: 'acc-1', userId, currency: Currency.USD }),
-    );
-
-    await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow(
-      'La moneda del servicio debe coincidir con la moneda de la cuenta por defecto',
-    );
-  });
-
   it('throws CATEGORY_NOT_FOUND when category does not exist', async () => {
     categoryRepo.findById.mockResolvedValue(null);
 
+    await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow(DomainException);
     await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow(
       'Categoría no encontrada',
     );
