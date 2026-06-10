@@ -11,12 +11,12 @@ import { UserAlertDismissal } from '../../../domain/user-alert-dismissal.entity'
 import { GetAlertsForUserUseCase } from '../get-alerts.use-case';
 
 import type { UserAlertDismissalRepository } from '../../../domain/user-alert-dismissal.repository';
+import type { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import type { BudgetRepository } from '@modules/budgets/domain/budget.repository';
 import type { ChoreRepository } from '@modules/chores/domain/chore.repository';
 import type { HabitRepository } from '@modules/habits/domain/habit.repository';
 import type { HabitLogRepository } from '@modules/habits/domain/habit-log.repository';
 import type { MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
-import type { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
 import type { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
 const USER_ID = 'user-1';
@@ -78,9 +78,11 @@ function buildUseCase(
     softDelete: jest.fn(),
   };
 
-  const txRepo = {
-    sumAmountByBudgetId: jest.fn((id: string) => Promise.resolve(budgetSpentMap.get(id) ?? 0)),
-  } as unknown as TransactionRepository;
+  // v1.0.0: budget overspent alert sums movements from the new
+  // `budget_movements` table, not legacy `transactions`.
+  const budgetMovementRepo = {
+    sumByBudgetId: jest.fn((id: string) => Promise.resolve(budgetSpentMap.get(id) ?? 0)),
+  } as unknown as BudgetMovementRepository;
 
   const choresRepo: jest.Mocked<ChoreRepository> = {
     findByUserId: jest.fn().mockResolvedValue(chores),
@@ -110,7 +112,7 @@ function buildUseCase(
     habitsRepo,
     habitLogsRepo,
     budgetsRepo,
-    txRepo,
+    budgetMovementRepo,
     choresRepo,
     userSettingsRepo,
     dismissalsRepo,

@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
 import { DomainException } from '@common/exceptions/domain.exception';
-import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
+import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 
 import { Budget } from '../../domain/budget.entity';
 import { BudgetRepository } from '../../domain/budget.repository';
 
 import { type BudgetKpiSnapshot, computeBudgetKpi } from './compute-budget-kpi';
 
-import type { Transaction } from '@modules/transactions/domain/transaction.entity';
+import type { BudgetMovement } from '@modules/budget-movements/domain/budget-movement.entity';
 
 export interface BudgetDetailResult {
   budget: Budget;
-  movements: Transaction[];
+  movements: BudgetMovement[];
   kpi: BudgetKpiSnapshot;
 }
 
@@ -21,12 +21,16 @@ export interface BudgetDetailResult {
  * view ("ver mi budget de marzo") — KPI for past months returns
  * `daysRemainingIncludingToday: 0` and `dailyAllowance: null`, but the
  * `spent`/`remaining` numbers still reflect what actually happened.
+ *
+ * v1.0.0 (`accounts-to-modular-finance` refactor): reads from the
+ * `budget_movements` table — see `GetCurrentBudgetUseCase` for the
+ * rationale.
  */
 @Injectable()
 export class GetBudgetUseCase {
   constructor(
     private readonly budgetRepo: BudgetRepository,
-    private readonly txRepo: TransactionRepository,
+    private readonly budgetMovementRepo: BudgetMovementRepository,
   ) {}
 
   async execute(id: string, userId: string, timezone: string): Promise<BudgetDetailResult> {
@@ -36,8 +40,8 @@ export class GetBudgetUseCase {
     }
 
     const [movements, spent] = await Promise.all([
-      this.txRepo.findByBudgetId(budget.id),
-      this.txRepo.sumAmountByBudgetId(budget.id),
+      this.budgetMovementRepo.findByBudgetId(budget.id),
+      this.budgetMovementRepo.sumByBudgetId(budget.id),
     ]);
     const kpi = computeBudgetKpi(budget, spent, timezone);
 

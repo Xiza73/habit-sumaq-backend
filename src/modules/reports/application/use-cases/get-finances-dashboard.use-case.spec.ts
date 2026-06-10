@@ -56,6 +56,8 @@ describe('GetFinancesDashboardUseCase', () => {
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn().mockResolvedValue([]),
       dailyByCurrencyInRange: jest.fn().mockResolvedValue([]),
+      findLastNByServiceId: jest.fn().mockResolvedValue([]),
+      sumByServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
       save: jest.fn(),
       softDelete: jest.fn(),
     };

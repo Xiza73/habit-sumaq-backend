@@ -1,4 +1,4 @@
-import { type TransactionRepository } from '@modules/transactions/domain/transaction.repository';
+import { type MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 
 import { buildMonthlyService } from '../../domain/__tests__/monthly-service.factory';
 import { type MonthlyServiceRepository } from '../../domain/monthly-service.repository';
@@ -8,7 +8,7 @@ import { ListMonthlyServicesUseCase } from './list-monthly-services.use-case';
 describe('ListMonthlyServicesUseCase', () => {
   let useCase: ListMonthlyServicesUseCase;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
-  let txRepo: jest.Mocked<TransactionRepository>;
+  let paymentRepo: jest.Mocked<MonthlyServicePaymentRepository>;
 
   const currentPeriod = '2026-05';
   const timezone = 'America/Lima';
@@ -22,30 +22,22 @@ describe('ListMonthlyServicesUseCase', () => {
       softDelete: jest.fn(),
     };
 
-    // Only `sumAmountByMonthlyServiceIdsInPeriod` is touched by this use case
-    // — the other methods are stubbed to keep `jest.Mocked<TransactionRepository>`
-    // happy without expanding the surface area under test.
-    txRepo = {
-      findByUserId: jest.fn(),
+    // Only `sumByServiceIdsInPeriod` is touched by this use case — the rest
+    // are stubbed to satisfy the `jest.Mocked<MonthlyServicePaymentRepository>`
+    // shape without expanding the surface area under test.
+    paymentRepo = {
+      findByServiceId: jest.fn(),
       findById: jest.fn(),
-      findByRelatedTransactionId: jest.fn(),
+      findByServiceAndPeriod: jest.fn(),
+      sumByCurrencyInRange: jest.fn(),
+      dailyByCurrencyInRange: jest.fn(),
+      findLastNByServiceId: jest.fn(),
+      sumByServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map<string, number>()),
       save: jest.fn(),
       softDelete: jest.fn(),
-      existsByAccountId: jest.fn(),
-      countByMonthlyServiceId: jest.fn(),
-      findLastNByMonthlyServiceId: jest.fn(),
-      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map<string, number>()),
-      findByBudgetId: jest.fn(),
-      sumAmountByBudgetId: jest.fn(),
-      clearBudgetIdForBudget: jest.fn(),
-      aggregateDebtsByReference: jest.fn(),
-      findPendingDebtOrLoanByNormalizedReference: jest.fn(),
-      sumFlowByCurrencyInRange: jest.fn(),
-      topExpenseCategoriesInRange: jest.fn(),
-      dailyNetFlowInRange: jest.fn(),
     };
 
-    useCase = new ListMonthlyServicesUseCase(serviceRepo, txRepo);
+    useCase = new ListMonthlyServicesUseCase(serviceRepo, paymentRepo);
   });
 
   it('returns an empty list (and skips the SQL aggregate) when the user has no services', async () => {
@@ -56,7 +48,7 @@ describe('ListMonthlyServicesUseCase', () => {
     expect(result).toEqual([]);
     expect(serviceRepo.findByUserId).toHaveBeenCalledWith('user-1', false);
     // Empty serviceIds is a wasted round-trip — the use case short-circuits.
-    expect(txRepo.sumAmountByMonthlyServiceIdsInPeriod).not.toHaveBeenCalled();
+    expect(paymentRepo.sumByServiceIdsInPeriod).not.toHaveBeenCalled();
   });
 
   it('forwards includeArchived=true to the repository', async () => {
@@ -65,7 +57,7 @@ describe('ListMonthlyServicesUseCase', () => {
     expect(serviceRepo.findByUserId).toHaveBeenCalledWith('user-1', true);
   });
 
-  it('attaches paidAmountForCurrentMonth from the repo aggregate, defaulting to 0 when absent', async () => {
+  it('attaches paidAmountForCurrentMonth from the v1.0.0 payments aggregate, defaulting to 0 when absent', async () => {
     const services = [
       buildMonthlyService({ id: 'svc-1', userId: 'user-1' }),
       buildMonthlyService({ id: 'svc-2', userId: 'user-1' }),
@@ -75,7 +67,7 @@ describe('ListMonthlyServicesUseCase', () => {
     // Only two of the three services have payments this period — the third
     // must surface as 0 (not undefined / null) so the frontend can sum without
     // nullish guards.
-    txRepo.sumAmountByMonthlyServiceIdsInPeriod.mockResolvedValue(
+    paymentRepo.sumByServiceIdsInPeriod.mockResolvedValue(
       new Map([
         ['svc-1', 35.5],
         ['svc-2', 90],
@@ -89,10 +81,12 @@ describe('ListMonthlyServicesUseCase', () => {
       { service: services[1], paidAmountForCurrentMonth: 90 },
       { service: services[2], paidAmountForCurrentMonth: 0 },
     ]);
-    expect(txRepo.sumAmountByMonthlyServiceIdsInPeriod).toHaveBeenCalledWith(
+    // v1.0.0: no timezone arg because the MSP table buckets by literal
+    // YYYY-MM period column (the repo's `sumByServiceIdsInPeriod` is
+    // timezone-free).
+    expect(paymentRepo.sumByServiceIdsInPeriod).toHaveBeenCalledWith(
       ['svc-1', 'svc-2', 'svc-3'],
       currentPeriod,
-      timezone,
     );
   });
 });

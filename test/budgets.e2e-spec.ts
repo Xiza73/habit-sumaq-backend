@@ -18,6 +18,7 @@ import { ResponseTransformInterceptor } from '../src/common/interceptors/respons
 import { buildAccount } from '../src/modules/accounts/domain/__tests__/account.factory';
 import { AccountRepository } from '../src/modules/accounts/domain/account.repository';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
+import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
 import { AddBudgetMovementUseCase } from '../src/modules/budgets/application/use-cases/add-budget-movement.use-case';
 import { CreateBudgetUseCase } from '../src/modules/budgets/application/use-cases/create-budget.use-case';
 import { DeleteBudgetUseCase } from '../src/modules/budgets/application/use-cases/delete-budget.use-case';
@@ -50,6 +51,19 @@ describe('BudgetsController (e2e)', () => {
     findByUserId: jest.fn(),
     findById: jest.fn(),
     findByPeriodAndCurrency: jest.fn(),
+    save: jest.fn(),
+    softDelete: jest.fn(),
+  };
+
+  // v1.0.0: GetCurrentBudgetUseCase + GetBudgetUseCase read movements +
+  // spent from the budget_movements module.
+  const mockBudgetMovementRepo: jest.Mocked<BudgetMovementRepository> = {
+    findByBudgetId: jest.fn().mockResolvedValue([]),
+    findById: jest.fn(),
+    sumByBudgetId: jest.fn().mockResolvedValue(0),
+    sumByCurrencyInRange: jest.fn(),
+    topCategoriesByCurrencyInRange: jest.fn(),
+    dailyByCurrencyInRange: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };
@@ -112,6 +126,7 @@ describe('BudgetsController (e2e)', () => {
         DeleteBudgetUseCase,
         AddBudgetMovementUseCase,
         { provide: BudgetRepository, useValue: mockBudgetRepo },
+        { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: AccountRepository, useValue: mockAccountRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
@@ -201,8 +216,9 @@ describe('BudgetsController (e2e)', () => {
     it('returns budget + KPI + movements when found', async () => {
       const budget = makeBudget({ id: BUDGET_ID, userId: USER_ID, amount: 1500 });
       mockBudgetRepo.findByPeriodAndCurrency.mockResolvedValue(budget);
-      mockTxRepo.findByBudgetId.mockResolvedValue([]);
-      mockTxRepo.sumAmountByBudgetId.mockResolvedValue(300);
+      // v1.0.0: movements + spent come from `budget_movements`, not `txRepo`.
+      mockBudgetMovementRepo.findByBudgetId.mockResolvedValue([]);
+      mockBudgetMovementRepo.sumByBudgetId.mockResolvedValue(300);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/budgets/current')

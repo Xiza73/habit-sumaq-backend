@@ -85,6 +85,42 @@ export class MonthlyServicePaymentRepositoryImpl extends MonthlyServicePaymentRe
     return rows.map((r) => ({ currency: r.currency, total: Number(r.total) }));
   }
 
+  async findLastNByServiceId(
+    monthlyServiceId: string,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<MonthlyServicePayment[]> {
+    // When called from inside a `dataSource.transaction()` we MUST query
+    // through the manager so the row just saved (uncommitted) is visible —
+    // otherwise the moving-average recompute reads stale data.
+    const m = manager ?? this.ormRepo.manager;
+    const rows = await m.find(MonthlyServicePaymentOrmEntity, {
+      where: { monthlyServiceId, deletedAt: IsNull() },
+      order: { period: 'DESC', date: 'DESC' },
+      take: limit,
+    });
+    return rows.map((r) => this.toDomain(r));
+  }
+
+  async sumByServiceIdsInPeriod(
+    monthlyServiceIds: string[],
+    period: string,
+  ): Promise<Map<string, number>> {
+    if (monthlyServiceIds.length === 0) return new Map();
+    const rows = await this.ormRepo
+      .createQueryBuilder('p')
+      .select('p.monthlyServiceId', 'monthlyServiceId')
+      .addSelect('COALESCE(SUM(p.amount), 0)', 'total')
+      .where('p.monthlyServiceId IN (:...ids)', { ids: monthlyServiceIds })
+      .andWhere('p.deletedAt IS NULL')
+      .andWhere('p.period = :period', { period })
+      .groupBy('p.monthlyServiceId')
+      .getRawMany<{ monthlyServiceId: string; total: string }>();
+    const out = new Map<string, number>();
+    for (const r of rows) out.set(r.monthlyServiceId, Number(r.total));
+    return out;
+  }
+
   async save(
     payment: MonthlyServicePayment,
     manager?: EntityManager,

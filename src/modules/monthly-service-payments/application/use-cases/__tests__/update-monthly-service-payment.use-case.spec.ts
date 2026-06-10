@@ -27,6 +27,8 @@ describe('UpdateMonthlyServicePaymentUseCase', () => {
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn(),
       dailyByCurrencyInRange: jest.fn(),
+      findLastNByServiceId: jest.fn().mockResolvedValue([]),
+      sumByServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
       save: jest.fn().mockImplementation((p) => Promise.resolve(p)),
       softDelete: jest.fn(),
     };

@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { TransactionResponseDto } from '@modules/transactions/application/dto/transaction-response.dto';
+import { BudgetMovementResponseDto } from '@modules/budget-movements/application/dto/budget-movement-response.dto';
 
 import type { Budget } from '../../domain/budget.entity';
-import type { Transaction } from '@modules/transactions/domain/transaction.entity';
+import type { BudgetMovement } from '@modules/budget-movements/domain/budget-movement.entity';
 
 interface KpiSnapshot {
   spent: number;
@@ -71,10 +71,10 @@ export class BudgetWithKpiResponseDto {
   currentDate: string;
 
   @ApiProperty({
-    type: [TransactionResponseDto],
+    type: [BudgetMovementResponseDto],
     description: 'Movimientos del budget, ordenados por fecha DESC.',
   })
-  movements: TransactionResponseDto[];
+  movements: BudgetMovementResponseDto[];
 
   @ApiProperty({ description: 'Fecha de creación' })
   createdAt: Date;
@@ -84,7 +84,7 @@ export class BudgetWithKpiResponseDto {
 
   static fromDomain(
     budget: Budget,
-    movements: Transaction[],
+    movements: BudgetMovement[],
     kpi: KpiSnapshot,
   ): BudgetWithKpiResponseDto {
     const dto = new BudgetWithKpiResponseDto();
@@ -99,7 +99,7 @@ export class BudgetWithKpiResponseDto {
     dto.daysRemainingIncludingToday = kpi.daysRemainingIncludingToday;
     dto.dailyAllowance = kpi.dailyAllowance;
     dto.currentDate = kpi.currentDate;
-    dto.movements = movements.map((tx) => TransactionResponseDto.fromDomain(tx));
+    dto.movements = movements.map((m) => BudgetMovementResponseDto.fromDomain(m));
     dto.createdAt = budget.createdAt;
     dto.updatedAt = budget.updatedAt;
     return dto;

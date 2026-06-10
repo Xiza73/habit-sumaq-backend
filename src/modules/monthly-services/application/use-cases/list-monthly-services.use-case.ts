@@ -1,20 +1,26 @@
 import { Injectable } from '@nestjs/common';
 
-import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
+import { MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 
 import { MonthlyService } from '../../domain/monthly-service.entity';
 import { MonthlyServiceRepository } from '../../domain/monthly-service.repository';
 
 /**
  * What a list-monthly-services call returns to the caller. The `service`
- * is the domain entity; `paidAmountForCurrentMonth` is the **sum of EXPENSE
- * transactions linked to the service in the user's current calendar month**
- * — computed in the user's timezone via the transaction repo aggregate.
+ * is the domain entity; `paidAmountForCurrentMonth` is the **sum of active
+ * payments for the service whose `period` matches the user's current
+ * calendar month** — pulled from the v1.0.0 `monthly_service_payments`
+ * table.
  *
  * This drives the per-currency "Pagado / Estimado" KPI on the services
  * dashboard. We compute it here (and not on every endpoint that emits a
- * service DTO) because only the list view actually surfaces it — keeping the
- * extra SQL round-trip scoped to the one place that needs it.
+ * service DTO) because only the list view actually surfaces it — keeping
+ * the extra SQL round-trip scoped to the one place that needs it.
+ *
+ * v1.0.0 (`accounts-to-modular-finance` refactor): the aggregate now comes
+ * from `monthly_service_payments` instead of legacy `transactions`. The
+ * MSP table stores `period` as a literal `YYYY-MM` column, so the
+ * timezone/AT-TIME-ZONE math the legacy repo needed goes away.
  */
 export interface MonthlyServiceWithPaidAmount {
   service: MonthlyService;
@@ -25,22 +31,26 @@ export interface MonthlyServiceWithPaidAmount {
 export class ListMonthlyServicesUseCase {
   constructor(
     private readonly serviceRepo: MonthlyServiceRepository,
-    private readonly txRepo: TransactionRepository,
+    private readonly paymentRepo: MonthlyServicePaymentRepository,
   ) {}
 
   async execute(
     userId: string,
     includeArchived: boolean,
     currentPeriod: string,
-    timezone: string,
+    // `timezone` is no longer needed — the MSP repo aggregates by literal
+    // `period` column, not by `date AT TIME ZONE`. We keep the parameter
+    // in the signature for now so the controller doesn't need to change;
+    // the parameter is a no-op and will be dropped in A6-B together with
+    // the rest of the legacy plumbing.
+    _timezone: string,
   ): Promise<MonthlyServiceWithPaidAmount[]> {
     const services = await this.serviceRepo.findByUserId(userId, includeArchived);
     if (services.length === 0) return [];
 
-    const paidByService = await this.txRepo.sumAmountByMonthlyServiceIdsInPeriod(
+    const paidByService = await this.paymentRepo.sumByServiceIdsInPeriod(
       services.map((s) => s.id),
       currentPeriod,
-      timezone,
     );
 
     return services.map((service) => ({

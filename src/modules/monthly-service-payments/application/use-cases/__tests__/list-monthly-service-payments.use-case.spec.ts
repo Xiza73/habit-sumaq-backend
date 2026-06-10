@@ -21,6 +21,8 @@ describe('ListMonthlyServicePaymentsUseCase', () => {
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn(),
       dailyByCurrencyInRange: jest.fn(),
+      findLastNByServiceId: jest.fn(),
+      sumByServiceIdsInPeriod: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
     };
