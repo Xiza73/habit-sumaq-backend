@@ -45,6 +45,7 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
     findById: jest.fn(),
     findByServiceAndPeriod: jest.fn(),
     sumByCurrencyInRange: jest.fn(),
+    dailyByCurrencyInRange: jest.fn(),
     save: jest.fn().mockImplementation((p) => Promise.resolve(p)),
     softDelete: jest.fn(),
   };

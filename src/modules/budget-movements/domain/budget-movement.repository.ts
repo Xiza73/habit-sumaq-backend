@@ -40,6 +40,19 @@ export abstract class BudgetMovementRepository {
   ): Promise<Array<{ currency: string; total: number }>>;
 
   /**
+   * Per-day per-currency expense timeline over `[from, to)`. Used by
+   * the finances-dashboard `dailyFlow` widget. Filters out soft-deleted
+   * rows. Each row's `date` field is rendered as `YYYY-MM-DD` so the
+   * web's chart code can index without timezone gymnastics — the
+   * date is truncated in UTC (consistent with the legacy tx widget).
+   */
+  abstract dailyByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ date: string; currency: string; total: number }>>;
+
+  /**
    * Top N expense categories by `SUM(amount)` over `[from, to)`,
    * grouped by `(categoryId, currency)`. Rows with `categoryId IS NULL`
    * are surfaced with `name = null` so the UI can render an

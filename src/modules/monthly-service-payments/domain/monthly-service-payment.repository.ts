@@ -41,6 +41,18 @@ export abstract class MonthlyServicePaymentRepository {
     to: Date,
   ): Promise<Array<{ currency: string; total: number }>>;
 
+  /**
+   * Per-day per-currency expense timeline over `[from, to)`. Used by
+   * the finances-dashboard `dailyFlow` widget. Same shape as the
+   * budget-movements counterpart so the use case can merge them with
+   * a single map.
+   */
+  abstract dailyByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ date: string; currency: string; total: number }>>;
+
   abstract save(
     payment: MonthlyServicePayment,
     manager?: EntityManager,

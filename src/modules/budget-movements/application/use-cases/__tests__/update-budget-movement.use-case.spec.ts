@@ -31,6 +31,7 @@ describe('UpdateBudgetMovementUseCase', () => {
       sumByBudgetId: jest.fn(),
       sumByCurrencyInRange: jest.fn(),
       topCategoriesByCurrencyInRange: jest.fn(),
+      dailyByCurrencyInRange: jest.fn(),
       save: jest.fn().mockImplementation((m) => Promise.resolve(m)),
       softDelete: jest.fn(),
     };
