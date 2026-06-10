@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AccountsModule } from '@modules/accounts/presentation/accounts.module';
 import { CategoriesModule } from '@modules/categories/presentation/categories.module';
+import { MonthlyServicePaymentsModule } from '@modules/monthly-service-payments/presentation/monthly-service-payments.module';
 import { TransactionsModule } from '@modules/transactions/presentation/transactions.module';
 
 import { ArchiveMonthlyServiceUseCase } from '../application/use-cases/archive-monthly-service.use-case';
@@ -24,6 +25,12 @@ import { MonthlyServicesController } from './monthly-services.controller';
     TypeOrmModule.forFeature([MonthlyServiceOrmEntity]),
     AccountsModule,
     CategoriesModule,
+    // forwardRef breaks the cycle: MonthlyServicePaymentsModule imports
+    // this module for `MonthlyServiceRepository`; this module needs the
+    // payments module for `MonthlyServicePaymentRepository` (consumed by
+    // `ListMonthlyServicesUseCase` to compute the per-service "paid amount
+    // for current month" KPI from v1.0.0 payments).
+    forwardRef(() => MonthlyServicePaymentsModule),
     TransactionsModule,
   ],
   controllers: [MonthlyServicesController],

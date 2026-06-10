@@ -1,3 +1,5 @@
+import { type EntityManager } from 'typeorm';
+
 import type { MonthlyService } from './monthly-service.entity';
 
 export abstract class MonthlyServiceRepository {
@@ -13,7 +15,12 @@ export abstract class MonthlyServiceRepository {
    */
   abstract findActiveByUserIdAndName(userId: string, name: string): Promise<MonthlyService | null>;
 
-  abstract save(service: MonthlyService): Promise<MonthlyService>;
+  /**
+   * `manager` is optional — pass the one from a `dataSource.transaction(...)`
+   * to atomically save the service alongside other rows (e.g. the MSP create
+   * use case syncs the service entity together with the payment + pool delta).
+   */
+  abstract save(service: MonthlyService, manager?: EntityManager): Promise<MonthlyService>;
 
   /**
    * Soft-deletes by id (marks deletedAt=now). Used only after validating there

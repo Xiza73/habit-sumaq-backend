@@ -20,6 +20,7 @@ import { AccountRepository } from '../src/modules/accounts/domain/account.reposi
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 import { buildCategory } from '../src/modules/categories/domain/__tests__/category.factory';
 import { CategoryRepository } from '../src/modules/categories/domain/category.repository';
+import { MonthlyServicePaymentRepository } from '../src/modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { ArchiveMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/create-monthly-service.use-case';
 import { DeleteMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/delete-monthly-service.use-case';
@@ -53,6 +54,20 @@ describe('MonthlyServicesController (e2e)', () => {
     findByUserId: jest.fn(),
     findById: jest.fn(),
     findActiveByUserIdAndName: jest.fn(),
+    save: jest.fn(),
+    softDelete: jest.fn(),
+  };
+
+  // v1.0.0: ListMonthlyServicesUseCase reads paidAmountForCurrentMonth from
+  // the new payments module instead of legacy transactions.
+  const mockPaymentRepo: jest.Mocked<MonthlyServicePaymentRepository> = {
+    findByServiceId: jest.fn(),
+    findById: jest.fn(),
+    findByServiceAndPeriod: jest.fn(),
+    sumByCurrencyInRange: jest.fn(),
+    dailyByCurrencyInRange: jest.fn(),
+    findLastNByServiceId: jest.fn(),
+    sumByServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
     save: jest.fn(),
     softDelete: jest.fn(),
   };
@@ -116,6 +131,7 @@ describe('MonthlyServicesController (e2e)', () => {
         ArchiveMonthlyServiceUseCase,
         DeleteMonthlyServiceUseCase,
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
+        { provide: MonthlyServicePaymentRepository, useValue: mockPaymentRepo },
         { provide: AccountRepository, useValue: mockAccountRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
         { provide: TransactionRepository, useValue: mockTxRepo },

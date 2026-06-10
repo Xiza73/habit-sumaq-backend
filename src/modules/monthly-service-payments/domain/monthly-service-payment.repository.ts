@@ -53,6 +53,35 @@ export abstract class MonthlyServicePaymentRepository {
     to: Date,
   ): Promise<Array<{ date: string; currency: string; total: number }>>;
 
+  /**
+   * Returns the most recent N active payments for `monthlyServiceId`,
+   * ordered by `period` desc, then `date` desc. Used by the create-payment
+   * use case to recompute `service.estimatedAmount` and `service.dueDay`
+   * as a moving average over the most recent N payments. Excludes
+   * soft-deleted rows. Same convention as the legacy
+   * `txRepo.findLastNByMonthlyServiceId`.
+   */
+  abstract findLastNByServiceId(
+    monthlyServiceId: string,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<MonthlyServicePayment[]>;
+
+  /**
+   * Sum of `amount` per service for active payments in `period` (YYYY-MM).
+   * Returns a `Map<serviceId, total>` — services with no payment in the
+   * period are absent from the map (callers treat as 0). Used by the
+   * monthly-services list KPI ("Pagado / Estimado" per currency).
+   *
+   * v1.0.0 simplification: `monthly_service_payments` stores `period`
+   * as a literal `YYYY-MM` column, so no timezone math is needed (unlike
+   * the legacy txRepo counterpart that had to bucket on `date AT TIME ZONE`).
+   */
+  abstract sumByServiceIdsInPeriod(
+    monthlyServiceIds: string[],
+    period: string,
+  ): Promise<Map<string, number>>;
+
   abstract save(
     payment: MonthlyServicePayment,
     manager?: EntityManager,

@@ -19,6 +19,7 @@ import { MarkAlertsSeenUseCase } from '../src/modules/alerts/application/use-cas
 import { UserAlertDismissalRepository } from '../src/modules/alerts/domain/user-alert-dismissal.repository';
 import { AlertsController } from '../src/modules/alerts/presentation/alerts.controller';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
+import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
 import { BudgetRepository } from '../src/modules/budgets/domain/budget.repository';
 import { ChoreRepository } from '../src/modules/chores/domain/chore.repository';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
@@ -80,6 +81,12 @@ describe('AlertsController (e2e)', () => {
     sumAmountByBudgetId: jest.fn(),
   } as unknown as jest.Mocked<TransactionRepository>;
 
+  // v1.0.0: budget-overspent alert now reads movement sums from
+  // `budget_movements`, not legacy transactions.
+  const mockBudgetMovementRepo = {
+    sumByBudgetId: jest.fn().mockResolvedValue(0),
+  } as unknown as jest.Mocked<BudgetMovementRepository>;
+
   const mockChoreRepo = {
     findByUserId: jest.fn(),
     findById: jest.fn(),
@@ -118,6 +125,7 @@ describe('AlertsController (e2e)', () => {
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
         { provide: BudgetRepository, useValue: mockBudgetRepo },
+        { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: TransactionRepository, useValue: mockTxRepo },
         { provide: ChoreRepository, useValue: mockChoreRepo },
         { provide: UserSettingsRepository, useValue: mockUserSettingsRepo },

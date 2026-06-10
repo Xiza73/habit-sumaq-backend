@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { ClientTimezone } from '@common/decorators/client-timezone.decorator';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
@@ -84,9 +85,13 @@ export class MonthlyServicePaymentsController {
   @ApiResponse({ status: 422, description: 'MSP_005: período mal formado' })
   async create(
     @CurrentUser() user: JwtPayload,
+    @ClientTimezone() timezone: string,
     @Body() body: CreateMonthlyServicePaymentDto,
   ): Promise<ApiResponseDto<MonthlyServicePaymentResponseDto>> {
-    const payment = await this.createUseCase.execute(user.sub, body);
+    // `timezone` is forwarded to the use case so `dueDay` re-averaging
+    // (over the recent payment dates) lines up with the user's local
+    // calendar — same convention as the legacy pay endpoint.
+    const payment = await this.createUseCase.execute(user.sub, body, timezone);
     return ApiResponseDto.ok(
       MonthlyServicePaymentResponseDto.fromDomain(payment),
       'Pago registrado',

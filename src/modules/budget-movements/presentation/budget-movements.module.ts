@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { BudgetsModule } from '@modules/budgets/presentation/budgets.module';
@@ -31,7 +31,8 @@ import { BudgetMovementsController } from './budget-movements.controller';
 @Module({
   imports: [
     TypeOrmModule.forFeature([BudgetMovementOrmEntity]),
-    BudgetsModule,
+    // forwardRef — see BudgetsModule for the rationale.
+    forwardRef(() => BudgetsModule),
     CurrencyPoolsModule,
   ],
   controllers: [BudgetMovementsController],
