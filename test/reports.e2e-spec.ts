@@ -21,6 +21,7 @@ import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies
 import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
 import { buildCurrencyPool } from '../src/modules/currency-pools/domain/__tests__/currency-pool.factory';
 import { CurrencyPoolRepository } from '../src/modules/currency-pools/domain/currency-pool.repository';
+import { DebtLoanRepository } from '../src/modules/debts-loans/domain/debt-loan.repository';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
 import { buildHabitLog } from '../src/modules/habits/domain/__tests__/habit-log.factory';
 import { HabitFrequency } from '../src/modules/habits/domain/enums/habit-frequency.enum';
@@ -32,7 +33,6 @@ import { QuickTaskRepository } from '../src/modules/quick-tasks/domain/quick-tas
 import { GetFinancesDashboardUseCase } from '../src/modules/reports/application/use-cases/get-finances-dashboard.use-case';
 import { GetRoutinesDashboardUseCase } from '../src/modules/reports/application/use-cases/get-routines-dashboard.use-case';
 import { ReportsController } from '../src/modules/reports/presentation/reports.controller';
-import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 import { buildUserSettings } from '../src/modules/users/domain/__tests__/user-settings.factory';
 import { UserSettingsRepository } from '../src/modules/users/domain/user-settings.repository';
 
@@ -67,6 +67,7 @@ describe('ReportsController (e2e)', () => {
     sumByBudgetId: jest.fn(),
     sumByCurrencyInRange: jest.fn(),
     topCategoriesByCurrencyInRange: jest.fn(),
+    dailyByCurrencyInRange: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };
@@ -76,28 +77,18 @@ describe('ReportsController (e2e)', () => {
     findById: jest.fn(),
     findByServiceAndPeriod: jest.fn(),
     sumByCurrencyInRange: jest.fn(),
+    dailyByCurrencyInRange: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };
 
-  const mockTxRepo: jest.Mocked<TransactionRepository> = {
+  const mockDebtLoanRepo: jest.Mocked<DebtLoanRepository> = {
     findByUserId: jest.fn(),
     findById: jest.fn(),
-    findByRelatedTransactionId: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
-    existsByAccountId: jest.fn(),
-    aggregateDebtsByReference: jest.fn(),
-    findPendingDebtOrLoanByNormalizedReference: jest.fn(),
-    sumFlowByCurrencyInRange: jest.fn(),
-    topExpenseCategoriesInRange: jest.fn(),
-    dailyNetFlowInRange: jest.fn(),
-    countByMonthlyServiceId: jest.fn(),
-    findLastNByMonthlyServiceId: jest.fn(),
-    sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
-    findByBudgetId: jest.fn(),
-    sumAmountByBudgetId: jest.fn(),
-    clearBudgetIdForBudget: jest.fn(),
+    aggregateByReference: jest.fn(),
+    findPendingByNormalizedReference: jest.fn(),
   };
 
   const mockHabitRepo: jest.Mocked<HabitRepository> = {
@@ -153,7 +144,7 @@ describe('ReportsController (e2e)', () => {
         { provide: CurrencyPoolRepository, useValue: mockPoolRepo },
         { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: MonthlyServicePaymentRepository, useValue: mockMspRepo },
-        { provide: TransactionRepository, useValue: mockTxRepo },
+        { provide: DebtLoanRepository, useValue: mockDebtLoanRepo },
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
         { provide: QuickTaskRepository, useValue: mockQuickTaskRepo },
@@ -193,11 +184,10 @@ describe('ReportsController (e2e)', () => {
     mockPoolRepo.findByUserId.mockResolvedValue([]);
     mockBudgetMovementRepo.sumByCurrencyInRange.mockResolvedValue([]);
     mockBudgetMovementRepo.topCategoriesByCurrencyInRange.mockResolvedValue([]);
+    mockBudgetMovementRepo.dailyByCurrencyInRange.mockResolvedValue([]);
     mockMspRepo.sumByCurrencyInRange.mockResolvedValue([]);
-    mockTxRepo.sumFlowByCurrencyInRange.mockResolvedValue([]);
-    mockTxRepo.topExpenseCategoriesInRange.mockResolvedValue([]);
-    mockTxRepo.dailyNetFlowInRange.mockResolvedValue([]);
-    mockTxRepo.aggregateDebtsByReference.mockResolvedValue([]);
+    mockMspRepo.dailyByCurrencyInRange.mockResolvedValue([]);
+    mockDebtLoanRepo.aggregateByReference.mockResolvedValue([]);
     mockHabitRepo.findByUserId.mockResolvedValue([]);
     mockHabitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
     mockHabitLogRepo.findByUserIdAndDate.mockResolvedValue([]);

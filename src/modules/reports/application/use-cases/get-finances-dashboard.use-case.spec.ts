@@ -4,11 +4,11 @@ import { type AccountRepository } from '@modules/accounts/domain/account.reposit
 import { type BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { buildCurrencyPool } from '@modules/currency-pools/domain/__tests__/currency-pool.factory';
 import { type CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
-import { type MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import {
+  type DebtLoanRepository,
   type DebtsSummaryRow,
-  type TransactionRepository,
-} from '@modules/transactions/domain/transaction.repository';
+} from '@modules/debts-loans/domain/debt-loan.repository';
+import { type MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { buildUserSettings } from '@modules/users/domain/__tests__/user-settings.factory';
 import { type UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
@@ -20,7 +20,7 @@ describe('GetFinancesDashboardUseCase', () => {
   let poolRepo: jest.Mocked<CurrencyPoolRepository>;
   let budgetMovementRepo: jest.Mocked<BudgetMovementRepository>;
   let mspRepo: jest.Mocked<MonthlyServicePaymentRepository>;
-  let txRepo: jest.Mocked<TransactionRepository>;
+  let debtLoanRepo: jest.Mocked<DebtLoanRepository>;
   let settingsRepo: jest.Mocked<UserSettingsRepository>;
 
   beforeEach(() => {
@@ -45,6 +45,7 @@ describe('GetFinancesDashboardUseCase', () => {
       sumByBudgetId: jest.fn(),
       sumByCurrencyInRange: jest.fn().mockResolvedValue([]),
       topCategoriesByCurrencyInRange: jest.fn().mockResolvedValue([]),
+      dailyByCurrencyInRange: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
       softDelete: jest.fn(),
     };
@@ -54,28 +55,18 @@ describe('GetFinancesDashboardUseCase', () => {
       findById: jest.fn(),
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn().mockResolvedValue([]),
+      dailyByCurrencyInRange: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
       softDelete: jest.fn(),
     };
 
-    txRepo = {
-      findByUserId: jest.fn(),
+    debtLoanRepo = {
       findById: jest.fn(),
-      findByRelatedTransactionId: jest.fn(),
+      findByUserId: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-      existsByAccountId: jest.fn(),
-      aggregateDebtsByReference: jest.fn().mockResolvedValue([]),
-      findPendingDebtOrLoanByNormalizedReference: jest.fn(),
-      sumFlowByCurrencyInRange: jest.fn().mockResolvedValue([]),
-      topExpenseCategoriesInRange: jest.fn().mockResolvedValue([]),
-      dailyNetFlowInRange: jest.fn().mockResolvedValue([]),
-      countByMonthlyServiceId: jest.fn(),
-      findLastNByMonthlyServiceId: jest.fn(),
-      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
-      findByBudgetId: jest.fn(),
-      sumAmountByBudgetId: jest.fn(),
-      clearBudgetIdForBudget: jest.fn(),
+      aggregateByReference: jest.fn().mockResolvedValue([]),
+      findPendingByNormalizedReference: jest.fn(),
     };
 
     settingsRepo = {
@@ -89,7 +80,7 @@ describe('GetFinancesDashboardUseCase', () => {
       poolRepo,
       budgetMovementRepo,
       mspRepo,
-      txRepo,
+      debtLoanRepo,
       settingsRepo,
     );
   });
@@ -210,32 +201,57 @@ describe('GetFinancesDashboardUseCase', () => {
     ]);
   });
 
-  it('groups daily flow rows into a series per currency', async () => {
-    txRepo.dailyNetFlowInRange.mockResolvedValue([
-      { date: '2026-04-19', currency: 'PEN', income: 100, expense: 50 },
-      { date: '2026-04-20', currency: 'PEN', income: 0, expense: 30 },
-      { date: '2026-04-20', currency: 'USD', income: 20, expense: 0 },
-    ]);
+  describe('dailyFlow (v1.0.0 Path A — pure new-module)', () => {
+    it('merges budget_movements + monthly_service_payments per (date, currency); income = 0', async () => {
+      // BM contributes 2 dates in PEN, 1 date in USD.
+      budgetMovementRepo.dailyByCurrencyInRange.mockResolvedValue([
+        { date: '2026-04-19', currency: 'PEN', total: 50 },
+        { date: '2026-04-20', currency: 'PEN', total: 30 },
+        { date: '2026-04-20', currency: 'USD', total: 10 },
+      ]);
+      // MSP contributes a same-day overlap (PEN 2026-04-19) and a new date in PEN.
+      mspRepo.dailyByCurrencyInRange.mockResolvedValue([
+        { date: '2026-04-19', currency: 'PEN', total: 100 },
+        { date: '2026-04-21', currency: 'PEN', total: 20 },
+      ]);
 
-    const result = await useCase.execute('user-1');
+      const result = await useCase.execute('user-1');
 
-    expect(result.dailyFlow).toEqual([
-      {
-        currency: 'PEN',
-        points: [
-          { date: '2026-04-19', income: 100, expense: 50 },
-          { date: '2026-04-20', income: 0, expense: 30 },
-        ],
-      },
-      { currency: 'USD', points: [{ date: '2026-04-20', income: 20, expense: 0 }] },
-    ]);
+      expect(result.dailyFlow).toEqual([
+        {
+          currency: 'PEN',
+          // Overlap on 2026-04-19: 50 + 100 = 150.
+          points: [
+            { date: '2026-04-19', income: 0, expense: 150 },
+            { date: '2026-04-20', income: 0, expense: 30 },
+            { date: '2026-04-21', income: 0, expense: 20 },
+          ],
+        },
+        { currency: 'USD', points: [{ date: '2026-04-20', income: 0, expense: 10 }] },
+      ]);
+    });
+
+    it('sorts points by date ASC even when source rows arrive unordered', async () => {
+      budgetMovementRepo.dailyByCurrencyInRange.mockResolvedValue([
+        { date: '2026-04-21', currency: 'PEN', total: 30 },
+        { date: '2026-04-19', currency: 'PEN', total: 10 },
+      ]);
+      mspRepo.dailyByCurrencyInRange.mockResolvedValue([
+        { date: '2026-04-20', currency: 'PEN', total: 20 },
+      ]);
+
+      const result = await useCase.execute('user-1');
+
+      const dates = result.dailyFlow[0].points.map((p) => p.date);
+      expect(dates).toEqual(['2026-04-19', '2026-04-20', '2026-04-21']);
+    });
   });
 
-  it('collapses pending-debts rows into a per-currency KPI', async () => {
+  it('collapses pending-debts rows from debts-loans into a per-currency KPI', async () => {
     const rows: DebtsSummaryRow[] = [
       {
         reference: 'juan',
-        currency: 'PEN',
+        currency: Currency.PEN,
         displayName: 'Juan',
         pendingDebt: 100,
         pendingLoan: 200,
@@ -245,7 +261,7 @@ describe('GetFinancesDashboardUseCase', () => {
       },
       {
         reference: 'maria',
-        currency: 'PEN',
+        currency: Currency.PEN,
         displayName: 'María',
         pendingDebt: 50,
         pendingLoan: 0,
@@ -254,11 +270,13 @@ describe('GetFinancesDashboardUseCase', () => {
         settledCount: 0,
       },
     ];
-    txRepo.aggregateDebtsByReference.mockResolvedValue(rows);
+    debtLoanRepo.aggregateByReference.mockResolvedValue(rows);
 
     const result = await useCase.execute('user-1');
 
     expect(result.pendingDebts).toEqual([{ currency: 'PEN', owesYou: 200, youOwe: 150, net: 50 }]);
+    // Verifies we ask for PENDING-only — settled aggregation is out of scope.
+    expect(debtLoanRepo.aggregateByReference).toHaveBeenCalledWith('user-1', 'pending');
   });
 
   it('honors a non-default period', async () => {

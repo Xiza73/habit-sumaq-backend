@@ -3,8 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { AccountRepository } from '@modules/accounts/domain/account.repository';
 import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
+import { DebtLoanRepository } from '@modules/debts-loans/domain/debt-loan.repository';
 import { MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
-import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
 import { StartOfWeek } from '@modules/users/domain/enums/start-of-week.enum';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
@@ -22,7 +22,7 @@ export class GetFinancesDashboardUseCase {
     private readonly poolRepo: CurrencyPoolRepository,
     private readonly budgetMovementRepo: BudgetMovementRepository,
     private readonly mspRepo: MonthlyServicePaymentRepository,
-    private readonly txRepo: TransactionRepository,
+    private readonly debtLoanRepo: DebtLoanRepository,
     private readonly settingsRepo: UserSettingsRepository,
   ) {}
 
@@ -36,21 +36,30 @@ export class GetFinancesDashboardUseCase {
 
     const range = computePeriodRange(period, timezone, startOfWeek);
 
-    const [accounts, pools, budgetMovementSums, mspSums, topCategories, dailyFlow, debts] =
-      await Promise.all([
-        this.accountRepo.findByUserId(userId, false),
-        this.poolRepo.findByUserId(userId),
-        this.budgetMovementRepo.sumByCurrencyInRange(userId, range.from, range.to),
-        this.mspRepo.sumByCurrencyInRange(userId, range.from, range.to),
-        this.budgetMovementRepo.topCategoriesByCurrencyInRange(
-          userId,
-          range.from,
-          range.to,
-          TOP_CATEGORIES_LIMIT,
-        ),
-        this.txRepo.dailyNetFlowInRange(userId, range.from, range.to),
-        this.txRepo.aggregateDebtsByReference(userId, 'pending'),
-      ]);
+    const [
+      accounts,
+      pools,
+      budgetMovementSums,
+      mspSums,
+      topCategories,
+      budgetMovementDaily,
+      mspDaily,
+      debts,
+    ] = await Promise.all([
+      this.accountRepo.findByUserId(userId, false),
+      this.poolRepo.findByUserId(userId),
+      this.budgetMovementRepo.sumByCurrencyInRange(userId, range.from, range.to),
+      this.mspRepo.sumByCurrencyInRange(userId, range.from, range.to),
+      this.budgetMovementRepo.topCategoriesByCurrencyInRange(
+        userId,
+        range.from,
+        range.to,
+        TOP_CATEGORIES_LIMIT,
+      ),
+      this.budgetMovementRepo.dailyByCurrencyInRange(userId, range.from, range.to),
+      this.mspRepo.dailyByCurrencyInRange(userId, range.from, range.to),
+      this.debtLoanRepo.aggregateByReference(userId, 'pending'),
+    ]);
 
     // Widget 1: totalBalance — pool balances per currency, with the
     // legacy `accountCount` derived from the still-living `accounts`
@@ -133,15 +142,33 @@ export class GetFinancesDashboardUseCase {
       };
     });
 
-    // Widget 4: dailyFlow — group per-currency, each with ordered points.
-    const dailyByCurrency = new Map<string, { date: string; income: number; expense: number }[]>();
-    for (const row of dailyFlow) {
-      const series = dailyByCurrency.get(row.currency) ?? [];
-      series.push({ date: row.date, income: round(row.income), expense: round(row.expense) });
-      dailyByCurrency.set(row.currency, series);
-    }
-    const dailyFlowSeries = Array.from(dailyByCurrency.entries())
-      .map(([currency, points]) => ({ currency, points }))
+    // Widget 4: dailyFlow — per-currency timeline with one point per
+    // calendar day in range. Combines `budget_movements` and
+    // `monthly_service_payments` by `(date, currency)`. Same v1.0.0
+    // semantics as periodFlow: income = 0 by design (no general INCOME
+    // concept), expense = sum of both new modules.
+    //
+    // Day rows from each module are merged in a Map<currency, Map<date, expense>>.
+    const dailyExpenseByCurrency = new Map<string, Map<string, number>>();
+    const accumulateDaily = (rows: Array<{ date: string; currency: string; total: number }>) => {
+      for (const row of rows) {
+        const perCurrency = dailyExpenseByCurrency.get(row.currency) ?? new Map<string, number>();
+        perCurrency.set(row.date, (perCurrency.get(row.date) ?? 0) + row.total);
+        dailyExpenseByCurrency.set(row.currency, perCurrency);
+      }
+    };
+    accumulateDaily(budgetMovementDaily);
+    accumulateDaily(mspDaily);
+
+    const dailyFlowSeries = Array.from(dailyExpenseByCurrency.entries())
+      .map(([currency, perDay]) => ({
+        currency,
+        // Sort the points by date ASC — the merged map may have come
+        // from two unordered sources.
+        points: Array.from(perDay.entries())
+          .map(([date, expense]) => ({ date, income: 0, expense: round(expense) }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
     // Widget 5: pendingDebts — collapse DebtsSummaryRow into a per-currency KPI.

@@ -21,6 +21,7 @@ describe('ListBudgetMovementsUseCase', () => {
       sumByBudgetId: jest.fn(),
       sumByCurrencyInRange: jest.fn(),
       topCategoriesByCurrencyInRange: jest.fn(),
+      dailyByCurrencyInRange: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
     };

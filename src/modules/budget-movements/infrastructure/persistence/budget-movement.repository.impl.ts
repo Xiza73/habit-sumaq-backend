@@ -59,6 +59,34 @@ export class BudgetMovementRepositoryImpl extends BudgetMovementRepository {
     return rows.map((r) => ({ currency: r.currency, total: Number(r.total) }));
   }
 
+  async dailyByCurrencyInRange(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ date: string; currency: string; total: number }>> {
+    const rows = await this.ormRepo
+      .createQueryBuilder('m')
+      // Truncate to UTC day — same shape the legacy tx widget produced
+      // so the web chart contract doesn't change.
+      .select(`TO_CHAR(m.date AT TIME ZONE 'UTC', 'YYYY-MM-DD')`, 'date')
+      .addSelect('m.currency', 'currency')
+      .addSelect('COALESCE(SUM(m.amount), 0)', 'total')
+      .where('m.userId = :userId', { userId })
+      .andWhere('m.deletedAt IS NULL')
+      .andWhere('m.date >= :from', { from })
+      .andWhere('m.date < :to', { to })
+      .groupBy(`TO_CHAR(m.date AT TIME ZONE 'UTC', 'YYYY-MM-DD')`)
+      .addGroupBy('m.currency')
+      .orderBy('date', 'ASC')
+      .addOrderBy('currency', 'ASC')
+      .getRawMany<{ date: string; currency: string; total: string }>();
+    return rows.map((r) => ({
+      date: r.date,
+      currency: r.currency,
+      total: Number(r.total),
+    }));
+  }
+
   async topCategoriesByCurrencyInRange(
     userId: string,
     from: Date,

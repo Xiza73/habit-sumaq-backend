@@ -41,5 +41,6 @@ import { DebtsLoansController } from './debts-loans.controller';
     SettleDebtLoanUseCase,
     BulkSettleByReferenceUseCase,
   ],
+  exports: [DebtLoanRepository],
 })
 export class DebtsLoansModule {}
