@@ -245,5 +245,48 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
 
       expect(service.lastPaidPeriod).toBe('2026-06');
     });
+
+    it('snaps dueDay to the day of the MOST RECENT payment (not the moving average across the window)', async () => {
+      // The window holds three historic payments on day 5 + a brand-new
+      // one on day 22 (the row just persisted, surfaced through the
+      // shared transaction manager). A moving average would land near
+      // day 9 — what we want is day 22, full stop.
+      const service = buildMonthlyService({
+        id: SERVICE,
+        userId: USER,
+        currency: Currency.PEN,
+        lastPaidPeriod: '2026-05',
+        dueDay: 5,
+      });
+      serviceRepo.findById.mockResolvedValue(service);
+      repo.findLastNByServiceId.mockResolvedValue([
+        buildMonthlyServicePayment({
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 50,
+          date: new Date('2026-06-22T15:00:00.000Z'),
+        }),
+        buildMonthlyServicePayment({
+          monthlyServiceId: SERVICE,
+          period: '2026-05',
+          amount: 50,
+          date: new Date('2026-05-05T15:00:00.000Z'),
+        }),
+        buildMonthlyServicePayment({
+          monthlyServiceId: SERVICE,
+          period: '2026-04',
+          amount: 50,
+          date: new Date('2026-04-05T15:00:00.000Z'),
+        }),
+      ]);
+
+      await useCase.execute(
+        USER,
+        { monthlyServiceId: SERVICE, period: '2026-06', amount: 50 },
+        TIMEZONE,
+      );
+
+      expect(service.dueDay).toBe(22);
+    });
   });
 });
