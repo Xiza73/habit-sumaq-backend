@@ -12,11 +12,6 @@ import type { UpdateMonthlyServiceDto } from '../dto/update-monthly-service.dto'
  * Partial-update use case. Currency and startPeriod are non-editable at the
  * DTO level — the DTO omits them. Name changes re-check the active-name
  * uniqueness guard.
- *
- * v1.0.0 (Phase A6-W.4): `defaultAccountId` is now decorative — it gets
- * stored as-is when provided, no lookup, no currency-derivation. The
- * "moving the service to a different currency by switching accounts"
- * trick goes away too: currency is immutable post-creation, period.
  */
 @Injectable()
 export class UpdateMonthlyServiceUseCase {
@@ -29,10 +24,6 @@ export class UpdateMonthlyServiceUseCase {
     const service = await this.serviceRepo.findById(id);
     if (!service || service.userId !== userId) {
       throw new DomainException('MONTHLY_SERVICE_NOT_FOUND', 'Servicio mensual no encontrado');
-    }
-
-    if (dto.defaultAccountId !== undefined) {
-      service.defaultAccountId = dto.defaultAccountId ?? null;
     }
 
     if (dto.categoryId !== undefined) {

@@ -85,28 +85,6 @@ describe('UpdateMonthlyServiceUseCase', () => {
     expect(serviceRepo.findActiveByUserIdAndName).not.toHaveBeenCalled();
   });
 
-  describe('defaultAccountId (v1.0.0 — decorative)', () => {
-    // v1.0.0 (A6-W.4): the field stores whatever value the caller sends —
-    // no account-existence check, no ownership check, no
-    // currency-derivation. Currency is immutable post-creation. The whole
-    // column goes away in A7-B.
-
-    it('stores the provided value as-is without account-existence validation', async () => {
-      const service = buildMonthlyService({ userId, currency: 'PEN', estimatedAmount: 120 });
-      serviceRepo.findById.mockResolvedValue(service);
-
-      const result = await useCase.execute(service.id, userId, {
-        defaultAccountId: '00000000-0000-4000-8000-000000000099',
-      });
-
-      expect(result.defaultAccountId).toBe('00000000-0000-4000-8000-000000000099');
-      // Currency does NOT move with the account anymore.
-      expect(result.currency).toBe('PEN');
-      // estimatedAmount is preserved (no reset).
-      expect(result.estimatedAmount).toBe(120);
-    });
-  });
-
   it('throws CATEGORY_NOT_FOUND when the new category is owned by another user', async () => {
     const service = buildMonthlyService({ userId });
     serviceRepo.findById.mockResolvedValue(service);

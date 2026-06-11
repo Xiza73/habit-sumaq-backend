@@ -21,12 +21,6 @@ export class MonthlyServiceOrmEntity {
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
-  // v1.0.0: nullable since A6-W.4 — payments debit the currency pool,
-  // not a specific account. The column is kept (not dropped) to preserve
-  // legacy values; it'll go away in A7-B.
-  @Column({ type: 'uuid', nullable: true })
-  defaultAccountId: string | null;
-
   @Column({ type: 'uuid' })
   categoryId: string;
 

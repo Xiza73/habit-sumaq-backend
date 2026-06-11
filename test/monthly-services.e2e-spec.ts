@@ -138,9 +138,6 @@ describe('MonthlyServicesController (e2e)', () => {
   // ─── POST /monthly-services ───────────────────────────────────────────────────
 
   describe('POST /api/v1/monthly-services', () => {
-    // v1.0.0 (A6-B): `defaultAccountId` is gone from the create flow. The
-    // schema accepts it as optional for legacy clients, but the form sends
-    // it as undefined.
     const minimalBody = {
       name: 'Netflix',
       categoryId: CAT_ID,
@@ -571,7 +568,6 @@ describe('MonthlyServicesController (e2e)', () => {
         id: SVC_ID,
         userId: USER_ID,
         name: 'Netflix',
-        defaultAccountId: null,
         categoryId: CAT_ID,
       });
       mockServiceRepo.findById.mockResolvedValue(original);

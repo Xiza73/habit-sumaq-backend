@@ -144,7 +144,7 @@ export class MonthlyServicesController {
   @ApiOperation({
     summary: 'Editar un servicio mensual',
     description:
-      'Campos editables: name, defaultAccountId, categoryId, estimatedAmount, dueDay. ' +
+      'Campos editables: name, categoryId, estimatedAmount, dueDay. ' +
       'currency y startPeriod son inmutables después de la creación.',
   })
   @ApiParam({ name: 'id', description: 'UUID del servicio' })

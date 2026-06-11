@@ -10,17 +10,11 @@ export class MonthlyService {
     readonly id: string,
     readonly userId: string,
     public name: string,
-    /**
-     * v1.0.0 (`accounts-to-modular-finance`): NULLABLE. Payments now debit
-     * the user's currency pool, not a specific account — the legacy pay
-     * endpoint that used this is gone. Kept on the entity until A7-B drops
-     * the column entirely so older rows survive without backfill.
-     */
-    public defaultAccountId: string | null,
     public categoryId: string,
     /**
-     * v1.0.0: no longer derived from `defaultAccountId`. The DTO requires
-     * an explicit currency and the use cases pass it straight through.
+     * v1.0.0 (`accounts-to-modular-finance`): supplied directly by the DTO.
+     * Used to live as a derivation off the legacy `defaultAccountId`, which
+     * was dropped in A7-B.
      */
     public currency: string,
     /**
