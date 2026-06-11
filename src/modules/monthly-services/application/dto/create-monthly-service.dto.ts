@@ -26,16 +26,6 @@ export class CreateMonthlyServiceDto {
   @Length(1, 100)
   name: string;
 
-  @ApiPropertyOptional({
-    description:
-      'DEPRECATED en v1.0.0 — los pagos debitan el currency pool, no una cuenta. ' +
-      'El field se mantiene por compat hasta A7-B. Aceptamos UUID válido o omisión / null.',
-    nullable: true,
-  })
-  @IsOptional()
-  @IsUUID()
-  defaultAccountId?: string | null;
-
   @ApiProperty({ description: 'Categoría asignada a los pagos de este servicio' })
   @IsUUID()
   categoryId: string;

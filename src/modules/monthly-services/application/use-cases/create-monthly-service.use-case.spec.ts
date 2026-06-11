@@ -21,10 +21,6 @@ describe('CreateMonthlyServiceUseCase', () => {
   const userId = 'user-1';
   const baseDto: CreateMonthlyServiceDto = {
     name: 'Netflix',
-    // v1.0.0 (A6-W.4): `defaultAccountId` is now OPTIONAL. The use case
-    // doesn't validate it against the accounts module anymore — payments
-    // debit the currency pool. We still pass it in some scenarios to make
-    // sure the value round-trips on the saved entity.
     categoryId: 'cat-1',
     currency: 'PEN',
     estimatedAmount: 45,
@@ -67,23 +63,6 @@ describe('CreateMonthlyServiceUseCase', () => {
     expect(result.estimatedAmount).toBe(45);
     expect(result.dueDay).toBe(15);
     expect(serviceRepo.save).toHaveBeenCalled();
-  });
-
-  it('persists `defaultAccountId` as null when the DTO omits it (v1.0.0 default)', async () => {
-    const result = await useCase.execute(userId, baseDto, 'UTC');
-    expect(result.defaultAccountId).toBeNull();
-  });
-
-  it('round-trips a provided `defaultAccountId` without account-existence validation', async () => {
-    // The use case no longer fetches the account or validates ownership /
-    // currency. A garbage UUID is accepted as-is — it'll be dropped from
-    // the column in A7-B.
-    const result = await useCase.execute(
-      userId,
-      { ...baseDto, defaultAccountId: '00000000-0000-4000-8000-000000000099' },
-      'UTC',
-    );
-    expect(result.defaultAccountId).toBe('00000000-0000-4000-8000-000000000099');
   });
 
   it('defaults frequencyMonths to 1 (monthly) when not provided', async () => {

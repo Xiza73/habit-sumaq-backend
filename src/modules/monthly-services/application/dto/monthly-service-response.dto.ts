@@ -12,15 +12,6 @@ export class MonthlyServiceResponseDto {
   @ApiProperty({ example: 'Netflix' })
   name: string;
 
-  @ApiProperty({
-    description:
-      'DEPRECATED — kept on the response shape until A7-B drops the column. ' +
-      'Always null for services created with v1.0.0 (Phase A6-W.4+). Older rows ' +
-      'retain their original value but no UI surface in the web reads it anymore.',
-    nullable: true,
-  })
-  defaultAccountId: string | null;
-
   @ApiProperty()
   categoryId: string;
 
@@ -105,7 +96,6 @@ export class MonthlyServiceResponseDto {
     dto.id = entity.id;
     dto.userId = entity.userId;
     dto.name = entity.name;
-    dto.defaultAccountId = entity.defaultAccountId;
     dto.categoryId = entity.categoryId;
     dto.currency = entity.currency;
     dto.frequencyMonths = entity.frequencyMonths;

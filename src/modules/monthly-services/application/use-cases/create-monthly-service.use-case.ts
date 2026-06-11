@@ -14,14 +14,10 @@ import { currentPeriodInTimezone } from '../../infrastructure/timezone/current-p
 import type { CreateMonthlyServiceDto } from '../dto/create-monthly-service.dto';
 
 /**
- * v1.0.0 (`accounts-to-modular-finance`, Phase A6-W.4):
- *   - `defaultAccountId` is OPTIONAL. The legacy "must reference an
- *     existing user account + currency must match" check is gone — the
- *     field carries no behavioural weight anymore (payments debit the
- *     pool). If the caller sends a value we trust it without lookup;
- *     it'll be dropped entirely in A7-B.
- *   - `currency` is REQUIRED on the DTO and used as-is. No derivation
- *     from the account.
+ * v1.0.0 (`accounts-to-modular-finance`):
+ *   - `currency` is REQUIRED on the DTO and used as-is. The legacy
+ *     "derive currency from the user's account" logic is gone — payments
+ *     debit the currency pool, no account lookup happens here.
  */
 @Injectable()
 export class CreateMonthlyServiceUseCase {
@@ -60,7 +56,6 @@ export class CreateMonthlyServiceUseCase {
       randomUUID(),
       userId,
       dto.name,
-      dto.defaultAccountId ?? null,
       dto.categoryId,
       dto.currency,
       dto.frequencyMonths ?? 1,

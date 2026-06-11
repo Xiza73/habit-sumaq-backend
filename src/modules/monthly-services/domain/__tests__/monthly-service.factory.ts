@@ -7,7 +7,6 @@ export function buildMonthlyService(
     id: string;
     userId: string;
     name: string;
-    defaultAccountId: string | null;
     categoryId: string;
     currency: string;
     frequencyMonths: number;
@@ -25,7 +24,6 @@ export function buildMonthlyService(
     overrides.id ?? randomUUID(),
     overrides.userId ?? 'user-test-id',
     overrides.name ?? 'Netflix',
-    overrides.defaultAccountId ?? 'account-test-id',
     overrides.categoryId ?? 'category-test-id',
     overrides.currency ?? 'PEN',
     overrides.frequencyMonths ?? 1,
