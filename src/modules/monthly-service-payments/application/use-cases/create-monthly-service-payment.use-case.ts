@@ -152,9 +152,16 @@ export class CreateMonthlyServicePaymentUseCase {
    * Mutates `service` and saves it via `manager`. Advances `lastPaidPeriod`
    * only forward (so back-paying an earlier period — e.g. discovering you
    * paid March but forgot to register it — doesn't regress the pointer),
-   * and re-averages `estimatedAmount` + `dueDay` over the most recent N
-   * active payments INCLUDING the one just persisted (the repo reads
-   * through the same `manager` so the uncommitted row is visible).
+   * re-averages `estimatedAmount` over the most recent N active payments,
+   * and snaps `dueDay` to the calendar day of the MOST RECENT payment.
+   *
+   * The repo reads through the same `manager` so the row just persisted
+   * (uncommitted) is visible to both the amount average and the day pick.
+   *
+   * History — `dueDay` used to be a moving average across the last N
+   * payments. In practice users found it counterintuitive: a single late
+   * payment would tug the predicted day for several cycles. The user
+   * prefers "the day I last paid" — direct, no smoothing.
    */
   private async syncService(
     service: MonthlyService,
@@ -168,8 +175,9 @@ export class CreateMonthlyServicePaymentUseCase {
     const recent = await this.repo.findLastNByServiceId(service.id, MOVING_AVG_WINDOW, manager);
     if (recent.length > 0) {
       service.estimatedAmount = computeAverageAmount(recent);
-      const avgDay = computeAverageDueDay(recent, timezone);
-      if (avgDay != null) service.dueDay = avgDay;
+      // `findLastNByServiceId` returns rows ordered by (period DESC, date DESC),
+      // so recent[0] IS the most recent payment — including the one just saved.
+      service.dueDay = clampDayOfMonth(dayInTimezone(recent[0].date, timezone));
     }
     await this.serviceRepo.save(service, manager);
   }
@@ -182,15 +190,9 @@ function computeAverageAmount(payments: MonthlyServicePayment[]): number {
 }
 
 /**
- * Returns the rounded average day-of-month across `payments` in the user's
- * timezone, or null when there are no payments. The caller decides whether
- * to keep the previous `dueDay` (null result) or update it (numeric result).
+ * Clamp to the column's validation range (1..31). Handles edge cases like
+ * an empty timezone string falling through to a UTC day of 0.
  */
-function computeAverageDueDay(payments: MonthlyServicePayment[], timezone: string): number | null {
-  if (payments.length === 0) return null;
-  const days = payments.map((p) => dayInTimezone(p.date, timezone));
-  const avg = days.reduce((acc, d) => acc + d, 0) / days.length;
-  // Clamp to 1..31 — the validation range of the column. Handles edge
-  // cases like an empty timezone string falling through to a UTC day of 0.
-  return Math.min(31, Math.max(1, Math.round(avg)));
+function clampDayOfMonth(day: number): number {
+  return Math.min(31, Math.max(1, day));
 }
