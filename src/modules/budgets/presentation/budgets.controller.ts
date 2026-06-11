@@ -22,15 +22,12 @@ import {
 import { ClientTimezone } from '@common/decorators/client-timezone.decorator';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
-import { TransactionResponseDto } from '@modules/transactions/application/dto/transaction-response.dto';
+import { Currency } from '@common/enums/currency.enum';
 
-import { AddBudgetMovementDto } from '../application/dto/add-budget-movement.dto';
 import { BudgetResponseDto } from '../application/dto/budget-response.dto';
 import { BudgetWithKpiResponseDto } from '../application/dto/budget-with-kpi-response.dto';
 import { CreateBudgetDto } from '../application/dto/create-budget.dto';
 import { UpdateBudgetDto } from '../application/dto/update-budget.dto';
-import { AddBudgetMovementUseCase } from '../application/use-cases/add-budget-movement.use-case';
 import { CreateBudgetUseCase } from '../application/use-cases/create-budget.use-case';
 import { DeleteBudgetUseCase } from '../application/use-cases/delete-budget.use-case';
 import { GetBudgetUseCase } from '../application/use-cases/get-budget.use-case';
@@ -51,7 +48,6 @@ export class BudgetsController {
     private readonly createBudget: CreateBudgetUseCase,
     private readonly updateBudget: UpdateBudgetUseCase,
     private readonly deleteBudget: DeleteBudgetUseCase,
-    private readonly addBudgetMovement: AddBudgetMovementUseCase,
   ) {}
 
   @Get()
@@ -165,41 +161,12 @@ export class BudgetsController {
   @ApiOperation({
     summary: 'Eliminar un budget (soft delete)',
     description:
-      'Marca deletedAt=now y nullea budgetId en todas las transactions linkeadas. Las transactions sobreviven como gastos normales — el dinero ya se movió.',
+      'Marca deletedAt=now. Los `budget_movements` linkeados sobreviven en la tabla — el dinero ya se movió — pero ningún endpoint los joina con el budget eliminado.',
   })
   @ApiParam({ name: 'id', description: 'UUID del budget' })
   @ApiResponse({ status: 204, description: 'Budget eliminado' })
   @ApiResponse({ status: 404, description: 'Budget no encontrado' })
   async remove(@CurrentUser() payload: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.deleteBudget.execute(id, payload.sub);
-  }
-
-  @Post(':id/movements')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Registrar un movimiento del budget',
-    description:
-      'Crea una transacción EXPENSE linkeada al budget (budgetId), debita la cuenta. Validaciones: cuenta del usuario en la moneda del budget, categoría del usuario, fecha dentro del mes del budget.',
-  })
-  @ApiParam({ name: 'id', description: 'UUID del budget' })
-  @ApiResponse({
-    status: 201,
-    description: 'Movimiento registrado. Retorna la transacción creada.',
-  })
-  @ApiResponse({ status: 404, description: 'Budget, cuenta o categoría no encontrados' })
-  @ApiResponse({
-    status: 422,
-    description: 'Currency mismatch o fecha fuera del mes del budget',
-  })
-  async addMovement(
-    @CurrentUser() payload: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: AddBudgetMovementDto,
-  ): Promise<ApiResponseDto<{ transaction: TransactionResponseDto }>> {
-    const { transaction } = await this.addBudgetMovement.execute(id, payload.sub, dto);
-    return ApiResponseDto.ok(
-      { transaction: TransactionResponseDto.fromDomain(transaction) },
-      'Movimiento registrado exitosamente',
-    );
   }
 }

@@ -70,6 +70,35 @@ export const ERROR_CODES = {
   TASK_REORDER_INVALID_IDS: 'TSK_009',
   // Alerts (in-app pseudo-notifications)
   ALERT_NOT_DISMISSABLE: 'ALR_001',
+  // Debts and Loans module (v1.0.0 standalone module — replaces the
+  // DEBT/LOAN subset of transactions).
+  DEBT_LOAN_NOT_FOUND: 'DBT_001',
+  DEBT_LOAN_BELONGS_TO_OTHER_USER: 'DBT_002',
+  DEBT_LOAN_REFERENCE_REQUIRED: 'DBT_003',
+  DEBT_LOAN_ALREADY_SETTLED: 'DBT_004',
+  CANNOT_UPDATE_SETTLED_DEBT_LOAN: 'DBT_005',
+  DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING: 'DBT_006',
+  DEBT_LOAN_AMOUNT_BELOW_SETTLED: 'DBT_007',
+  // Budget movements module (v1.0.0 standalone module — replaces the
+  // EXPENSE subset of legacy transactions where `budgetId IS NOT NULL`).
+  BUDGET_MOVEMENT_NOT_FOUND: 'BMV_001',
+  BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER: 'BMV_002',
+  BUDGET_MOVEMENT_DATE_OUT_OF_BUDGET_RANGE: 'BMV_003',
+  BUDGET_MOVEMENT_CURRENCY_MISMATCH: 'BMV_004',
+  // Monthly service payments module (v1.0.0 standalone module —
+  // replaces the EXPENSE subset of legacy transactions where
+  // `monthlyServiceId IS NOT NULL`).
+  MONTHLY_SERVICE_PAYMENT_NOT_FOUND: 'MSP_001',
+  MONTHLY_SERVICE_PAYMENT_BELONGS_TO_OTHER_USER: 'MSP_002',
+  MONTHLY_SERVICE_PAYMENT_ALREADY_EXISTS_FOR_PERIOD: 'MSP_003',
+  MONTHLY_SERVICE_PAYMENT_CURRENCY_MISMATCH: 'MSP_004',
+  MONTHLY_SERVICE_PAYMENT_INVALID_PERIOD_FORMAT: 'MSP_005',
+  // Currency pools (internal-only — v1.0.0 refactor).
+  // Migration-time only: thrown by `BackfillCurrencyPools` and the
+  // `check-balance-consistency` audit script when `accounts.balance`
+  // diverges from the replayed transaction history. Never returned
+  // over HTTP — not in `domain-error.map.ts`.
+  BALANCE_DRIFT_DETECTED: 'POOL_001',
   // Validation
   VALIDATION_ERROR: 'GEN_001',
 } as const;

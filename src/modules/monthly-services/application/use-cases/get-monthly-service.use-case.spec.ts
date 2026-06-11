@@ -16,7 +16,7 @@ describe('GetMonthlyServiceUseCase', () => {
       findActiveByUserIdAndName: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
+    };
     useCase = new GetMonthlyServiceUseCase(repo);
   });
 

@@ -16,9 +16,6 @@ export class BalanceByCurrencyDto {
 
   @ApiProperty({ example: 1520.5 })
   amount: number;
-
-  @ApiProperty({ example: 3 })
-  accountCount: number;
 }
 
 export class FlowByCurrencyDto {

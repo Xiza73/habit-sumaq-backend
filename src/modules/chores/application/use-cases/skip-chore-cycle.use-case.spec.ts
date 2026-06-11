@@ -22,7 +22,7 @@ describe('SkipChoreCycleUseCase', () => {
       findById: jest.fn(),
       save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
       softDelete: jest.fn(),
-    } as jest.Mocked<ChoreRepository>;
+    };
 
     mockLogger = buildMockPinoLogger();
     useCase = new SkipChoreCycleUseCase(repo, mockLogger as unknown as PinoLogger);

@@ -1,7 +1,4 @@
 import { DomainException } from '@common/exceptions/domain.exception';
-import { buildAccount } from '@modules/accounts/domain/__tests__/account.factory';
-import { type AccountRepository } from '@modules/accounts/domain/account.repository';
-import { Currency } from '@modules/accounts/domain/enums/currency.enum';
 import { buildCategory } from '@modules/categories/domain/__tests__/category.factory';
 import { type CategoryRepository } from '@modules/categories/domain/category.repository';
 
@@ -13,7 +10,6 @@ import { UpdateMonthlyServiceUseCase } from './update-monthly-service.use-case';
 describe('UpdateMonthlyServiceUseCase', () => {
   let useCase: UpdateMonthlyServiceUseCase;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
-  let accountRepo: jest.Mocked<AccountRepository>;
   let categoryRepo: jest.Mocked<CategoryRepository>;
 
   const userId = 'user-1';
@@ -25,16 +21,7 @@ describe('UpdateMonthlyServiceUseCase', () => {
       findActiveByUserIdAndName: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
       softDelete: jest.fn(),
-    } as jest.Mocked<MonthlyServiceRepository>;
-
-    accountRepo = {
-      findByUserId: jest.fn(),
-      findByUserIdAndName: jest.fn(),
-      findById: jest.fn(),
-      findByIds: jest.fn(),
-      save: jest.fn(),
-      softDelete: jest.fn(),
-    } as jest.Mocked<AccountRepository>;
+    };
 
     categoryRepo = {
       findByUserId: jest.fn(),
@@ -42,9 +29,9 @@ describe('UpdateMonthlyServiceUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<CategoryRepository>;
+    };
 
-    useCase = new UpdateMonthlyServiceUseCase(serviceRepo, accountRepo, categoryRepo);
+    useCase = new UpdateMonthlyServiceUseCase(serviceRepo, categoryRepo);
   });
 
   it('updates name, estimatedAmount and dueDay', async () => {
@@ -98,62 +85,26 @@ describe('UpdateMonthlyServiceUseCase', () => {
     expect(serviceRepo.findActiveByUserIdAndName).not.toHaveBeenCalled();
   });
 
-  it('validates the new default account belongs to the user and currency matches', async () => {
-    const service = buildMonthlyService({ userId, currency: 'PEN' });
-    serviceRepo.findById.mockResolvedValue(service);
-    accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: 'acc-2', userId, currency: Currency.PEN }),
-    );
+  describe('defaultAccountId (v1.0.0 — decorative)', () => {
+    // v1.0.0 (A6-W.4): the field stores whatever value the caller sends —
+    // no account-existence check, no ownership check, no
+    // currency-derivation. Currency is immutable post-creation. The whole
+    // column goes away in A7-B.
 
-    const result = await useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' });
+    it('stores the provided value as-is without account-existence validation', async () => {
+      const service = buildMonthlyService({ userId, currency: 'PEN', estimatedAmount: 120 });
+      serviceRepo.findById.mockResolvedValue(service);
 
-    expect(result.defaultAccountId).toBe('acc-2');
-  });
+      const result = await useCase.execute(service.id, userId, {
+        defaultAccountId: '00000000-0000-4000-8000-000000000099',
+      });
 
-  it('moves the service to the new currency when the account currency differs and resets estimatedAmount', async () => {
-    // Used to throw CURRENCY_MISMATCH — now the service "moves" to the new
-    // currency. estimatedAmount was computed from past tx in the OLD currency
-    // so it's reset to null and will recompute on the next /pay.
-    const service = buildMonthlyService({
-      userId,
-      currency: 'PEN',
-      estimatedAmount: 120,
+      expect(result.defaultAccountId).toBe('00000000-0000-4000-8000-000000000099');
+      // Currency does NOT move with the account anymore.
+      expect(result.currency).toBe('PEN');
+      // estimatedAmount is preserved (no reset).
+      expect(result.estimatedAmount).toBe(120);
     });
-    serviceRepo.findById.mockResolvedValue(service);
-    accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: 'acc-2', userId, currency: Currency.USD }),
-    );
-
-    const result = await useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' });
-
-    expect(result.defaultAccountId).toBe('acc-2');
-    expect(result.currency).toBe('USD');
-    expect(result.estimatedAmount).toBeNull();
-  });
-
-  it('keeps estimatedAmount when the new account has the SAME currency', async () => {
-    const service = buildMonthlyService({ userId, currency: 'PEN', estimatedAmount: 120 });
-    serviceRepo.findById.mockResolvedValue(service);
-    accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: 'acc-2', userId, currency: Currency.PEN }),
-    );
-
-    const result = await useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' });
-
-    expect(result.currency).toBe('PEN');
-    expect(result.estimatedAmount).toBe(120);
-  });
-
-  it('throws ACCOUNT_NOT_FOUND when the new account is owned by another user', async () => {
-    const service = buildMonthlyService({ userId });
-    serviceRepo.findById.mockResolvedValue(service);
-    accountRepo.findById.mockResolvedValue(
-      buildAccount({ id: 'acc-2', userId: 'other', currency: Currency.PEN }),
-    );
-
-    await expect(
-      useCase.execute(service.id, userId, { defaultAccountId: 'acc-2' }),
-    ).rejects.toThrow('Cuenta no encontrada');
   });
 
   it('throws CATEGORY_NOT_FOUND when the new category is owned by another user', async () => {

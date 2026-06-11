@@ -341,3 +341,31 @@ popover (warnings antes que infos).
 | `warning` | Atención requerida (overdues + budget overspent)                     |
 
 **Uso:** campo `severity` en `AlertResponseDto`.
+
+---
+
+## DebtLoanType
+
+Dirección de la obligación en el módulo `debts_loans` (introducido en el refactor
+v1.0.0 `accounts-to-modular-finance`, Phase A3-B). Replaza el subset DEBT/LOAN
+del enum `TransactionType` del módulo legacy.
+
+| Valor  | Descripción                                                                        |
+| ------ | ---------------------------------------------------------------------------------- |
+| `DEBT` | El usuario DEBE dinero a alguien. Settle real-payment DEBITA el currency pool.     |
+| `LOAN` | El usuario PRESTÓ dinero a alguien. Settle real-payment ACREDITA el currency pool. |
+
+**Uso:** campo `type` en `DebtLoanResponseDto` y `CreateDebtLoanDto`. Endpoints bajo `/debts`.
+
+---
+
+## DebtLoanStatus
+
+Estado de ciclo de vida de un debt o loan.
+
+| Valor     | Descripción                                                                                                                       |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `PENDING` | Queda al menos un `remainingAmount > 0`. Los settles parciales reducen `remainingAmount` y mantienen `PENDING` hasta llegar a 0. |
+| `SETTLED` | `remainingAmount = 0`. Solo se puede editar `amount` (y por encima de lo ya liquidado).                                          |
+
+**Uso:** campo `status` en `DebtLoanResponseDto` y filtros de query (`?status=pending|settled|all`).

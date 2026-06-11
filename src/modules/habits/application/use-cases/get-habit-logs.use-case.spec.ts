@@ -22,7 +22,7 @@ describe('GetHabitLogsUseCase', () => {
       findById: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-    } as jest.Mocked<HabitRepository>;
+    };
 
     habitLogRepo = {
       findByHabitIdAndDate: jest.fn(),
@@ -32,7 +32,7 @@ describe('GetHabitLogsUseCase', () => {
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
-    } as jest.Mocked<HabitLogRepository>;
+    };
 
     useCase = new GetHabitLogsUseCase(habitRepo, habitLogRepo);
   });

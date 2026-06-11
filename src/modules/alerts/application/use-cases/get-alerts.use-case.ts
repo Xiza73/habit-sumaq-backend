@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { BudgetRepository } from '@modules/budgets/domain/budget.repository';
 import { currentMonthInTimezone } from '@modules/budgets/infrastructure/timezone/current-month-in-timezone';
 import { ChoreRepository } from '@modules/chores/domain/chore.repository';
@@ -8,7 +9,6 @@ import { HabitRepository } from '@modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '@modules/habits/domain/habit-log.repository';
 import { MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
 import { currentPeriodInTimezone } from '@modules/monthly-services/infrastructure/timezone/current-period-in-timezone';
-import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
 import { Alert } from '../../domain/alert.entity';
@@ -51,7 +51,7 @@ export class GetAlertsForUserUseCase {
     private readonly habitsRepo: HabitRepository,
     private readonly habitLogsRepo: HabitLogRepository,
     private readonly budgetsRepo: BudgetRepository,
-    private readonly txRepo: TransactionRepository,
+    private readonly budgetMovementRepo: BudgetMovementRepository,
     private readonly choresRepo: ChoreRepository,
     private readonly userSettingsRepo: UserSettingsRepository,
     private readonly dismissalsRepo: UserAlertDismissalRepository,
@@ -215,7 +215,9 @@ export class GetAlertsForUserUseCase {
     if (current.length === 0) return [];
 
     // Sum movements per budget in parallel — small N so the fan-out is fine.
-    const sums = await Promise.all(current.map((b) => this.txRepo.sumAmountByBudgetId(b.id)));
+    // v1.0.0: reads from `budget_movements` (the dedicated v1.0.0 module),
+    // NOT the legacy `transactions` tagged with `budgetId`.
+    const sums = await Promise.all(current.map((b) => this.budgetMovementRepo.sumByBudgetId(b.id)));
 
     const alerts: Alert[] = [];
     current.forEach((budget, i) => {

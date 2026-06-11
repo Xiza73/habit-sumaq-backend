@@ -23,13 +23,13 @@ describe('GetQuickTasksUseCase', () => {
       deleteCompletedBefore: jest.fn().mockResolvedValue(0),
       maxPositionByUserId: jest.fn(),
       updatePositions: jest.fn(),
-    } as jest.Mocked<QuickTaskRepository>;
+    };
 
     settingsRepo = {
       findByUserId: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
-    } as jest.Mocked<UserSettingsRepository>;
+    };
 
     useCase = new GetQuickTasksUseCase(
       taskRepo,

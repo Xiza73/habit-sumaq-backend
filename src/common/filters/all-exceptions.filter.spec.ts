@@ -42,7 +42,7 @@ describe('AllExceptionsFilter', () => {
     it('should respond with 500 for an unmapped domain code', () => {
       const exception = new DomainException('VALIDATION_ERROR', 'Error');
       // Override the code to something that won't map to a known status
-      Object.defineProperty(exception, 'code', { value: 'UNKNOWN_CODE' as never });
+      Object.defineProperty(exception, 'code', { value: 'UNKNOWN_CODE' });
       filter.catch(exception, buildHost(responseMock));
 
       expect(responseMock.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);

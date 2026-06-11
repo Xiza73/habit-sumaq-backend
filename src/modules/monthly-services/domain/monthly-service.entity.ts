@@ -10,11 +10,18 @@ export class MonthlyService {
     readonly id: string,
     readonly userId: string,
     public name: string,
-    public defaultAccountId: string,
+    /**
+     * v1.0.0 (`accounts-to-modular-finance`): NULLABLE. Payments now debit
+     * the user's currency pool, not a specific account — the legacy pay
+     * endpoint that used this is gone. Kept on the entity until A7-B drops
+     * the column entirely so older rows survive without backfill.
+     */
+    public defaultAccountId: string | null,
     public categoryId: string,
-    // No longer readonly — when the user moves the service to a default
-    // account in a different currency, the service "moves" to that currency
-    // too (handled in UpdateMonthlyServiceUseCase).
+    /**
+     * v1.0.0: no longer derived from `defaultAccountId`. The DTO requires
+     * an explicit currency and the use cases pass it straight through.
+     */
     public currency: string,
     /**
      * Billing cadence in months. Currently restricted to {1, 3, 6, 12}

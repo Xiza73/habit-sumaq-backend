@@ -18,7 +18,7 @@ describe('UpdateQuickTaskUseCase', () => {
       deleteCompletedBefore: jest.fn(),
       maxPositionByUserId: jest.fn(),
       updatePositions: jest.fn(),
-    } as jest.Mocked<QuickTaskRepository>;
+    };
     useCase = new UpdateQuickTaskUseCase(mockRepo);
   });
 

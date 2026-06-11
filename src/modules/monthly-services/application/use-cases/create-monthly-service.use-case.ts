@@ -5,7 +5,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DomainException } from '@common/exceptions/domain.exception';
-import { AccountRepository } from '@modules/accounts/domain/account.repository';
 import { CategoryRepository } from '@modules/categories/domain/category.repository';
 
 import { MonthlyService } from '../../domain/monthly-service.entity';
@@ -14,11 +13,20 @@ import { currentPeriodInTimezone } from '../../infrastructure/timezone/current-p
 
 import type { CreateMonthlyServiceDto } from '../dto/create-monthly-service.dto';
 
+/**
+ * v1.0.0 (`accounts-to-modular-finance`, Phase A6-W.4):
+ *   - `defaultAccountId` is OPTIONAL. The legacy "must reference an
+ *     existing user account + currency must match" check is gone — the
+ *     field carries no behavioural weight anymore (payments debit the
+ *     pool). If the caller sends a value we trust it without lookup;
+ *     it'll be dropped entirely in A7-B.
+ *   - `currency` is REQUIRED on the DTO and used as-is. No derivation
+ *     from the account.
+ */
 @Injectable()
 export class CreateMonthlyServiceUseCase {
   constructor(
     private readonly serviceRepo: MonthlyServiceRepository,
-    private readonly accountRepo: AccountRepository,
     private readonly categoryRepo: CategoryRepository,
     @InjectPinoLogger(CreateMonthlyServiceUseCase.name)
     private readonly logger: PinoLogger,
@@ -29,18 +37,6 @@ export class CreateMonthlyServiceUseCase {
     dto: CreateMonthlyServiceDto,
     timezone: string,
   ): Promise<MonthlyService> {
-    // Validate default account is owned by user and currency matches.
-    const account = await this.accountRepo.findById(dto.defaultAccountId);
-    if (!account || account.userId !== userId) {
-      throw new DomainException('ACCOUNT_NOT_FOUND', 'Cuenta no encontrada');
-    }
-    if (String(account.currency) !== dto.currency) {
-      throw new DomainException(
-        'CURRENCY_MISMATCH',
-        'La moneda del servicio debe coincidir con la moneda de la cuenta por defecto',
-      );
-    }
-
     // Validate category is owned by user.
     const category = await this.categoryRepo.findById(dto.categoryId);
     if (!category || category.userId !== userId) {
@@ -64,7 +60,7 @@ export class CreateMonthlyServiceUseCase {
       randomUUID(),
       userId,
       dto.name,
-      dto.defaultAccountId,
+      dto.defaultAccountId ?? null,
       dto.categoryId,
       dto.currency,
       dto.frequencyMonths ?? 1,

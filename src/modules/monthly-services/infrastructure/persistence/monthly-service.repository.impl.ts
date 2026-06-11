@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { type EntityManager, Repository } from 'typeorm';
 
 import { MonthlyService } from '../../domain/monthly-service.entity';
 import { MonthlyServiceRepository } from '../../domain/monthly-service.repository';
@@ -36,8 +36,8 @@ export class MonthlyServiceRepositoryImpl extends MonthlyServiceRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async save(service: MonthlyService): Promise<MonthlyService> {
-    const entity = this.repo.create({
+  async save(service: MonthlyService, manager?: EntityManager): Promise<MonthlyService> {
+    const data = {
       id: service.id,
       userId: service.userId,
       name: service.name,
@@ -53,8 +53,14 @@ export class MonthlyServiceRepositoryImpl extends MonthlyServiceRepository {
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
       deletedAt: service.deletedAt,
-    });
-    const saved = await this.repo.save(entity);
+    };
+    // When a manager is supplied we save through it so the row participates
+    // in the caller's transaction — the MSP create use case needs this so
+    // the service's advanced `lastPaidPeriod` rolls back together with the
+    // payment row if any step in the tx fails.
+    const saved = manager
+      ? await manager.save(MonthlyServiceOrmEntity, data)
+      : await this.repo.save(this.repo.create(data));
     return this.toDomain(saved);
   }
 

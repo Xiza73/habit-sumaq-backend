@@ -1,5 +1,5 @@
-import { buildTransaction } from '@modules/transactions/domain/__tests__/transaction.factory';
-import { type TransactionRepository } from '@modules/transactions/domain/transaction.repository';
+import { buildBudgetMovement } from '@modules/budget-movements/domain/__tests__/budget-movement.factory';
+import { type BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 
 import { makeBudget } from '../../domain/__tests__/budget.factory';
 import { type BudgetRepository } from '../../domain/budget.repository';
@@ -9,7 +9,7 @@ import { GetCurrentBudgetUseCase } from './get-current-budget.use-case';
 describe('GetCurrentBudgetUseCase', () => {
   let useCase: GetCurrentBudgetUseCase;
   let budgetRepo: jest.Mocked<BudgetRepository>;
-  let txRepo: jest.Mocked<TransactionRepository>;
+  let budgetMovementRepo: jest.Mocked<BudgetMovementRepository>;
 
   beforeEach(() => {
     budgetRepo = {
@@ -20,27 +20,22 @@ describe('GetCurrentBudgetUseCase', () => {
       softDelete: jest.fn(),
     };
 
-    txRepo = {
-      findByUserId: jest.fn(),
+    // v1.0.0: the use case reads movements + spent from the new
+    // `budget_movements` module. Legacy `transactions` is no longer
+    // consulted — the dashboard would silently show stale data if it
+    // still was.
+    budgetMovementRepo = {
+      findByBudgetId: jest.fn().mockResolvedValue([]),
       findById: jest.fn(),
-      findByRelatedTransactionId: jest.fn(),
+      sumByBudgetId: jest.fn().mockResolvedValue(0),
+      sumByCurrencyInRange: jest.fn(),
+      topCategoriesByCurrencyInRange: jest.fn(),
+      dailyByCurrencyInRange: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
-      existsByAccountId: jest.fn(),
-      aggregateDebtsByReference: jest.fn(),
-      findPendingDebtOrLoanByNormalizedReference: jest.fn(),
-      sumFlowByCurrencyInRange: jest.fn(),
-      topExpenseCategoriesInRange: jest.fn(),
-      dailyNetFlowInRange: jest.fn(),
-      countByMonthlyServiceId: jest.fn(),
-      findLastNByMonthlyServiceId: jest.fn(),
-      sumAmountByMonthlyServiceIdsInPeriod: jest.fn().mockResolvedValue(new Map()),
-      findByBudgetId: jest.fn().mockResolvedValue([]),
-      sumAmountByBudgetId: jest.fn().mockResolvedValue(0),
-      clearBudgetIdForBudget: jest.fn(),
     };
 
-    useCase = new GetCurrentBudgetUseCase(budgetRepo, txRepo);
+    useCase = new GetCurrentBudgetUseCase(budgetRepo, budgetMovementRepo);
   });
 
   it('returns null when no budget exists for current month + currency', async () => {
@@ -61,8 +56,10 @@ describe('GetCurrentBudgetUseCase', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-04-15T17:00:00.000Z'));
     const budget = makeBudget({ userId: 'user-1', amount: 1500 });
     budgetRepo.findByPeriodAndCurrency.mockResolvedValue(budget);
-    txRepo.sumAmountByBudgetId.mockResolvedValue(600);
-    txRepo.findByBudgetId.mockResolvedValue([buildTransaction({ budgetId: budget.id })]);
+    budgetMovementRepo.sumByBudgetId.mockResolvedValue(600);
+    budgetMovementRepo.findByBudgetId.mockResolvedValue([
+      buildBudgetMovement({ budgetId: budget.id }),
+    ]);
 
     const result = await useCase.execute('user-1', 'PEN', 'America/Lima');
     expect(result).not.toBeNull();

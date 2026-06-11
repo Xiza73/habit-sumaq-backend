@@ -19,6 +19,7 @@ import { MarkAlertsSeenUseCase } from '../src/modules/alerts/application/use-cas
 import { UserAlertDismissalRepository } from '../src/modules/alerts/domain/user-alert-dismissal.repository';
 import { AlertsController } from '../src/modules/alerts/presentation/alerts.controller';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
+import { BudgetMovementRepository } from '../src/modules/budget-movements/domain/budget-movement.repository';
 import { BudgetRepository } from '../src/modules/budgets/domain/budget.repository';
 import { ChoreRepository } from '../src/modules/chores/domain/chore.repository';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
@@ -27,7 +28,6 @@ import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
-import { TransactionRepository } from '../src/modules/transactions/domain/transaction.repository';
 import { buildUserSettings } from '../src/modules/users/domain/__tests__/user-settings.factory';
 import { UserSettingsRepository } from '../src/modules/users/domain/user-settings.repository';
 
@@ -76,9 +76,11 @@ describe('AlertsController (e2e)', () => {
     softDelete: jest.fn(),
   };
 
-  const mockTxRepo = {
-    sumAmountByBudgetId: jest.fn(),
-  } as unknown as jest.Mocked<TransactionRepository>;
+  // v1.0.0: budget-overspent alert now reads movement sums from
+  // `budget_movements`, not legacy transactions.
+  const mockBudgetMovementRepo = {
+    sumByBudgetId: jest.fn().mockResolvedValue(0),
+  } as unknown as jest.Mocked<BudgetMovementRepository>;
 
   const mockChoreRepo = {
     findByUserId: jest.fn(),
@@ -118,7 +120,7 @@ describe('AlertsController (e2e)', () => {
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
         { provide: BudgetRepository, useValue: mockBudgetRepo },
-        { provide: TransactionRepository, useValue: mockTxRepo },
+        { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: ChoreRepository, useValue: mockChoreRepo },
         { provide: UserSettingsRepository, useValue: mockUserSettingsRepo },
         { provide: UserAlertDismissalRepository, useValue: mockDismissalsRepo },

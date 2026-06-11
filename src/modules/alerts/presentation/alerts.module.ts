@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { BudgetMovementsModule } from '@modules/budget-movements/presentation/budget-movements.module';
 import { BudgetsModule } from '@modules/budgets/presentation/budgets.module';
 import { ChoresModule } from '@modules/chores/presentation/chores.module';
 import { HabitsModule } from '@modules/habits/presentation/habits.module';
 import { MonthlyServicesModule } from '@modules/monthly-services/presentation/monthly-services.module';
-import { TransactionsModule } from '@modules/transactions/presentation/transactions.module';
 import { UsersModule } from '@modules/users/presentation/users.module';
 
 import { DismissAlertUseCase } from '../application/use-cases/dismiss-alert.use-case';
@@ -30,11 +30,11 @@ import { AlertsController } from './alerts.controller';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserAlertDismissalOrmEntity]),
+    BudgetMovementsModule,
     BudgetsModule,
     ChoresModule,
     HabitsModule,
     MonthlyServicesModule,
-    TransactionsModule,
     UsersModule,
   ],
   controllers: [AlertsController],

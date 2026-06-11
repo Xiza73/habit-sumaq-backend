@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { AccountRepository } from '@modules/accounts/domain/account.repository';
-import { TransactionRepository } from '@modules/transactions/domain/transaction.repository';
+import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
+import { CurrencyPoolRepository } from '@modules/currency-pools/domain/currency-pool.repository';
+import { DebtLoanRepository } from '@modules/debts-loans/domain/debt-loan.repository';
+import { MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { StartOfWeek } from '@modules/users/domain/enums/start-of-week.enum';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
@@ -15,8 +17,10 @@ const DEFAULT_TIMEZONE = 'UTC';
 @Injectable()
 export class GetFinancesDashboardUseCase {
   constructor(
-    private readonly accountRepo: AccountRepository,
-    private readonly txRepo: TransactionRepository,
+    private readonly poolRepo: CurrencyPoolRepository,
+    private readonly budgetMovementRepo: BudgetMovementRepository,
+    private readonly mspRepo: MonthlyServicePaymentRepository,
+    private readonly debtLoanRepo: DebtLoanRepository,
     private readonly settingsRepo: UserSettingsRepository,
   ) {}
 
@@ -30,37 +34,70 @@ export class GetFinancesDashboardUseCase {
 
     const range = computePeriodRange(period, timezone, startOfWeek);
 
-    const [accounts, flow, topCategories, dailyFlow, debts] = await Promise.all([
-      this.accountRepo.findByUserId(userId, false),
-      this.txRepo.sumFlowByCurrencyInRange(userId, range.from, range.to),
-      this.txRepo.topExpenseCategoriesInRange(userId, range.from, range.to, TOP_CATEGORIES_LIMIT),
-      this.txRepo.dailyNetFlowInRange(userId, range.from, range.to),
-      this.txRepo.aggregateDebtsByReference(userId, 'pending'),
+    const [
+      pools,
+      budgetMovementSums,
+      mspSums,
+      topCategories,
+      budgetMovementDaily,
+      mspDaily,
+      debts,
+    ] = await Promise.all([
+      this.poolRepo.findByUserId(userId),
+      this.budgetMovementRepo.sumByCurrencyInRange(userId, range.from, range.to),
+      this.mspRepo.sumByCurrencyInRange(userId, range.from, range.to),
+      this.budgetMovementRepo.topCategoriesByCurrencyInRange(
+        userId,
+        range.from,
+        range.to,
+        TOP_CATEGORIES_LIMIT,
+      ),
+      this.budgetMovementRepo.dailyByCurrencyInRange(userId, range.from, range.to),
+      this.mspRepo.dailyByCurrencyInRange(userId, range.from, range.to),
+      this.debtLoanRepo.aggregateByReference(userId, 'pending'),
     ]);
 
-    // Widget 1: totalBalance — sum active-account balances per currency.
-    const balanceByCurrency = new Map<string, { amount: number; count: number }>();
-    for (const account of accounts) {
-      const current = balanceByCurrency.get(account.currency) ?? { amount: 0, count: 0 };
-      current.amount += account.balance;
-      current.count += 1;
-      balanceByCurrency.set(account.currency, current);
-    }
-    const totalBalance = Array.from(balanceByCurrency.entries())
-      .map(([currency, { amount, count }]) => ({
-        currency,
-        amount: round(amount),
-        accountCount: count,
+    // Widget 1: totalBalance — pool balances per currency.
+    //
+    // v1.0.0 (Phase A6-B): the legacy `accountCount` field is gone. The
+    // accounts module was dropped — there's no per-currency account count
+    // anymore. The web already stopped reading it in A6-W.5.
+    const totalBalance = pools
+      .map((pool) => ({
+        currency: pool.currency,
+        amount: round(pool.balance),
       }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
     // Widget 2: periodFlow — income + expense per currency in range.
-    const periodFlow = flow.map((f) => ({
-      currency: f.currency,
-      income: round(f.income),
-      expense: round(f.expense),
-      net: round(f.income - f.expense),
-    }));
+    //
+    // v1.0.0 semantics (Phase A5-B.2 — Path A, pure new-module):
+    //   - **expense** = SUM(budget_movements) + SUM(monthly_service_payments)
+    //     in range, grouped by currency. The new model has NO loose
+    //     expense — every expense is tagged with a budget or a service.
+    //   - **income** = 0 for now. There is no general INCOME concept in
+    //     the new model. The only "money in" source is LOAN settle
+    //     real-payments, which arrives in A5-B.3 (the debt-loan repo
+    //     doesn't yet expose settle-event aggregation by time range).
+    //
+    // The widget's response shape stays the same so the web doesn't
+    // need to change. Numbers WILL differ from the legacy dashboard —
+    // by design.
+    const expenseByCurrency = new Map<string, number>();
+    for (const bm of budgetMovementSums) {
+      expenseByCurrency.set(bm.currency, (expenseByCurrency.get(bm.currency) ?? 0) + bm.total);
+    }
+    for (const msp of mspSums) {
+      expenseByCurrency.set(msp.currency, (expenseByCurrency.get(msp.currency) ?? 0) + msp.total);
+    }
+    const periodFlow = Array.from(expenseByCurrency.entries())
+      .map(([currency, expense]) => ({
+        currency,
+        income: 0,
+        expense: round(expense),
+        net: round(-expense),
+      }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     // Widget 3: topExpenseCategories — add percentage (of total EXPENSE for the
     // same currency). Uncategorized rows surface with name=null for the UI.
@@ -83,15 +120,33 @@ export class GetFinancesDashboardUseCase {
       };
     });
 
-    // Widget 4: dailyFlow — group per-currency, each with ordered points.
-    const dailyByCurrency = new Map<string, { date: string; income: number; expense: number }[]>();
-    for (const row of dailyFlow) {
-      const series = dailyByCurrency.get(row.currency) ?? [];
-      series.push({ date: row.date, income: round(row.income), expense: round(row.expense) });
-      dailyByCurrency.set(row.currency, series);
-    }
-    const dailyFlowSeries = Array.from(dailyByCurrency.entries())
-      .map(([currency, points]) => ({ currency, points }))
+    // Widget 4: dailyFlow — per-currency timeline with one point per
+    // calendar day in range. Combines `budget_movements` and
+    // `monthly_service_payments` by `(date, currency)`. Same v1.0.0
+    // semantics as periodFlow: income = 0 by design (no general INCOME
+    // concept), expense = sum of both new modules.
+    //
+    // Day rows from each module are merged in a Map<currency, Map<date, expense>>.
+    const dailyExpenseByCurrency = new Map<string, Map<string, number>>();
+    const accumulateDaily = (rows: Array<{ date: string; currency: string; total: number }>) => {
+      for (const row of rows) {
+        const perCurrency = dailyExpenseByCurrency.get(row.currency) ?? new Map<string, number>();
+        perCurrency.set(row.date, (perCurrency.get(row.date) ?? 0) + row.total);
+        dailyExpenseByCurrency.set(row.currency, perCurrency);
+      }
+    };
+    accumulateDaily(budgetMovementDaily);
+    accumulateDaily(mspDaily);
+
+    const dailyFlowSeries = Array.from(dailyExpenseByCurrency.entries())
+      .map(([currency, perDay]) => ({
+        currency,
+        // Sort the points by date ASC — the merged map may have come
+        // from two unordered sources.
+        points: Array.from(perDay.entries())
+          .map(([date, expense]) => ({ date, income: 0, expense: round(expense) }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
     // Widget 5: pendingDebts — collapse DebtsSummaryRow into a per-currency KPI.
