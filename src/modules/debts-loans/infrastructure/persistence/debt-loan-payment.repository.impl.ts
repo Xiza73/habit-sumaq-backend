@@ -38,6 +38,30 @@ export class DebtLoanPaymentRepositoryImpl extends DebtLoanPaymentRepository {
     return rows.map((r) => this.toDomain(r));
   }
 
+  async findById(id: string, manager?: EntityManager): Promise<DebtLoanPayment | null> {
+    const m = manager ?? this.ormRepo.manager;
+    const row = await m.findOne(DebtLoanPaymentOrmEntity, { where: { id } });
+    return row ? this.toDomain(row) : null;
+  }
+
+  async update(payment: DebtLoanPayment, manager?: EntityManager): Promise<DebtLoanPayment> {
+    const m = manager ?? this.ormRepo.manager;
+    const saved = await m.save(DebtLoanPaymentOrmEntity, {
+      id: payment.id,
+      debtLoanId: payment.debtLoanId,
+      amount: payment.amount,
+      currency: payment.currency,
+      note: payment.note,
+      createdAt: payment.createdAt,
+    });
+    return this.toDomain(saved);
+  }
+
+  async deleteById(id: string, manager?: EntityManager): Promise<void> {
+    const m = manager ?? this.ormRepo.manager;
+    await m.delete(DebtLoanPaymentOrmEntity, { id });
+  }
+
   private toDomain(orm: DebtLoanPaymentOrmEntity): DebtLoanPayment {
     return new DebtLoanPayment(
       orm.id,

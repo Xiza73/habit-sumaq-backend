@@ -595,6 +595,65 @@ Devuelve el resumen del bulk. Si no había nada que liquidar, `settledCount: 0` 
 | `currency`           | `Currency \| null`                  | Null si fue informal-close cross-currency.             |
 | `settledIds`         | UUID[]                              | IDs de las rows afectadas.                             |
 
+### `GET /debts/:id/payments`
+
+Lista el historial de pagos (settles) aplicados a una deuda/préstamo, más reciente primero.
+Cada row representa un evento de settle (parcial o total). `currency` es `null` para settles
+informales (sin paso por el pool).
+
+| Error code | HTTP | Cuándo                              |
+| ---------- | ---- | ----------------------------------- |
+| `DBT_001`  | 404  | El id no existe (o está soft-deleted) |
+| `DBT_002`  | 403  | El row pertenece a otro usuario     |
+
+**Respuesta:** `200 OK`, `data: DebtLoanPaymentResponseDto[]`.
+
+### `PATCH /debts/payments/:paymentId`
+
+Edita un pago del historial (`amount` y/o `note`). Recomputa `remainingAmount` y `status`
+del parent (`SETTLED` ↔ `PENDING`) de forma atómica. Si el pago es real-payment (tiene
+`currency`), revierte el delta previo en el pool y aplica el nuevo. `currency` NO es editable
+post-creación. Debe enviarse al menos uno de `amount` o `note`.
+
+| Campo    | Tipo            | Requerido        | Notas                                                |
+| -------- | --------------- | ---------------- | ---------------------------------------------------- |
+| `amount` | number          | no (al menos uno) | > 0, 2 decimales. Recomputa saldo y status.         |
+| `note`   | string \| null  | no (al menos uno) | Máx 255 chars. `null` borra la nota.                |
+
+| Error code | HTTP | Cuándo                                                          |
+| ---------- | ---- | --------------------------------------------------------------- |
+| `DBT_008`  | 404  | El payment no existe                                            |
+| `DBT_002`  | 403  | El payment pertenece a otro usuario                             |
+| `DBT_009`  | 422  | Body sin `amount` ni `note`                                     |
+| `DBT_006`  | 422  | El nuevo `amount` haría `remainingAmount < 0` (sobrepago)       |
+| `DBT_010`  | 422  | El nuevo `remainingAmount` excedería el `amount` del debt/loan  |
+
+**Respuesta:** `200 OK`, `data: DebtLoanPaymentResponseDto`.
+
+### `DELETE /debts/payments/:paymentId`
+
+Hard-delete de un pago del historial. Recomputa `remainingAmount` y `status` del parent
+(`remainingAmount += payment.amount`). Si el row estaba `SETTLED` y al borrar el pago
+queda saldo pendiente, se reabre a `PENDING`. Si el pago era real-payment (tiene `currency`),
+revierte el delta del pool.
+
+| Error code | HTTP | Cuándo                              |
+| ---------- | ---- | ----------------------------------- |
+| `DBT_008`  | 404  | El payment no existe                |
+| `DBT_002`  | 403  | El payment pertenece a otro usuario |
+
+**Respuesta:** `204 No Content`.
+
+### Respuesta de Payment (`DebtLoanPaymentResponseDto`)
+
+| Campo       | Tipo                                | Notas                                                  |
+| ----------- | ----------------------------------- | ------------------------------------------------------ |
+| `id`        | UUID                                |                                                        |
+| `amount`    | number                              | Monto del pago.                                        |
+| `currency`  | `'PEN' \| 'USD' \| 'EUR' \| null`   | Null para settles informales (sin paso por el pool).   |
+| `note`      | string \| null                      | Nota libre, máx 255 chars.                             |
+| `createdAt` | ISO datetime                        |                                                        |
+
 ### Respuesta de Debt/Loan (`DebtLoanResponseDto`)
 
 | Campo             | Tipo                                | Notas                                  |

@@ -14,19 +14,40 @@ import { type Currency } from '@common/enums/currency.enum';
  *   - `currency` is null when the settle was an informal-close (no
  *     real money moved through the pool). When set, it mirrors the
  *     parent `DebtLoan.currency` (the settle use case enforces the
- *     match before inserting).
- *   - `note` is reserved for Phase 2 (edit/delete) — Phase 1 always
- *     writes null.
- *   - Immutable from the domain's perspective in Phase 1 — there are
- *     no mutators. Edit/delete come in Phase 2.
+ *     match before inserting). `currency` is immutable post-create —
+ *     Phase 2 edit cannot change it (would change pool mode).
+ *   - `note` is editable in Phase 2 (and may be set to null to clear it).
+ *   - Phase 2 adds `applyEdit` for edit support; `id`, `debtLoanId`,
+ *     `currency`, and `createdAt` remain immutable.
  */
 export class DebtLoanPayment {
   constructor(
     readonly id: string,
     readonly debtLoanId: string,
-    readonly amount: number,
+    public amount: number,
     readonly currency: Currency | null,
-    readonly note: string | null,
+    public note: string | null,
     readonly createdAt: Date,
   ) {}
+
+  /**
+   * Phase 2 — apply an in-place edit to `amount` and/or `note`.
+   * Caller validates business rules (positivity, no-overpayment,
+   * at-least-one-field-present) BEFORE invoking. `currency` is NOT
+   * editable: changing it would flip pool/no-pool mode, which is
+   * out of scope for the edit endpoint.
+   */
+  applyEdit(partial: { amount?: number; note?: string | null }): void {
+    if (partial.amount !== undefined) {
+      this.amount = round2(partial.amount);
+    }
+    if (partial.note !== undefined) {
+      this.note = partial.note;
+    }
+  }
+}
+
+/** 2-decimal rounding to keep money math sane across JS floats. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }

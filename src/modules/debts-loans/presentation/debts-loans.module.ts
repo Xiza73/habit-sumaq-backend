@@ -6,12 +6,14 @@ import { CurrencyPoolsModule } from '@modules/currency-pools/presentation/curren
 import { BulkSettleByReferenceUseCase } from '../application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateDebtLoanUseCase } from '../application/use-cases/create-debt-loan.use-case';
 import { DeleteDebtLoanUseCase } from '../application/use-cases/delete-debt-loan.use-case';
+import { DeleteDebtLoanPaymentUseCase } from '../application/use-cases/delete-debt-loan-payment.use-case';
 import { GetDebtLoanUseCase } from '../application/use-cases/get-debt-loan.use-case';
 import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
 import { ListDebtLoanPaymentsUseCase } from '../application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../application/use-cases/list-debts-loans.use-case';
 import { SettleDebtLoanUseCase } from '../application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../application/use-cases/update-debt-loan.use-case';
+import { UpdateDebtLoanPaymentUseCase } from '../application/use-cases/update-debt-loan-payment.use-case';
 import { DebtLoanRepository } from '../domain/debt-loan.repository';
 import { DebtLoanPaymentRepository } from '../domain/debt-loan-payment.repository';
 import { DebtLoanOrmEntity } from '../infrastructure/persistence/debt-loan.orm-entity';
@@ -53,6 +55,8 @@ import { DebtsLoansController } from './debts-loans.controller';
     SettleDebtLoanUseCase,
     BulkSettleByReferenceUseCase,
     ListDebtLoanPaymentsUseCase,
+    UpdateDebtLoanPaymentUseCase,
+    DeleteDebtLoanPaymentUseCase,
   ],
   exports: [DebtLoanRepository],
 })

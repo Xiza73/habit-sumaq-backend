@@ -25,15 +25,18 @@ import { DebtsSummaryResponseDto } from '../application/dto/debts-summary-respon
 import { GetDebtsQueryDto } from '../application/dto/get-debts-query.dto';
 import { SettleDebtLoanDto } from '../application/dto/settle-debt-loan.dto';
 import { UpdateDebtLoanDto } from '../application/dto/update-debt-loan.dto';
+import { UpdateDebtLoanPaymentDto } from '../application/dto/update-debt-loan-payment.dto';
 import { BulkSettleByReferenceUseCase } from '../application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateDebtLoanUseCase } from '../application/use-cases/create-debt-loan.use-case';
 import { DeleteDebtLoanUseCase } from '../application/use-cases/delete-debt-loan.use-case';
+import { DeleteDebtLoanPaymentUseCase } from '../application/use-cases/delete-debt-loan-payment.use-case';
 import { GetDebtLoanUseCase } from '../application/use-cases/get-debt-loan.use-case';
 import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
 import { ListDebtLoanPaymentsUseCase } from '../application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../application/use-cases/list-debts-loans.use-case';
 import { SettleDebtLoanUseCase } from '../application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../application/use-cases/update-debt-loan.use-case';
+import { UpdateDebtLoanPaymentUseCase } from '../application/use-cases/update-debt-loan-payment.use-case';
 
 import type { JwtPayload } from '../../auth/application/dto/jwt-payload.dto';
 
@@ -51,6 +54,8 @@ export class DebtsLoansController {
     private readonly settleUseCase: SettleDebtLoanUseCase,
     private readonly bulkSettleUseCase: BulkSettleByReferenceUseCase,
     private readonly listPaymentsUseCase: ListDebtLoanPaymentsUseCase,
+    private readonly updatePaymentUseCase: UpdateDebtLoanPaymentUseCase,
+    private readonly deletePaymentUseCase: DeleteDebtLoanPaymentUseCase,
   ) {}
 
   @Get()
@@ -103,6 +108,54 @@ export class DebtsLoansController {
   ): Promise<ApiResponseDto<BulkSettleResultDto>> {
     const result = await this.bulkSettleUseCase.execute(user.sub, body);
     return ApiResponseDto.ok(result, 'Bulk settle aplicado');
+  }
+
+  // Declared BEFORE `@Patch(':id')` / `@Delete(':id')` so Nest matches
+  // `/debts/payments/:paymentId` first. (The other handlers also use
+  // ParseUUIDPipe which would reject "payments" anyway, but explicit
+  // ordering avoids any ambiguity.)
+  @Patch('payments/:paymentId')
+  @ApiOperation({
+    summary: 'Editar un pago del historial (Fase 2)',
+    description:
+      'Permite editar `amount` y/o `note` de un row de payment history. ' +
+      'Recomputa `remainingAmount` y `status` del parent. Si el pago es real-payment ' +
+      '(tiene currency), también ajusta el delta del pool. `currency` NO es editable.',
+  })
+  @ApiParam({ name: 'paymentId', format: 'uuid' })
+  @ApiResponse({ status: 200, type: DebtLoanPaymentResponseDto })
+  @ApiResponse({ status: 404, description: 'DBT_008: pago no encontrado' })
+  @ApiResponse({ status: 403, description: 'DBT_002: pertenece a otro usuario' })
+  @ApiResponse({ status: 422, description: 'DBT_009: no se enviaron campos a actualizar' })
+  @ApiResponse({ status: 422, description: 'DBT_006: el monto excede el saldo pendiente' })
+  @ApiResponse({ status: 422, description: 'DBT_010: el saldo excedería el monto del debt/loan' })
+  async updatePayment(
+    @CurrentUser() user: JwtPayload,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @Body() body: UpdateDebtLoanPaymentDto,
+  ): Promise<ApiResponseDto<DebtLoanPaymentResponseDto>> {
+    const updated = await this.updatePaymentUseCase.execute(paymentId, user.sub, body);
+    return ApiResponseDto.ok(DebtLoanPaymentResponseDto.fromDomain(updated), 'Pago actualizado');
+  }
+
+  @Delete('payments/:paymentId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Eliminar un pago del historial (Fase 2)',
+    description:
+      'Borra fisicamente el row de payment history y revierte el `remainingAmount` ' +
+      'del parent (`remainingAmount += payment.amount`). Si la row estaba SETTLED se ' +
+      'reabre a PENDING. En real-payment, revierte el delta del pool.',
+  })
+  @ApiParam({ name: 'paymentId', format: 'uuid' })
+  @ApiResponse({ status: 204, description: 'Pago eliminado' })
+  @ApiResponse({ status: 404, description: 'DBT_008: pago no encontrado' })
+  @ApiResponse({ status: 403, description: 'DBT_002: pertenece a otro usuario' })
+  async deletePayment(
+    @CurrentUser() user: JwtPayload,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+  ): Promise<void> {
+    await this.deletePaymentUseCase.execute(paymentId, user.sub);
   }
 
   @Get(':id')

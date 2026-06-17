@@ -79,6 +79,10 @@ export const ERROR_CODES = {
   CANNOT_UPDATE_SETTLED_DEBT_LOAN: 'DBT_005',
   DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING: 'DBT_006',
   DEBT_LOAN_AMOUNT_BELOW_SETTLED: 'DBT_007',
+  // Phase 2 — payment history edit/delete.
+  DEBT_LOAN_PAYMENT_NOT_FOUND: 'DBT_008',
+  DEBT_LOAN_PAYMENT_UPDATE_NO_FIELDS: 'DBT_009',
+  DEBT_LOAN_PAYMENT_EXCEEDS_DEBT_AMOUNT: 'DBT_010',
   // Budget movements module (v1.0.0 standalone module — replaces the
   // EXPENSE subset of legacy transactions where `budgetId IS NOT NULL`).
   BUDGET_MOVEMENT_NOT_FOUND: 'BMV_001',
