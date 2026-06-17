@@ -19,6 +19,7 @@ import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 import { BulkSettleByReferenceDto } from '../application/dto/bulk-settle-by-reference.dto';
 import { BulkSettleResultDto } from '../application/dto/bulk-settle-result.dto';
 import { CreateDebtLoanDto } from '../application/dto/create-debt-loan.dto';
+import { DebtLoanPaymentResponseDto } from '../application/dto/debt-loan-payment-response.dto';
 import { DebtLoanResponseDto } from '../application/dto/debt-loan-response.dto';
 import { DebtsSummaryResponseDto } from '../application/dto/debts-summary-response.dto';
 import { GetDebtsQueryDto } from '../application/dto/get-debts-query.dto';
@@ -29,6 +30,7 @@ import { CreateDebtLoanUseCase } from '../application/use-cases/create-debt-loan
 import { DeleteDebtLoanUseCase } from '../application/use-cases/delete-debt-loan.use-case';
 import { GetDebtLoanUseCase } from '../application/use-cases/get-debt-loan.use-case';
 import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
+import { ListDebtLoanPaymentsUseCase } from '../application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../application/use-cases/list-debts-loans.use-case';
 import { SettleDebtLoanUseCase } from '../application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../application/use-cases/update-debt-loan.use-case';
@@ -48,6 +50,7 @@ export class DebtsLoansController {
     private readonly deleteUseCase: DeleteDebtLoanUseCase,
     private readonly settleUseCase: SettleDebtLoanUseCase,
     private readonly bulkSettleUseCase: BulkSettleByReferenceUseCase,
+    private readonly listPaymentsUseCase: ListDebtLoanPaymentsUseCase,
   ) {}
 
   @Get()
@@ -188,5 +191,28 @@ export class DebtsLoansController {
   ): Promise<ApiResponseDto<DebtLoanResponseDto>> {
     const settled = await this.settleUseCase.execute(id, user.sub, body);
     return ApiResponseDto.ok(DebtLoanResponseDto.fromDomain(settled), 'Liquidada');
+  }
+
+  @Get(':id/payments')
+  @ApiOperation({
+    summary: 'Listar el historial de pagos de una deuda/préstamo',
+    description:
+      'Devuelve el historial de settles aplicados al row, más reciente primero. ' +
+      'Cada row representa un evento de settle (parcial o total). ' +
+      '`currency` es null para settles informales (sin paso por el pool).',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiResponse({ status: 200, type: [DebtLoanPaymentResponseDto] })
+  @ApiResponse({ status: 404, description: 'DBT_001: deuda/préstamo no encontrado' })
+  @ApiResponse({ status: 403, description: 'DBT_002: pertenece a otro usuario' })
+  async listPayments(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ApiResponseDto<DebtLoanPaymentResponseDto[]>> {
+    const payments = await this.listPaymentsUseCase.execute(id, user.sub);
+    return ApiResponseDto.ok(
+      payments.map((p) => DebtLoanPaymentResponseDto.fromDomain(p)),
+      'Historial obtenido',
+    );
   }
 }

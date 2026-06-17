@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -8,6 +10,8 @@ import { CurrencyPoolService } from '@modules/currency-pools/application/currenc
 
 import { DebtLoan } from '../../domain/debt-loan.entity';
 import { DebtLoanRepository } from '../../domain/debt-loan.repository';
+import { DebtLoanPayment } from '../../domain/debt-loan-payment.entity';
+import { DebtLoanPaymentRepository } from '../../domain/debt-loan-payment.repository';
 import { DebtLoanType } from '../../domain/enums/debt-loan-type.enum';
 
 import type { SettleDebtLoanDto } from '../dto/settle-debt-loan.dto';
@@ -24,14 +28,18 @@ import type { SettleDebtLoanDto } from '../dto/settle-debt-loan.dto';
  *  - **Informal-close** (`dto.currency` omitido): solo marca el row
  *    SETTLED. No toca pool.
  *
- * Atomicidad: en real-payment mode, `repo.manager.transaction()`
- * envuelve la actualización del row + el `applyDelta` del pool. Si
- * cualquiera falla, ninguno persiste.
+ * Atomicidad: TODOS los settles (informal o real-payment) corren dentro
+ * de `dataSource.transaction()` porque siempre se inserta un row en
+ * `debt_loan_payments` además del UPDATE de `remainingAmount`. Si el
+ * insert falla, el settle se rollbackea (crítico para money: nunca
+ * dejamos la parent row con un settle aplicado pero sin su row de
+ * historial).
  */
 @Injectable()
 export class SettleDebtLoanUseCase {
   constructor(
     private readonly repo: DebtLoanRepository,
+    private readonly paymentRepo: DebtLoanPaymentRepository,
     private readonly poolService: CurrencyPoolService,
     private readonly dataSource: DataSource,
     @InjectPinoLogger(SettleDebtLoanUseCase.name)
@@ -69,49 +77,64 @@ export class SettleDebtLoanUseCase {
     }
 
     const isRealPayment = dto.currency !== undefined;
+    const paymentCurrency = isRealPayment ? debt.currency : null;
 
-    if (!isRealPayment) {
-      // Informal-close: just mark and save.
+    const saved = await this.dataSource.transaction(async (manager) => {
       debt.applySettlement(dto.settledAmount);
-      const saved = await this.repo.save(debt);
+      const persisted = await this.repo.save(debt, manager);
+
+      // Historial Fase 1: una row por evento de settle. `note` siempre
+      // null hasta Fase 2 (edit/delete).
+      await this.paymentRepo.create(
+        new DebtLoanPayment(
+          randomUUID(),
+          persisted.id,
+          dto.settledAmount,
+          paymentCurrency,
+          null,
+          new Date(),
+        ),
+        manager,
+      );
+
+      if (isRealPayment) {
+        // DEBT settle = pay = debit; LOAN settle = collect = credit.
+        const delta = debt.type === DebtLoanType.DEBT ? -dto.settledAmount : dto.settledAmount;
+        await this.poolService.applyDelta(userId, debt.currency, delta, manager);
+      }
+
+      return persisted;
+    });
+
+    if (isRealPayment) {
+      const delta = saved.type === DebtLoanType.DEBT ? -dto.settledAmount : dto.settledAmount;
+      this.logger.info(
+        {
+          event: 'debt_loan.settled',
+          mode: 'real-payment',
+          debtLoanId: saved.id,
+          userId,
+          type: saved.type,
+          currency: saved.currency,
+          settledAmount: dto.settledAmount,
+          poolDelta: delta,
+          remaining: saved.remainingAmount,
+        },
+        'debt_loan.settled',
+      );
+    } else {
       this.logger.info(
         {
           event: 'debt_loan.settled',
           mode: 'informal',
-          debtLoanId: debt.id,
+          debtLoanId: saved.id,
           userId,
           settledAmount: dto.settledAmount,
           remaining: saved.remainingAmount,
         },
         'debt_loan.settled',
       );
-      return saved;
     }
-
-    // Real-payment: row write + pool delta in one tx.
-    const delta = debt.type === DebtLoanType.DEBT ? -dto.settledAmount : dto.settledAmount;
-
-    const saved = await this.dataSource.transaction(async (manager) => {
-      debt.applySettlement(dto.settledAmount);
-      const persisted = await this.repo.save(debt, manager);
-      await this.poolService.applyDelta(userId, debt.currency, delta, manager);
-      return persisted;
-    });
-
-    this.logger.info(
-      {
-        event: 'debt_loan.settled',
-        mode: 'real-payment',
-        debtLoanId: saved.id,
-        userId,
-        type: saved.type,
-        currency: saved.currency,
-        settledAmount: dto.settledAmount,
-        poolDelta: delta,
-        remaining: saved.remainingAmount,
-      },
-      'debt_loan.settled',
-    );
 
     return saved;
   }

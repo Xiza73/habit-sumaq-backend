@@ -8,12 +8,14 @@ import { type CurrencyPoolService } from '@modules/currency-pools/application/cu
 
 import { buildDebtLoan } from '../../../domain/__tests__/debt-loan.factory';
 import { type DebtLoanRepository } from '../../../domain/debt-loan.repository';
+import { type DebtLoanPaymentRepository } from '../../../domain/debt-loan-payment.repository';
 import { DebtLoanStatus } from '../../../domain/enums/debt-loan-status.enum';
 import { DebtLoanType } from '../../../domain/enums/debt-loan-type.enum';
 import { SettleDebtLoanUseCase } from '../settle-debt-loan.use-case';
 
 describe('SettleDebtLoanUseCase', () => {
   let repo: jest.Mocked<DebtLoanRepository>;
+  let paymentRepo: jest.Mocked<DebtLoanPaymentRepository>;
   let pool: jest.Mocked<CurrencyPoolService>;
   let dataSource: jest.Mocked<Pick<DataSource, 'transaction'>>;
   let useCase: SettleDebtLoanUseCase;
@@ -31,6 +33,10 @@ describe('SettleDebtLoanUseCase', () => {
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       softDelete: jest.fn(),
     };
+    paymentRepo = {
+      create: jest.fn().mockImplementation((p) => Promise.resolve(p)),
+      findByDebtLoanId: jest.fn(),
+    };
     pool = { applyDelta: jest.fn() } as unknown as jest.Mocked<CurrencyPoolService>;
     // Mock DataSource.transaction to immediately invoke the callback with
     // a fake EntityManager, returning whatever the callback returns.
@@ -42,6 +48,7 @@ describe('SettleDebtLoanUseCase', () => {
     logger = buildMockPinoLogger();
     useCase = new SettleDebtLoanUseCase(
       repo,
+      paymentRepo,
       pool,
       dataSource as unknown as DataSource,
       logger as unknown as PinoLogger,
@@ -106,7 +113,6 @@ describe('SettleDebtLoanUseCase', () => {
       expect(result.status).toBe(DebtLoanStatus.SETTLED);
       expect(result.remainingAmount).toBe(0);
       expect(pool.applyDelta).not.toHaveBeenCalled();
-      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
     it('partial settle keeps row PENDING and reduces remaining', async () => {
@@ -126,6 +132,25 @@ describe('SettleDebtLoanUseCase', () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({ event: 'debt_loan.settled', mode: 'informal' }),
         'debt_loan.settled',
+      );
+    });
+
+    it('inserts a payment row with currency=null inside the same tx', async () => {
+      const debt = buildDebtLoan({ userId: USER, remainingAmount: 100 });
+      repo.findById.mockResolvedValue(debt);
+
+      await useCase.execute(debt.id, USER, { settledAmount: 40 });
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(paymentRepo.create).toHaveBeenCalledTimes(1);
+      expect(paymentRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          debtLoanId: debt.id,
+          amount: 40,
+          currency: null,
+          note: null,
+        }),
+        FAKE_MGR,
       );
     });
   });
@@ -198,6 +223,29 @@ describe('SettleDebtLoanUseCase', () => {
           poolDelta: -40,
         }),
         'debt_loan.settled',
+      );
+    });
+
+    it('inserts a payment row with the debt currency inside the same tx', async () => {
+      const debt = buildDebtLoan({
+        userId: USER,
+        type: DebtLoanType.DEBT,
+        currency: Currency.PEN,
+        remainingAmount: 100,
+      });
+      repo.findById.mockResolvedValue(debt);
+
+      await useCase.execute(debt.id, USER, { settledAmount: 40, currency: Currency.PEN });
+
+      expect(paymentRepo.create).toHaveBeenCalledTimes(1);
+      expect(paymentRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          debtLoanId: debt.id,
+          amount: 40,
+          currency: Currency.PEN,
+          note: null,
+        }),
+        FAKE_MGR,
       );
     });
   });
