@@ -617,6 +617,36 @@ unit tests + 14 e2e tests del módulo + regresión total intacta. ✅
 
 ---
 
+## Fase 14 — Debts/Loans Payment History (Phase 2: edit + delete)
+
+**Objetivo:** Permitir corregir y borrar pagos parciales registrados en el historial
+de una deuda/préstamo, recomputando `remainingAmount` y `status` (`SETTLED` ↔ `PENDING`)
+de forma atómica. Phase 1 (record + list de payments via `GET /debts/:id/payments`)
+quedó shipped en v0.6.0.
+
+- [x] `UpdateDebtLoanPaymentDto` (amount opcional, note opcional, al menos uno requerido)
+- [x] `UpdateDebtLoanPaymentUseCase`: recomputa `remainingAmount` y `status` del parent;
+  revierte/aplica delta en pool de currency si el payment tiene `currency` (real-payment).
+  `currency` es inmutable post-create
+- [x] `DeleteDebtLoanPaymentUseCase`: hard delete del row; recomputa saldo y status;
+  reabre `SETTLED` → `PENDING` si corresponde; revierte delta del pool en real-payment
+- [x] `PATCH /debts/payments/:paymentId` y `DELETE /debts/payments/:paymentId` declarados
+  ANTES de `@Patch(':id')`/`@Delete(':id')` para que Nest matchee `payments` primero
+- [x] Error codes nuevos en `ERROR_CODES` + `DOMAIN_HTTP_MAP`:
+  - `DBT_008` (404) — payment no encontrado
+  - `DBT_009` (422) — PATCH sin `amount` ni `note`
+  - `DBT_010` (422) — sanity check: nuevo `remainingAmount > debt.amount`
+- [x] Re-uso de `DBT_006` (422, overpayment) para edits que harían `remainingAmount < 0`
+- [x] Tests unitarios de los 2 nuevos use cases (update + delete) cubriendo:
+  recomputo de saldo y status, reapertura PENDING ← SETTLED, reversal del pool en
+  real-payment, ownership guards, todos los error codes
+- [x] Tests e2e en `test/debts-loans.e2e-spec.ts` cubriendo PATCH y DELETE end-to-end
+
+**Criterio de completitud:** tsc limpio, lint limpio en archivos del scope, unit tests
++ e2e tests verdes + regresión total intacta. ✅
+
+---
+
 ## Backlog Chores (post-v1)
 
 Funcionalidades intencionalmente fuera del v1. Dejadas para una iteración futura cuando haya

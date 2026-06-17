@@ -75,8 +75,11 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `DBT_003` | 422  | DEBT/LOAN requiere campo `reference`   | Crear sin `reference`                           |
 | `DBT_004` | 409  | Ya fue liquidado completamente         | POST settle sobre un row con `status=SETTLED`   |
 | `DBT_005` | 409  | No se puede modificar un debt/loan liquidado | PATCH con campos distintos a `amount` en `status=SETTLED` |
-| `DBT_006` | 422  | El monto de liquidación excede el pendiente | POST settle con `settledAmount > remainingAmount` |
+| `DBT_006` | 422  | El monto de liquidación excede el pendiente | POST settle con `settledAmount > remainingAmount`, o PATCH payment con `amount` que dejaría `remainingAmount < 0` |
 | `DBT_007` | 422  | El nuevo monto es menor a lo ya liquidado | PATCH amount por debajo de `(amount - remainingAmount)` |
+| `DBT_008` | 404  | Payment no encontrado                  | PATCH/DELETE `/debts/payments/:id` con UUID inexistente |
+| `DBT_009` | 422  | Update de payment sin campos a modificar | PATCH `/debts/payments/:id` sin `amount` ni `note` |
+| `DBT_010` | 422  | El saldo recomputado excedería el monto del debt/loan | PATCH/DELETE payment que dejaría `remainingAmount > debt.amount` |
 
 ### Budget Movements (v1.0.0)
 
