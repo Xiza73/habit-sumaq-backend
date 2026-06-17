@@ -22,11 +22,13 @@ import { CreateDebtLoanUseCase } from '../src/modules/debts-loans/application/us
 import { DeleteDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/delete-debt-loan.use-case';
 import { GetDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/get-debt-loan.use-case';
 import { GetDebtsSummaryUseCase } from '../src/modules/debts-loans/application/use-cases/get-debts-summary.use-case';
+import { ListDebtLoanPaymentsUseCase } from '../src/modules/debts-loans/application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../src/modules/debts-loans/application/use-cases/list-debts-loans.use-case';
 import { SettleDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/update-debt-loan.use-case';
 import { buildDebtLoan } from '../src/modules/debts-loans/domain/__tests__/debt-loan.factory';
 import { DebtLoanRepository } from '../src/modules/debts-loans/domain/debt-loan.repository';
+import { DebtLoanPaymentRepository } from '../src/modules/debts-loans/domain/debt-loan-payment.repository';
 import { DebtLoanStatus } from '../src/modules/debts-loans/domain/enums/debt-loan-status.enum';
 import { DebtLoanType } from '../src/modules/debts-loans/domain/enums/debt-loan-type.enum';
 import { DebtsLoansController } from '../src/modules/debts-loans/presentation/debts-loans.controller';
@@ -49,6 +51,11 @@ describe('DebtsLoansController (e2e)', () => {
     findPendingByNormalizedReference: jest.fn(),
     save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     softDelete: jest.fn(),
+  };
+
+  const mockPaymentRepo: jest.Mocked<DebtLoanPaymentRepository> = {
+    create: jest.fn().mockImplementation((p) => Promise.resolve(p)),
+    findByDebtLoanId: jest.fn().mockResolvedValue([]),
   };
 
   const mockPool = {
@@ -83,7 +90,9 @@ describe('DebtsLoansController (e2e)', () => {
         DeleteDebtLoanUseCase,
         SettleDebtLoanUseCase,
         BulkSettleByReferenceUseCase,
+        ListDebtLoanPaymentsUseCase,
         { provide: DebtLoanRepository, useValue: mockRepo },
+        { provide: DebtLoanPaymentRepository, useValue: mockPaymentRepo },
         { provide: CurrencyPoolService, useValue: mockPool },
         { provide: DataSource, useValue: mockDataSource },
         JwtAccessStrategy,
@@ -121,6 +130,8 @@ describe('DebtsLoansController (e2e)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRepo.save.mockImplementation((d) => Promise.resolve(d));
+    mockPaymentRepo.create.mockImplementation((p) => Promise.resolve(p));
+    mockPaymentRepo.findByDebtLoanId.mockResolvedValue([]);
   });
 
   describe('authentication', () => {

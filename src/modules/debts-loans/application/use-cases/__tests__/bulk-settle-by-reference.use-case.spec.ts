@@ -8,12 +8,14 @@ import { type CurrencyPoolService } from '@modules/currency-pools/application/cu
 
 import { buildDebtLoan } from '../../../domain/__tests__/debt-loan.factory';
 import { type DebtLoanRepository } from '../../../domain/debt-loan.repository';
+import { type DebtLoanPaymentRepository } from '../../../domain/debt-loan-payment.repository';
 import { DebtLoanStatus } from '../../../domain/enums/debt-loan-status.enum';
 import { DebtLoanType } from '../../../domain/enums/debt-loan-type.enum';
 import { BulkSettleByReferenceUseCase } from '../bulk-settle-by-reference.use-case';
 
 describe('BulkSettleByReferenceUseCase', () => {
   let repo: jest.Mocked<DebtLoanRepository>;
+  let paymentRepo: jest.Mocked<DebtLoanPaymentRepository>;
   let pool: jest.Mocked<CurrencyPoolService>;
   let dataSource: jest.Mocked<Pick<DataSource, 'transaction'>>;
   let useCase: BulkSettleByReferenceUseCase;
@@ -31,6 +33,10 @@ describe('BulkSettleByReferenceUseCase', () => {
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       softDelete: jest.fn(),
     };
+    paymentRepo = {
+      create: jest.fn().mockImplementation((p) => Promise.resolve(p)),
+      findByDebtLoanId: jest.fn(),
+    };
     pool = { applyDelta: jest.fn() } as unknown as jest.Mocked<CurrencyPoolService>;
     dataSource = {
       transaction: jest
@@ -40,6 +46,7 @@ describe('BulkSettleByReferenceUseCase', () => {
     logger = buildMockPinoLogger();
     useCase = new BulkSettleByReferenceUseCase(
       repo,
+      paymentRepo,
       pool,
       dataSource as unknown as DataSource,
       logger as unknown as PinoLogger,
@@ -173,6 +180,47 @@ describe('BulkSettleByReferenceUseCase', () => {
     await expect(useCase.execute(USER, { reference: 'Juan' })).rejects.toMatchObject({
       code: 'DEBT_LOAN_BELONGS_TO_OTHER_USER',
     } satisfies Partial<DomainException>);
+  });
+
+  it('inserts one payment row per settled debt inside the same tx', async () => {
+    const a = buildDebtLoan({
+      userId: USER,
+      type: DebtLoanType.DEBT,
+      currency: Currency.PEN,
+      remainingAmount: 40,
+    });
+    const b = buildDebtLoan({
+      userId: USER,
+      type: DebtLoanType.LOAN,
+      currency: Currency.PEN,
+      remainingAmount: 60,
+    });
+    const c = buildDebtLoan({
+      userId: USER,
+      type: DebtLoanType.DEBT,
+      currency: Currency.PEN,
+      remainingAmount: 25,
+    });
+    repo.findPendingByNormalizedReference.mockResolvedValue([a, b, c]);
+
+    await useCase.execute(USER, { reference: 'Juan', currency: Currency.PEN });
+
+    expect(paymentRepo.create).toHaveBeenCalledTimes(3);
+    expect(paymentRepo.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ debtLoanId: a.id, amount: 40, currency: Currency.PEN, note: null }),
+      FAKE_MGR,
+    );
+    expect(paymentRepo.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ debtLoanId: b.id, amount: 60, currency: Currency.PEN, note: null }),
+      FAKE_MGR,
+    );
+    expect(paymentRepo.create).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ debtLoanId: c.id, amount: 25, currency: Currency.PEN, note: null }),
+      FAKE_MGR,
+    );
   });
 
   it('logs with settledCount + netPoolDelta', async () => {

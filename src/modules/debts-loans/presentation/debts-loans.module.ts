@@ -8,12 +8,16 @@ import { CreateDebtLoanUseCase } from '../application/use-cases/create-debt-loan
 import { DeleteDebtLoanUseCase } from '../application/use-cases/delete-debt-loan.use-case';
 import { GetDebtLoanUseCase } from '../application/use-cases/get-debt-loan.use-case';
 import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
+import { ListDebtLoanPaymentsUseCase } from '../application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../application/use-cases/list-debts-loans.use-case';
 import { SettleDebtLoanUseCase } from '../application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../application/use-cases/update-debt-loan.use-case';
 import { DebtLoanRepository } from '../domain/debt-loan.repository';
+import { DebtLoanPaymentRepository } from '../domain/debt-loan-payment.repository';
 import { DebtLoanOrmEntity } from '../infrastructure/persistence/debt-loan.orm-entity';
 import { DebtLoanRepositoryImpl } from '../infrastructure/persistence/debt-loan.repository.impl';
+import { DebtLoanPaymentOrmEntity } from '../infrastructure/persistence/debt-loan-payment.orm-entity';
+import { DebtLoanPaymentRepositoryImpl } from '../infrastructure/persistence/debt-loan-payment.repository.impl';
 
 import { DebtsLoansController } from './debts-loans.controller';
 
@@ -26,12 +30,20 @@ import { DebtsLoansController } from './debts-loans.controller';
  * settle real-payment. No exporta su propio repo — ningún otro módulo
  * (todavía) consume debts_loans directamente; Phase A5 cablea reports
  * cuando llegue el momento.
+ *
+ * `DebtLoanPayment*` (Fase 1 de payment-history) viven dentro de este
+ * mismo módulo — son child del parent `DebtLoan` y no tienen sentido
+ * fuera del flujo de settle.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([DebtLoanOrmEntity]), CurrencyPoolsModule],
+  imports: [
+    TypeOrmModule.forFeature([DebtLoanOrmEntity, DebtLoanPaymentOrmEntity]),
+    CurrencyPoolsModule,
+  ],
   controllers: [DebtsLoansController],
   providers: [
     { provide: DebtLoanRepository, useClass: DebtLoanRepositoryImpl },
+    { provide: DebtLoanPaymentRepository, useClass: DebtLoanPaymentRepositoryImpl },
     ListDebtsLoansUseCase,
     GetDebtLoanUseCase,
     GetDebtsSummaryUseCase,
@@ -40,6 +52,7 @@ import { DebtsLoansController } from './debts-loans.controller';
     DeleteDebtLoanUseCase,
     SettleDebtLoanUseCase,
     BulkSettleByReferenceUseCase,
+    ListDebtLoanPaymentsUseCase,
   ],
   exports: [DebtLoanRepository],
 })

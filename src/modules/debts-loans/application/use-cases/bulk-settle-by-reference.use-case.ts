@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -7,6 +9,8 @@ import { DomainException } from '@common/exceptions/domain.exception';
 import { CurrencyPoolService } from '@modules/currency-pools/application/currency-pool.service';
 
 import { DebtLoanRepository } from '../../domain/debt-loan.repository';
+import { DebtLoanPayment } from '../../domain/debt-loan-payment.entity';
+import { DebtLoanPaymentRepository } from '../../domain/debt-loan-payment.repository';
 import { DebtLoanType } from '../../domain/enums/debt-loan-type.enum';
 import { BulkSettleResultDto } from '../dto/bulk-settle-result.dto';
 
@@ -28,12 +32,15 @@ import type { BulkSettleByReferenceDto } from '../dto/bulk-settle-by-reference.d
  * `settledCount = 0` — NO es error.
  *
  * Toda la operación va dentro de una sola tx para garantizar atomicidad
- * incluso cuando hay N rows + 1 delta de pool.
+ * incluso cuando hay N rows + 1 delta de pool + N rows de payment history
+ * (una por cada settle individual aplicado — mismo patrón que
+ * `SettleDebtLoanUseCase`).
  */
 @Injectable()
 export class BulkSettleByReferenceUseCase {
   constructor(
     private readonly repo: DebtLoanRepository,
+    private readonly paymentRepo: DebtLoanPaymentRepository,
     private readonly poolService: CurrencyPoolService,
     private readonly dataSource: DataSource,
     @InjectPinoLogger(BulkSettleByReferenceUseCase.name)
@@ -86,6 +93,22 @@ export class BulkSettleByReferenceUseCase {
         await this.repo.save(row, manager);
         totalSettled += settleAmount;
         settledIds.push(row.id);
+
+        // Historial Fase 1: una row de payment por cada settle aplicado,
+        // dentro de la MISMA tx que el UPDATE de remainingAmount. Mismo
+        // shape que `SettleDebtLoanUseCase`. `note` siempre null hasta
+        // Fase 2 (edit/delete).
+        await this.paymentRepo.create(
+          new DebtLoanPayment(
+            randomUUID(),
+            row.id,
+            settleAmount,
+            dto.currency ?? null,
+            null,
+            new Date(),
+          ),
+          manager,
+        );
 
         if (isRealPayment) {
           // DEBT settle = pay = debit; LOAN settle = collect = credit.
