@@ -24,4 +24,25 @@ export abstract class DebtLoanPaymentRepository {
    * history; per-debt N is bounded in practice.
    */
   abstract findByDebtLoanId(debtLoanId: string): Promise<DebtLoanPayment[]>;
+
+  /**
+   * Phase 2 — fetch a single payment by id (or null). Used by edit/delete
+   * to load the row + validate ownership through its parent `DebtLoan`.
+   */
+  abstract findById(id: string, manager?: EntityManager): Promise<DebtLoanPayment | null>;
+
+  /**
+   * Phase 2 — update an existing payment row in place. Caller has already
+   * mutated the editable fields on the domain entity (`amount`, `note`).
+   * Separate from `create` to keep Fase 1 callers untouched.
+   */
+  abstract update(payment: DebtLoanPayment, manager?: EntityManager): Promise<DebtLoanPayment>;
+
+  /**
+   * Phase 2 — hard-delete by id. Payment history is not soft-deletable
+   * (no `deletedAt` column) — the row is removed entirely. The caller is
+   * responsible for adjusting `remainingAmount` + status on the parent
+   * `DebtLoan` and reverting any pool delta inside the same transaction.
+   */
+  abstract deleteById(id: string, manager?: EntityManager): Promise<void>;
 }
