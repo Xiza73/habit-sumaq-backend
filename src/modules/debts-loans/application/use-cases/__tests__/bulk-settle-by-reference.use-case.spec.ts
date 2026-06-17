@@ -36,6 +36,9 @@ describe('BulkSettleByReferenceUseCase', () => {
     paymentRepo = {
       create: jest.fn().mockImplementation((p) => Promise.resolve(p)),
       findByDebtLoanId: jest.fn(),
+      findById: jest.fn(),
+      update: jest.fn(),
+      deleteById: jest.fn(),
     };
     pool = { applyDelta: jest.fn() } as unknown as jest.Mocked<CurrencyPoolService>;
     dataSource = {

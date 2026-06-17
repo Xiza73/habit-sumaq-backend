@@ -56,6 +56,9 @@ describe('DebtsLoansController (e2e)', () => {
   const mockPaymentRepo: jest.Mocked<DebtLoanPaymentRepository> = {
     create: jest.fn().mockImplementation((p) => Promise.resolve(p)),
     findByDebtLoanId: jest.fn().mockResolvedValue([]),
+    findById: jest.fn(),
+    update: jest.fn().mockImplementation((p) => Promise.resolve(p)),
+    deleteById: jest.fn(),
   };
 
   const mockPool = {

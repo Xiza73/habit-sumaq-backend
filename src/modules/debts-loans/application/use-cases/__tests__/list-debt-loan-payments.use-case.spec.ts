@@ -28,6 +28,9 @@ describe('ListDebtLoanPaymentsUseCase', () => {
     paymentRepo = {
       create: jest.fn(),
       findByDebtLoanId: jest.fn(),
+      findById: jest.fn(),
+      update: jest.fn(),
+      deleteById: jest.fn(),
     };
     useCase = new ListDebtLoanPaymentsUseCase(debtRepo, paymentRepo);
   });
