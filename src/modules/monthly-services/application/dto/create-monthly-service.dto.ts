@@ -55,7 +55,7 @@ export class CreateMonthlyServiceDto {
   frequencyMonths?: number;
 
   @ApiPropertyOptional({
-    description: 'Estimado mensual. Se recalcula al pagar (AVG de las últimas 3 tx).',
+    description: 'Estimado mensual. Se actualiza al pagar (= monto del último pago).',
     example: 45.0,
     nullable: true,
   })

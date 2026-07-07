@@ -485,7 +485,7 @@ QuickTasksModule (Fase 8) ←─────────────────
 - [x] 8 endpoints con `JwtAuthGuard` y Swagger completo
 - [x] Error codes `MSVC_001..003` agregados a `ERROR_CODES` y `DOMAIN_HTTP_MAP`
 - [x] Helper `currentPeriodInTimezone` en `src/modules/monthly-services/infrastructure/timezone/` — resuelve el mes actual (YYYY-MM) en la timezone del cliente (header `x-timezone`)
-- [x] Pago crea `Transaction EXPENSE` con `monthlyServiceId`, debita la cuenta, avanza `lastPaidPeriod` y recalcula `estimatedAmount` como AVG de las últimas 3 tx
+- [x] Pago crea `Transaction EXPENSE` con `monthlyServiceId`, debita la cuenta, avanza `lastPaidPeriod` y actualiza `estimatedAmount` al monto del último pago
 - [x] Skip avanza período sin afectar balance
 - [x] Delete condicional: 409 `MSVC_001` si hay pagos registrados — forzar archivar en su lugar
 - [x] `CategoriesModule` ahora exporta `CategoryRepository` (se usa desde monthly-services)

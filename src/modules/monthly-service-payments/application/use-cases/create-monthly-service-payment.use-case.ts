@@ -21,11 +21,10 @@ import { MonthlyServicePaymentRepository } from '../../domain/monthly-service-pa
 import type { CreateMonthlyServicePaymentDto } from '../dto/create-monthly-service-payment.dto';
 
 /**
- * Number of recent payments averaged when re-computing the service's
- * `estimatedAmount` and `dueDay`. Matches the legacy `PayMonthlyServiceUseCase`
- * window so user behavior doesn't change when migrating to v1.0.0.
+ * Syncing the service only needs the single most-recent payment: its amount
+ * becomes `estimatedAmount` and its calendar day becomes `dueDay`.
  */
-const MOVING_AVG_WINDOW = 3;
+const RECENT_PAYMENTS_TO_FETCH = 1;
 
 /**
  * POST /monthly-service-payments.
@@ -45,10 +44,10 @@ const MOVING_AVG_WINDOW = 3;
  *   2. Debit the user's currency pool by `amount`.
  *   3. **Sync the service entity** — advance `lastPaidPeriod` (only if
  *      the new period is later than the stored one, so back-paying
- *      doesn't regress the pointer), and recompute `estimatedAmount`
- *      + `dueDay` as the moving average over the most-recent N payments
- *      (including the one just saved — the repo reads through the same
- *      manager so the uncommitted row is visible).
+ *      doesn't regress the pointer), and set `estimatedAmount`
+ *      + `dueDay` from the most-recent payment (including the one just
+ *      saved — the repo reads through the same manager so the
+ *      uncommitted row is visible).
  *
  *      WITHOUT step 3, the service stays "unpaid forever" from the
  *      monthly-services list endpoint's POV — `nextDuePeriod` keeps
@@ -59,8 +58,8 @@ const MOVING_AVG_WINDOW = 3;
  *
  * Currency is inherited from the service — never read from the DTO.
  *
- * Why `timezone` is here: `dueDay` is "average day-of-month of recent
- * payments in the user's local zone". The controller injects it from
+ * Why `timezone` is here: `dueDay` is "day-of-month of the most recent
+ * payment in the user's local zone". The controller injects it from
  * the `x-timezone` header (same convention as the legacy pay endpoint).
  */
 @Injectable()
@@ -152,16 +151,16 @@ export class CreateMonthlyServicePaymentUseCase {
    * Mutates `service` and saves it via `manager`. Advances `lastPaidPeriod`
    * only forward (so back-paying an earlier period — e.g. discovering you
    * paid March but forgot to register it — doesn't regress the pointer),
-   * re-averages `estimatedAmount` over the most recent N active payments,
-   * and snaps `dueDay` to the calendar day of the MOST RECENT payment.
+   * and sets both `estimatedAmount` and `dueDay` from the MOST RECENT
+   * payment — the amount for the estimate, the calendar day for the due day.
    *
    * The repo reads through the same `manager` so the row just persisted
-   * (uncommitted) is visible to both the amount average and the day pick.
+   * (uncommitted) is visible when picking the most recent payment.
    *
-   * History — `dueDay` used to be a moving average across the last N
-   * payments. In practice users found it counterintuitive: a single late
-   * payment would tug the predicted day for several cycles. The user
-   * prefers "the day I last paid" — direct, no smoothing.
+   * History — `estimatedAmount` and `dueDay` used to be moving averages
+   * across the last N payments. In practice users found it counterintuitive:
+   * a single off month would tug both values for several cycles. The user
+   * prefers "what I last paid, the day I last paid" — direct, no smoothing.
    */
   private async syncService(
     service: MonthlyService,
@@ -172,21 +171,20 @@ export class CreateMonthlyServicePaymentUseCase {
     if (!service.lastPaidPeriod || paidPeriod > service.lastPaidPeriod) {
       service.markPeriodAsPaid(paidPeriod);
     }
-    const recent = await this.repo.findLastNByServiceId(service.id, MOVING_AVG_WINDOW, manager);
+    const recent = await this.repo.findLastNByServiceId(
+      service.id,
+      RECENT_PAYMENTS_TO_FETCH,
+      manager,
+    );
     if (recent.length > 0) {
-      service.estimatedAmount = computeAverageAmount(recent);
       // `findLastNByServiceId` returns rows ordered by (period DESC, date DESC),
       // so recent[0] IS the most recent payment — including the one just saved.
-      service.dueDay = clampDayOfMonth(dayInTimezone(recent[0].date, timezone));
+      const mostRecent = recent[0];
+      service.estimatedAmount = mostRecent.amount;
+      service.dueDay = clampDayOfMonth(dayInTimezone(mostRecent.date, timezone));
     }
     await this.serviceRepo.save(service, manager);
   }
-}
-
-function computeAverageAmount(payments: MonthlyServicePayment[]): number {
-  if (payments.length === 0) return 0;
-  const sum = payments.reduce((acc, p) => acc + p.amount, 0);
-  return Math.round((sum / payments.length) * 100) / 100;
 }
 
 /**

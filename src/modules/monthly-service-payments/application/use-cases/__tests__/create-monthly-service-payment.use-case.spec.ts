@@ -288,5 +288,47 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
 
       expect(service.dueDay).toBe(22);
     });
+
+    it('sets estimatedAmount to the MOST RECENT payment amount (not the moving average)', async () => {
+      // Window holds three payments with distinct amounts. A moving average
+      // would land on 40 ((80 + 30 + 10) / 3); the user wants the estimate to
+      // be exactly the last payment made: 80.
+      const service = buildMonthlyService({
+        id: SERVICE,
+        userId: USER,
+        currency: Currency.PEN,
+        lastPaidPeriod: '2026-05',
+        estimatedAmount: 40,
+      });
+      serviceRepo.findById.mockResolvedValue(service);
+      repo.findLastNByServiceId.mockResolvedValue([
+        buildMonthlyServicePayment({
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 80,
+          date: new Date('2026-06-22T15:00:00.000Z'),
+        }),
+        buildMonthlyServicePayment({
+          monthlyServiceId: SERVICE,
+          period: '2026-05',
+          amount: 30,
+          date: new Date('2026-05-05T15:00:00.000Z'),
+        }),
+        buildMonthlyServicePayment({
+          monthlyServiceId: SERVICE,
+          period: '2026-04',
+          amount: 10,
+          date: new Date('2026-04-05T15:00:00.000Z'),
+        }),
+      ]);
+
+      await useCase.execute(
+        USER,
+        { monthlyServiceId: SERVICE, period: '2026-06', amount: 80 },
+        TIMEZONE,
+      );
+
+      expect(service.estimatedAmount).toBe(80);
+    });
   });
 });

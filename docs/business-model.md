@@ -322,7 +322,7 @@ MonthlyService {
   defaultAccountId: UUID          // FK → Account — cuenta habitual de pago
   categoryId: UUID                // FK → Category — categoría de la transacción generada
   currency: string                // ISO 4217, inmutable, debe coincidir con defaultAccount
-  estimatedAmount: number | null  // Recalculado como AVG de las últimas 3 tx al pagar
+  estimatedAmount: number | null  // Se actualiza al monto del último pago al pagar
   dueDay: number | null           // 1..31, informativo para UI
   startPeriod: string             // YYYY-MM — primer período a pagar, inmutable
   lastPaidPeriod: string | null   // YYYY-MM — último mes cubierto, null si nunca se pagó
@@ -352,7 +352,7 @@ Los tres se calculan en cada respuesta usando la timezone del header `x-timezone
    - Crea una `Transaction EXPENSE` con `monthlyServiceId` apuntando al servicio.
    - Debita la cuenta elegida (default u `accountIdOverride`).
    - Avanza `lastPaidPeriod` al `nextDuePeriod` que se acaba de facturar.
-   - Recalcula `estimatedAmount` = AVG de las últimas 3 transacciones del servicio.
+   - Actualiza `estimatedAmount` = monto del último pago registrado del servicio.
 7. Saltear un mes sólo avanza `lastPaidPeriod`; no afecta balance ni crea transacción.
 
 **Invariantes de dominio:**
