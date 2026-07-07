@@ -1348,7 +1348,7 @@ Registra un pago del servicio:
 1. Crea un `Transaction` de tipo `EXPENSE` con `monthlyServiceId` = `:id`.
 2. Debita la cuenta (override si se envía `accountIdOverride`, default si no).
 3. Avanza `lastPaidPeriod` al período recién facturado.
-4. Recalcula `estimatedAmount` como promedio de las últimas 3 transacciones del servicio.
+4. Actualiza `estimatedAmount` al monto del último pago registrado del servicio.
 
 - **Body:**
 
