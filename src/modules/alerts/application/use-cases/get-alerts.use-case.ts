@@ -9,6 +9,7 @@ import { HabitRepository } from '@modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '@modules/habits/domain/habit-log.repository';
 import { MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
 import { currentPeriodInTimezone } from '@modules/monthly-services/infrastructure/timezone/current-period-in-timezone';
+import { dayInTimezone } from '@modules/monthly-services/infrastructure/timezone/day-in-timezone';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
 import { Alert } from '../../domain/alert.entity';
@@ -75,7 +76,7 @@ export class GetAlertsForUserUseCase {
 
     // 3) Build candidate alerts from every module in parallel.
     const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts] = await Promise.all([
-      this.buildServiceAlerts(userId, currentPeriod),
+      this.buildServiceAlerts(userId, currentPeriod, timezone, now),
       this.buildHabitsMiddayAlert(userId, today, currentHour, now),
       this.buildBudgetAlerts(userId, year, month, now),
       this.buildChoreAlerts(userId, today),
@@ -110,7 +111,12 @@ export class GetAlertsForUserUseCase {
    *    naturally end up with older triggeredAt, but lastSeenAt collapses them
    *    after the first popover open.
    */
-  private async buildServiceAlerts(userId: string, currentPeriod: string): Promise<Alert[]> {
+  private async buildServiceAlerts(
+    userId: string,
+    currentPeriod: string,
+    timezone: string,
+    now: Date,
+  ): Promise<Alert[]> {
     const services = await this.servicesRepo.findByUserId(userId, false);
     const alerts: Alert[] = [];
     for (const service of services) {
@@ -134,7 +140,16 @@ export class GetAlertsForUserUseCase {
         );
         continue; // Don't ALSO mark it as "due today" — overdue is more specific.
       }
-      if (service.nextDuePeriod() === currentPeriod && !service.isPaidForMonth(currentPeriod)) {
+      // "Due today" means exactly that: today (in the user's timezone) is the
+      // service's due day. Without the day check this fired all month long, as
+      // soon as the service entered its due period — e.g. a day-29 service
+      // showing "due today" on the 11th.
+      if (
+        service.nextDuePeriod() === currentPeriod &&
+        service.dueDay !== null &&
+        dayInTimezone(now, timezone) === service.dueDay &&
+        !service.isPaidForMonth(currentPeriod)
+      ) {
         alerts.push(
           new Alert(
             serviceDueTodayId(service.id, currentPeriod),

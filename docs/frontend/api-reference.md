@@ -1839,7 +1839,7 @@ badge sin segundo roundtrip.
 
 | Tipo                 | Policy     | Cuándo dispara                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod` y no está pagado |
+| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` coincide con el día de hoy (en la zona del usuario) y no está pagado |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
 | `budget-overspent`   | persistent | Budget del mes actual con `amount - spent < 0`                               |
