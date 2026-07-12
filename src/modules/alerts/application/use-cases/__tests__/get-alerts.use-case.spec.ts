@@ -146,7 +146,7 @@ describe('GetAlertsForUserUseCase', () => {
         lastPaidPeriod: null,
         currency: 'PEN',
         estimatedAmount: 45,
-        dueDay: 10,
+        dueDay: 19, // matches NOW's day-of-month in Lima → "due today"
       });
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
@@ -157,6 +157,20 @@ describe('GetAlertsForUserUseCase', () => {
       expect(alert.id).toBe(`service-due-today:${service.id}:2026-05`);
       expect(alert.payload.serviceId).toBe(service.id);
       expect(alert.payload.estimatedAmount).toBe(45);
+    });
+
+    it('does NOT emit SERVICE_DUE_TODAY before the due day arrives', async () => {
+      // Due on the 29th, but today (Lima) is the 19th → not due yet. The alert
+      // must not fire until the actual due day.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 29,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
     });
 
     it('emits SERVICE_OVERDUE for a service whose nextDuePeriod is earlier than current', async () => {
@@ -290,7 +304,11 @@ describe('GetAlertsForUserUseCase', () => {
 
   describe('dismiss filtering', () => {
     it('filters out alerts whose ID has an active dismissal', async () => {
-      const service = buildMonthlyService({ startPeriod: '2026-05', lastPaidPeriod: null });
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 19,
+      });
       const dismissed = new UserAlertDismissal(
         'dismiss-1',
         USER_ID,
@@ -308,7 +326,11 @@ describe('GetAlertsForUserUseCase', () => {
     });
 
     it('keeps alerts whose dismissal has already expired (the row is stale)', async () => {
-      const service = buildMonthlyService({ startPeriod: '2026-05', lastPaidPeriod: null });
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 19,
+      });
       const stale = new UserAlertDismissal(
         'dismiss-1',
         USER_ID,
