@@ -21,7 +21,7 @@ const DISMISS_POLICY: Record<AlertType, DismissPolicy> = {
   [AlertType.SERVICE_DUE_TODAY]: 'per-day',
   [AlertType.SERVICE_OVERDUE]: 'persistent',
   [AlertType.HABITS_MIDDAY]: 'per-day',
-  [AlertType.BUDGET_OVERSPENT]: 'persistent',
+  [AlertType.BUDGET_UNLOGGED]: 'per-day',
   [AlertType.CHORE_OVERDUE]: 'persistent',
 };
 

@@ -1842,7 +1842,7 @@ badge sin segundo roundtrip.
 | `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` coincide con el día de hoy (en la zona del usuario) y no está pagado |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
-| `budget-overspent`   | persistent | Budget del mes actual con `amount - spent < 0`                               |
+| `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) — recordatorio "¿olvidaste registrar un gasto?" |
 | `chore-overdue`      | persistent | Chore activo con `nextDueDate < today`                                       |
 
 - **Per-day**: el usuario puede cerrarlas y vuelven a aparecer al día siguiente (medianoche
@@ -1891,20 +1891,21 @@ de mediodía.
 ```
 
 - `id`: string estable. Los per-day embeben el período/fecha (`service-due-today:{uuid}:YYYY-MM`,
-  `habits-midday:YYYY-MM-DD`) para que la dismiss caduque a la próxima ventana. Los persistent
-  omiten el período (`service-overdue:{uuid}`, `budget-overspent:{uuid}`, `chore-overdue:{uuid}`)
-  porque la identidad de la alerta no depende del tiempo — se va al resolverse.
+  `habits-midday:YYYY-MM-DD`, `budget-unlogged:{uuid}:YYYY-MM-DD`) para que la dismiss caduque a
+  la próxima ventana. Los persistent omiten el período (`service-overdue:{uuid}`,
+  `chore-overdue:{uuid}`) porque la identidad de la alerta no depende del tiempo — se va al resolverse.
 - `type`: ver enum [`AlertType`](enums.md#alerttype).
 - `severity`: ver enum [`AlertSeverity`](enums.md#alertseverity).
 - `isDismissable`: refleja la policy. `true` para per-day, `false` para persistent. El
   frontend lo usa para mostrar/ocultar el botón "Cerrar".
-- `triggeredAt`: UTC ISO. Para per-day = inicio del período/día. Para persistent (budget,
-  habits-midday): `now`. El frontend lo compara contra `lastSeenAt` para contar "nuevas".
+- `triggeredAt`: UTC ISO. Para `service-due-today`/`service-overdue`/`chore-overdue` = inicio
+  del período/día que disparó. Para `habits-midday` y `budget-unlogged`: `now`. El frontend lo
+  compara contra `lastSeenAt` para contar "nuevas".
 - `payload`: bag de keys según `type`. Shape por tipo:
   - `service-due-today`: `serviceId, serviceName, dueDay, currency, estimatedAmount`.
   - `service-overdue`: `serviceId, serviceName, overduePeriod, currency, estimatedAmount`.
   - `habits-midday`: `missingCount, firstHabitName`.
-  - `budget-overspent`: `budgetId, currency, amount, spent, remaining` (remaining < 0).
+  - `budget-unlogged`: `budgetId, currency, remaining` (`> 0`), `days` (racha de días sin registrar, ≥2).
   - `chore-overdue`: `choreId, choreName, nextDueDate` (`YYYY-MM-DD`).
 - `lastSeenAt`: timestamp del último `POST /alerts/mark-seen`. `null` si el usuario nunca
   abrió el popover. El badge del bell = `alerts.filter(a => a.triggeredAt > lastSeenAt).length`.

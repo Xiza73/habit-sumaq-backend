@@ -1,5 +1,5 @@
 import {
-  budgetOverspentId,
+  budgetUnloggedId,
   choreOverdueId,
   habitsMiddayId,
   serviceDueTodayId,
@@ -26,8 +26,11 @@ describe('alert-id helpers', () => {
       expect(habitsMiddayId('2026-05-19')).toBe('habits-midday:2026-05-19');
     });
 
-    it('budgetOverspentId is stable per budget', () => {
-      expect(budgetOverspentId('xyz')).toBe('budget-overspent:xyz');
+    it('budgetUnloggedId embeds the date — a fresh row per day', () => {
+      const d19 = budgetUnloggedId('xyz', '2026-05-19');
+      const d20 = budgetUnloggedId('xyz', '2026-05-20');
+      expect(d19).toBe('budget-unlogged:xyz:2026-05-19');
+      expect(d19).not.toBe(d20);
     });
 
     it('choreOverdueId is stable per chore', () => {
@@ -40,7 +43,7 @@ describe('alert-id helpers', () => {
       expect(typeFromAlertId(serviceDueTodayId('a', '2026-05'))).toBe(AlertType.SERVICE_DUE_TODAY);
       expect(typeFromAlertId(serviceOverdueId('a'))).toBe(AlertType.SERVICE_OVERDUE);
       expect(typeFromAlertId(habitsMiddayId('2026-05-19'))).toBe(AlertType.HABITS_MIDDAY);
-      expect(typeFromAlertId(budgetOverspentId('a'))).toBe(AlertType.BUDGET_OVERSPENT);
+      expect(typeFromAlertId(budgetUnloggedId('a', '2026-05-19'))).toBe(AlertType.BUDGET_UNLOGGED);
       expect(typeFromAlertId(choreOverdueId('a'))).toBe(AlertType.CHORE_OVERDUE);
     });
 

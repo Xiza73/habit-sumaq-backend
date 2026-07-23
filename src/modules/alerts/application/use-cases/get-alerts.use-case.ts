@@ -14,7 +14,7 @@ import { UserSettingsRepository } from '@modules/users/domain/user-settings.repo
 
 import { Alert } from '../../domain/alert.entity';
 import {
-  budgetOverspentId,
+  budgetUnloggedId,
   choreOverdueId,
   habitsMiddayId,
   serviceDueTodayId,
@@ -26,6 +26,13 @@ import { UserAlertDismissalRepository } from '../../domain/user-alert-dismissal.
 import { hourInTimezone } from '../../infrastructure/timezone/hour-in-timezone';
 
 const MIDDAY_HOUR = 12;
+
+/**
+ * Consecutive no-movement days (ending today) that trip the budget-unlogged
+ * nudge. 2 — since daily basics get logged every day, two silent days almost
+ * always means "forgot to register", not genuinely no spending.
+ */
+const MIN_UNLOGGED_DAYS = 2;
 
 export interface GetAlertsResult {
   /** Alerts visible to the user RIGHT NOW (post-dismiss filter). */
@@ -78,7 +85,7 @@ export class GetAlertsForUserUseCase {
     const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts] = await Promise.all([
       this.buildServiceAlerts(userId, currentPeriod, timezone, now),
       this.buildHabitsMiddayAlert(userId, today, currentHour, now),
-      this.buildBudgetAlerts(userId, year, month, now),
+      this.buildBudgetAlerts(userId, year, month, today, timezone, now),
       this.buildChoreAlerts(userId, today),
     ]);
 
@@ -214,52 +221,73 @@ export class GetAlertsForUserUseCase {
   }
 
   /**
-   * Budget overspent — one alert per active budget in the current month
-   * whose `amount - spent < 0`. We pull all budgets (no period filter on
-   * the repo) and discard non-current ones in-app. This keeps the repo
-   * surface small; budgets are typically <12 rows per user.
+   * Budget unlogged — one per active budget in the current month that still
+   * has money left (`amount - spent > 0`) yet has gone `MIN_UNLOGGED_DAYS`+
+   * consecutive days with no movements ending today. Since daily basics
+   * (food, essentials) get logged every day, a gap means the user likely
+   * FORGOT to register an expense — so this is a "did you forget?" nudge,
+   * not an overspend warning.
+   *
+   * We pull all budgets (no period filter on the repo) and discard
+   * non-current ones in-app; budgets are typically <12 rows per user. The
+   * per-day dismiss policy makes a morning false-positive harmless — the
+   * user can close it, and it re-evaluates tomorrow.
    */
   private async buildBudgetAlerts(
     userId: string,
     year: number,
     month: number,
+    today: string,
+    timezone: string,
     now: Date,
   ): Promise<Alert[]> {
     const budgets = await this.budgetsRepo.findByUserId(userId);
     const current = budgets.filter((b) => b.year === year && b.month === month && !b.isDeleted());
     if (current.length === 0) return [];
 
-    // Sum movements per budget in parallel — small N so the fan-out is fine.
+    // Movements per budget in parallel — small N so the fan-out is fine.
     // v1.0.0: reads from `budget_movements` (the dedicated v1.0.0 module),
     // NOT the legacy `transactions` tagged with `budgetId`.
-    const sums = await Promise.all(current.map((b) => this.budgetMovementRepo.sumByBudgetId(b.id)));
+    const movementsPerBudget = await Promise.all(
+      current.map((b) => this.budgetMovementRepo.findByBudgetId(b.id)),
+    );
 
     const alerts: Alert[] = [];
     current.forEach((budget, i) => {
-      const spent = sums[i];
+      const movements = movementsPerBudget[i].filter((m) => !m.isDeleted());
+      const spent = movements.reduce((acc, m) => acc + m.amount, 0);
       const remaining = budget.amount - spent;
-      if (remaining < 0) {
-        alerts.push(
-          new Alert(
-            budgetOverspentId(budget.id),
-            AlertType.BUDGET_OVERSPENT,
-            AlertSeverity.WARNING,
-            // Best-effort triggeredAt: now. We don't have a "first crossed
-            // into negative" timestamp; lastSeenAt + the persistent policy
-            // means the badge stops counting it as new after the first
-            // popover open. Persistent alerts stay in the list until
-            // resolved regardless.
-            now,
-            {
-              budgetId: budget.id,
-              currency: budget.currency,
-              amount: budget.amount,
-              spent,
-              remaining,
-            },
-          ),
-        );
+      if (remaining <= 0) return;
+
+      // Days (in the user's TZ) that already have at least one movement.
+      const spentDays = new Set(movements.map((m) => formatLocalDate(timezone, m.date)));
+
+      // Walk back from today counting consecutive no-movement days, stopping
+      // at the first day with spend or when we leave the current period.
+      const period = today.slice(0, 7);
+      let streak = 0;
+      let cursor = today;
+      while (cursor.slice(0, 7) === period && !spentDays.has(cursor)) {
+        streak += 1;
+        cursor = previousDay(cursor);
       }
+
+      if (streak < MIN_UNLOGGED_DAYS) return;
+
+      alerts.push(
+        new Alert(
+          budgetUnloggedId(budget.id, today),
+          AlertType.BUDGET_UNLOGGED,
+          AlertSeverity.INFO,
+          now,
+          {
+            budgetId: budget.id,
+            currency: budget.currency,
+            remaining,
+            days: streak,
+          },
+        ),
+      );
     });
     return alerts;
   }
@@ -293,6 +321,14 @@ export class GetAlertsForUserUseCase {
     }
     return alerts;
   }
+}
+
+/** The `YYYY-MM-DD` calendar day before the given `YYYY-MM-DD` (UTC math). */
+function previousDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
 }
 
 /** `YYYY-MM-DD` of `now` in the given IANA timezone. */
