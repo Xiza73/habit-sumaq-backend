@@ -14,8 +14,12 @@ export enum AlertType {
   SERVICE_OVERDUE = 'service-overdue',
   /** DAILY habit with no log for today after midday in the user's TZ. */
   HABITS_MIDDAY = 'habits-midday',
-  /** Active budget whose `amount - spent` is negative. */
-  BUDGET_OVERSPENT = 'budget-overspent',
+  /**
+   * Active budget with money left (`amount - spent > 0`) that has gone 2+
+   * consecutive days with no movements ending today — a "did you forget to
+   * log an expense?" nudge, since daily basics are logged every day.
+   */
+  BUDGET_UNLOGGED = 'budget-unlogged',
   /** Chore whose `nextDueDate` is earlier than the user's current calendar day. */
   CHORE_OVERDUE = 'chore-overdue',
 }

@@ -156,7 +156,7 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 
 | Código    | HTTP | Descripción                              | Cuándo ocurre                                                                                          |
 | --------- | ---- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ALR_001` | 409  | Esta alerta no se puede descartar        | POST /alerts/:alertId/dismiss sobre una alerta persistente (service-overdue, budget-overspent, chore-overdue) o un alertId con prefijo no reconocido. |
+| `ALR_001` | 409  | Esta alerta no se puede descartar        | POST /alerts/:alertId/dismiss sobre una alerta persistente (service-overdue, chore-overdue) o un alertId con prefijo no reconocido. |
 
 ### Tasks + Sections (TODOs estilo proyectos con cleanup semanal)
 

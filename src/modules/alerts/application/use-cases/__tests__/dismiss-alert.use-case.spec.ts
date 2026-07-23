@@ -2,7 +2,7 @@ import { DomainException } from '@common/exceptions/domain.exception';
 import { buildUserSettings } from '@modules/users/domain/__tests__/user-settings.factory';
 
 import {
-  budgetOverspentId,
+  budgetUnloggedId,
   choreOverdueId,
   habitsMiddayId,
   serviceDueTodayId,
@@ -64,20 +64,18 @@ describe('DismissAlertUseCase', () => {
       await useCase.execute(USER_ID, habitsMiddayId('2026-05-19'), NOW);
       expect(upsert).toHaveBeenCalledTimes(1);
     });
+
+    it('also accepts budget-unlogged IDs (per-day)', async () => {
+      const { useCase, upsert } = buildDeps();
+      await useCase.execute(USER_ID, budgetUnloggedId('xyz', '2026-05-19'), NOW);
+      expect(upsert).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('persistent alerts (rejected)', () => {
     it('throws ALERT_NOT_DISMISSABLE for SERVICE_OVERDUE', async () => {
       const { useCase, upsert } = buildDeps();
       await expect(useCase.execute(USER_ID, serviceOverdueId('abc'), NOW)).rejects.toThrow(
-        DomainException,
-      );
-      expect(upsert).not.toHaveBeenCalled();
-    });
-
-    it('throws ALERT_NOT_DISMISSABLE for BUDGET_OVERSPENT', async () => {
-      const { useCase, upsert } = buildDeps();
-      await expect(useCase.execute(USER_ID, budgetOverspentId('xyz'), NOW)).rejects.toThrow(
         DomainException,
       );
       expect(upsert).not.toHaveBeenCalled();

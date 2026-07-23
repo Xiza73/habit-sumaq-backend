@@ -34,9 +34,9 @@ export function habitsMiddayId(date: string): string {
   return `${AlertType.HABITS_MIDDAY}:${date}`;
 }
 
-/** `budget-overspent:{budgetId}` — persistent until the user tops up the budget. */
-export function budgetOverspentId(budgetId: string): string {
-  return `${AlertType.BUDGET_OVERSPENT}:${budgetId}`;
+/** `budget-unlogged:{budgetId}:{YYYY-MM-DD}` — per-day, scoped to the date. */
+export function budgetUnloggedId(budgetId: string, date: string): string {
+  return `${AlertType.BUDGET_UNLOGGED}:${budgetId}:${date}`;
 }
 
 /** `chore-overdue:{choreId}` — persistent until the user marks the chore done. */

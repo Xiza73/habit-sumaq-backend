@@ -1,3 +1,5 @@
+import { Currency } from '@common/enums/currency.enum';
+import { buildBudgetMovement } from '@modules/budget-movements/domain/__tests__/budget-movement.factory';
 import { makeBudget } from '@modules/budgets/domain/__tests__/budget.factory';
 import { buildChore } from '@modules/chores/domain/__tests__/chore.factory';
 import { buildHabit } from '@modules/habits/domain/__tests__/habit.factory';
@@ -11,6 +13,7 @@ import { UserAlertDismissal } from '../../../domain/user-alert-dismissal.entity'
 import { GetAlertsForUserUseCase } from '../get-alerts.use-case';
 
 import type { UserAlertDismissalRepository } from '../../../domain/user-alert-dismissal.repository';
+import type { BudgetMovement } from '@modules/budget-movements/domain/budget-movement.entity';
 import type { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import type { BudgetRepository } from '@modules/budgets/domain/budget.repository';
 import type { ChoreRepository } from '@modules/chores/domain/chore.repository';
@@ -30,7 +33,7 @@ function buildUseCase(
     habits: ReturnType<typeof buildHabit>[];
     habitLogs: HabitLog[];
     budgets: ReturnType<typeof makeBudget>[];
-    budgetSpentMap: Map<string, number>;
+    budgetMovementsMap: Map<string, BudgetMovement[]>;
     chores: ReturnType<typeof buildChore>[];
     dismissals: UserAlertDismissal[];
     lastAlertsSeenAt: Date | null;
@@ -40,7 +43,7 @@ function buildUseCase(
   const habits = overrides.habits ?? [];
   const habitLogs = overrides.habitLogs ?? [];
   const budgets = overrides.budgets ?? [];
-  const budgetSpentMap = overrides.budgetSpentMap ?? new Map<string, number>();
+  const budgetMovementsMap = overrides.budgetMovementsMap ?? new Map<string, BudgetMovement[]>();
   const chores = overrides.chores ?? [];
   const dismissals = overrides.dismissals ?? [];
 
@@ -78,10 +81,11 @@ function buildUseCase(
     softDelete: jest.fn(),
   };
 
-  // v1.0.0: budget overspent alert sums movements from the new
-  // `budget_movements` table, not legacy `transactions`.
+  // v1.0.0: budget alerts read movements from the new `budget_movements`
+  // table, not legacy `transactions`. The unlogged-days nudge needs per-day
+  // granularity, so it pulls the full movement list per budget.
   const budgetMovementRepo = {
-    sumByBudgetId: jest.fn((id: string) => Promise.resolve(budgetSpentMap.get(id) ?? 0)),
+    findByBudgetId: jest.fn((id: string) => Promise.resolve(budgetMovementsMap.get(id) ?? [])),
   } as unknown as BudgetMovementRepository;
 
   const choresRepo: jest.Mocked<ChoreRepository> = {
@@ -251,34 +255,71 @@ describe('GetAlertsForUserUseCase', () => {
     });
   });
 
-  describe('budget-overspent trigger', () => {
-    it('emits BUDGET_OVERSPENT when a current-month budget has spent > amount', async () => {
+  describe('budget-unlogged trigger', () => {
+    // NOW = 2026-05-19 12:00 Lima → today (Lima) = 2026-05-19, period 2026-05.
+    // Movements are stamped at 12:00 UTC (07:00 Lima) so the Lima calendar
+    // day equals the date in the ISO string, keeping the streak math obvious.
+    const movementOn = (budgetId: string, day: string, amount = 100): BudgetMovement =>
+      buildBudgetMovement({
+        budgetId,
+        amount,
+        currency: Currency.PEN,
+        date: new Date(`2026-05-${day}T12:00:00.000Z`),
+      });
+
+    it('emits BUDGET_UNLOGGED when 2+ consecutive days end today with no movement', async () => {
+      // Last movement on the 17th → 18th + 19th are silent → streak = 2.
       const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
       const { useCase } = buildUseCase({
         budgets: [budget],
-        budgetSpentMap: new Map([[budget.id, 1500]]),
+        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
       });
       const result = await useCase.execute(USER_ID, TZ, NOW);
-      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_OVERSPENT]);
-      expect(result.alerts[0].payload.remaining).toBe(-500);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+      expect(result.alerts[0].payload.days).toBe(2);
+      expect(result.alerts[0].payload.remaining).toBe(900);
+      expect(result.alerts[0].payload.currency).toBe('PEN');
     });
 
-    it('does NOT emit for a budget that is on track (spent <= amount)', async () => {
+    it('does NOT emit when there is a movement today (streak resets to 0)', async () => {
       const budget = makeBudget({ year: 2026, month: 5, amount: 1000 });
       const { useCase } = buildUseCase({
         budgets: [budget],
-        budgetSpentMap: new Map([[budget.id, 600]]),
+        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '19')]]]),
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('does NOT emit when the gap is only 1 day (below the threshold)', async () => {
+      // Movement yesterday (18th) → only today (19th) is silent → streak = 1.
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000 });
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '18')]]]),
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('does NOT emit when the budget has no money left (remaining <= 0)', async () => {
+      // Fully spent early in the month, long silent gap after — but there's
+      // nothing left to spend, so the "forgot to log" nudge makes no sense.
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000 });
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '05', 1000)]]]),
       });
       const result = await useCase.execute(USER_ID, TZ, NOW);
       expect(result.alerts).toEqual([]);
     });
 
     it('ignores budgets from other months (current-month gate)', async () => {
-      // April budget overspent — should NOT emit because we're in May now.
+      // April budget with a silent gap — should NOT emit because we're in May.
       const aprilBudget = makeBudget({ year: 2026, month: 4, amount: 1000 });
       const { useCase } = buildUseCase({
         budgets: [aprilBudget],
-        budgetSpentMap: new Map([[aprilBudget.id, 9999]]),
+        budgetMovementsMap: new Map([[aprilBudget.id, []]]),
       });
       const result = await useCase.execute(USER_ID, TZ, NOW);
       expect(result.alerts).toEqual([]);
