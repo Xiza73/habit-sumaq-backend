@@ -318,7 +318,7 @@ tal cual al frontend.
 | `service-due-today`   | per-day    | Servicio mensual a pagar este mes, aún no marcado como pagado            |
 | `service-overdue`     | persistent | Servicio cuyo `nextDuePeriod` es anterior al mes actual                  |
 | `habits-midday`       | per-day    | ≥1 hábito DAILY sin completar Y hora local del usuario ≥ 12:00           |
-| `budget-overspent`    | persistent | Budget del mes actual con `remaining < 0`                                |
+| `budget-unlogged`     | per-day    | Budget del mes con `remaining > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) |
 | `chore-overdue`       | persistent | Chore activo cuyo `nextDueDate < today`                                  |
 
 - **Per-day**: el usuario puede cerrarlas (`POST /alerts/:id/dismiss`) — vuelven a
@@ -337,8 +337,8 @@ popover (warnings antes que infos).
 
 | Valor     | Descripción                                                          |
 | --------- | -------------------------------------------------------------------- |
-| `info`    | Recordatorio neutral (servicios due hoy, hábitos mediodía)           |
-| `warning` | Atención requerida (overdues + budget overspent)                     |
+| `info`    | Recordatorio neutral (servicios due hoy, hábitos mediodía, budget sin registrar) |
+| `warning` | Atención requerida (overdues)                                        |
 
 **Uso:** campo `severity` en `AlertResponseDto`.
 
