@@ -104,6 +104,62 @@ describe('UpdateMonthlyServiceParticipantUseCase', () => {
     expect(result.defaultAmount).toBe(140);
   });
 
+  it('allows updating when the integer sum exactly equals estimatedAmount', async () => {
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
+    const ana = buildParticipant({ id: 'p1', reference: 'Ana', defaultAmount: 50 });
+    const luis = buildParticipant({
+      id: 'p2',
+      reference: 'Luis',
+      normalizedReference: 'luis',
+      defaultAmount: 200,
+    });
+    serviceRepo.findById.mockResolvedValue(service);
+    participantRepo.findByServiceId.mockResolvedValue([ana, luis]);
+
+    // Luis(200) + Ana(100) = 300 exactly.
+    const result = await useCase.execute('service-1', 'p1', userId, { defaultAmount: 100 });
+
+    expect(result.defaultAmount).toBe(100);
+  });
+
+  it('allows updating when the decimal sum exactly equals estimatedAmount (no float drift)', async () => {
+    // Luis(0.20) + Ana(0.10) === 0.30, but naive float addition yields
+    // 0.30000000000000004, which would falsely trip the cap without cents math.
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 0.3 });
+    const ana = buildParticipant({ id: 'p1', reference: 'Ana', defaultAmount: 0.05 });
+    const luis = buildParticipant({
+      id: 'p2',
+      reference: 'Luis',
+      normalizedReference: 'luis',
+      defaultAmount: 0.2,
+    });
+    serviceRepo.findById.mockResolvedValue(service);
+    participantRepo.findByServiceId.mockResolvedValue([ana, luis]);
+
+    const result = await useCase.execute('service-1', 'p1', userId, { defaultAmount: 0.1 });
+
+    expect(result.defaultAmount).toBe(0.1);
+  });
+
+  it('rejects when the decimal sum is strictly over estimatedAmount', async () => {
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300.0 });
+    const ana = buildParticipant({ id: 'p1', reference: 'Ana', defaultAmount: 50 });
+    const luis = buildParticipant({
+      id: 'p2',
+      reference: 'Luis',
+      normalizedReference: 'luis',
+      defaultAmount: 199.91,
+    });
+    serviceRepo.findById.mockResolvedValue(service);
+    participantRepo.findByServiceId.mockResolvedValue([ana, luis]);
+
+    // Luis(199.91) + Ana(100.10) = 300.01 > 300.00
+    await expect(
+      useCase.execute('service-1', 'p1', userId, { defaultAmount: 100.1 }),
+    ).rejects.toThrow(DomainException);
+    expect(participantRepo.save).not.toHaveBeenCalled();
+  });
+
   it('rejects a non-positive amount', async () => {
     const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
     const participant = buildParticipant({ id: 'p1', defaultAmount: 100 });

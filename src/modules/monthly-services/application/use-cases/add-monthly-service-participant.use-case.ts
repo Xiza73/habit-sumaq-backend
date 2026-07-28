@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 
 import { DomainException } from '@common/exceptions/domain.exception';
+import { toCents } from '@common/money/to-cents';
 import { normalizeReference } from '@common/text/normalize-reference';
 
 import { MonthlyServiceParticipant } from '../../domain/entities/monthly-service-participant.entity';
@@ -60,9 +61,21 @@ export class AddMonthlyServiceParticipantUseCase {
     }
 
     if (service.estimatedAmount !== null) {
+      // NOTE: This read-validate-write sum check is NOT transactionally locked.
+      // Two concurrent edits to the same service can both read a stale total and
+      // each pass the cap, letting the combined sum exceed `estimatedAmount`
+      // (TOCTOU). Accepted for now — participant config is single-user editing;
+      // revisit with row locking or a DB-level constraint if it becomes a problem.
       const currentParticipants = await this.participantRepo.findByServiceId(monthlyServiceId);
-      const currentSum = currentParticipants.reduce((sum, p) => sum + p.defaultAmount, 0);
-      if (currentSum + dto.defaultAmount > service.estimatedAmount) {
+      // Compare in integer cents: NUMERIC(14,2) values are exact, but JS float
+      // addition drifts (e.g. 0.1 + 0.2 = 0.30000000000000004), which would
+      // falsely reject an exactly-equal sum. `≤` semantics preserved (equal is ok).
+      const currentSumCents = currentParticipants.reduce(
+        (sum, p) => sum + toCents(p.defaultAmount),
+        0,
+      );
+      const newSumCents = currentSumCents + toCents(dto.defaultAmount);
+      if (newSumCents > toCents(service.estimatedAmount)) {
         throw new DomainException(
           'MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED',
           'La suma de montos supera el estimado del servicio',
