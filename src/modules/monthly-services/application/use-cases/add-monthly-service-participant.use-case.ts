@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 import { toCents } from '@common/money/to-cents';
+import { isUniqueViolation } from '@common/persistence/postgres-error';
 import { normalizeReference } from '@common/text/normalize-reference';
 
 import { MonthlyServiceParticipant } from '../../domain/entities/monthly-service-participant.entity';
@@ -96,6 +97,20 @@ export class AddMonthlyServiceParticipantUseCase {
       deletedAt: null,
     });
 
-    return this.participantRepo.save(participant);
+    try {
+      return await this.participantRepo.save(participant);
+    } catch (error) {
+      // Defense-in-depth for the reference pre-check TOCTOU: under concurrency
+      // two inserts can race, the second hitting the partial unique index
+      // `UQ_msp_service_normalized_reference_active` (SQLSTATE 23505). Translate
+      // it into the same 409 the pre-check raises instead of surfacing a 500.
+      if (isUniqueViolation(error)) {
+        throw new DomainException(
+          'MSP_PARTICIPANT_DUPLICATE_REFERENCE',
+          'Ya existe un participante con esa referencia',
+        );
+      }
+      throw error;
+    }
   }
 }

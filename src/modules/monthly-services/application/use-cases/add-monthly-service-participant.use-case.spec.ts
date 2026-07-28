@@ -1,3 +1,5 @@
+import { QueryFailedError } from 'typeorm';
+
 import { DomainException } from '@common/exceptions/domain.exception';
 
 import { buildMonthlyService } from '../../domain/__tests__/monthly-service.factory';
@@ -193,6 +195,36 @@ describe('AddMonthlyServiceParticipantUseCase', () => {
     });
 
     expect(result.defaultAmount).toBe(999999);
+  });
+
+  it('translates a unique-index race (23505) into MSP_PARTICIPANT_DUPLICATE_REFERENCE', async () => {
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
+    serviceRepo.findById.mockResolvedValue(service);
+    // Pre-check passes (concurrent insert not yet visible), but the DB unique
+    // index rejects the write with Postgres error code 23505.
+    const driverError = Object.assign(new Error('duplicate key value'), { code: '23505' });
+    const queryFailed = new QueryFailedError('INSERT ...', [], driverError);
+    participantRepo.save.mockRejectedValue(queryFailed);
+
+    await expect(
+      useCase.execute('service-1', userId, { reference: 'Ana', defaultAmount: 100 }),
+    ).rejects.toMatchObject({
+      code: 'MSP_PARTICIPANT_DUPLICATE_REFERENCE',
+    });
+    await expect(
+      useCase.execute('service-1', userId, { reference: 'Ana', defaultAmount: 100 }),
+    ).rejects.toBeInstanceOf(DomainException);
+  });
+
+  it('re-throws non-unique-violation save errors untouched', async () => {
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
+    serviceRepo.findById.mockResolvedValue(service);
+    const unexpected = new Error('connection reset');
+    participantRepo.save.mockRejectedValue(unexpected);
+
+    await expect(
+      useCase.execute('service-1', userId, { reference: 'Ana', defaultAmount: 100 }),
+    ).rejects.toBe(unexpected);
   });
 
   it('throws MONTHLY_SERVICE_NOT_FOUND for unknown service', async () => {
