@@ -5,6 +5,9 @@ import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { Currency } from '@common/enums/currency.enum';
 import { type DomainException } from '@common/exceptions/domain.exception';
 import { type CurrencyPoolService } from '@modules/currency-pools/application/currency-pool.service';
+import { buildDebtLoan } from '@modules/debts-loans/domain/__tests__/debt-loan.factory';
+import { type DebtLoanRepository } from '@modules/debts-loans/domain/debt-loan.repository';
+import { DebtLoanStatus } from '@modules/debts-loans/domain/enums/debt-loan-status.enum';
 
 import { buildMonthlyServicePayment } from '../../../domain/__tests__/monthly-service-payment.factory';
 import { type MonthlyServicePaymentRepository } from '../../../domain/monthly-service-payment.repository';
@@ -13,6 +16,7 @@ import { DeleteMonthlyServicePaymentUseCase } from '../delete-monthly-service-pa
 describe('DeleteMonthlyServicePaymentUseCase', () => {
   let repo: jest.Mocked<MonthlyServicePaymentRepository>;
   let pool: jest.Mocked<CurrencyPoolService>;
+  let debtLoanRepo: jest.Mocked<Pick<DebtLoanRepository, 'findBySourcePaymentIds' | 'softDelete'>>;
   let dataSource: jest.Mocked<Pick<DataSource, 'transaction'>>;
   let useCase: DeleteMonthlyServicePaymentUseCase;
   let logger: ReturnType<typeof buildMockPinoLogger>;
@@ -33,6 +37,10 @@ describe('DeleteMonthlyServicePaymentUseCase', () => {
       softDelete: jest.fn(),
     };
     pool = { applyDelta: jest.fn() } as unknown as jest.Mocked<CurrencyPoolService>;
+    debtLoanRepo = {
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
+      softDelete: jest.fn(),
+    };
     dataSource = {
       transaction: jest
         .fn()
@@ -42,6 +50,7 @@ describe('DeleteMonthlyServicePaymentUseCase', () => {
     useCase = new DeleteMonthlyServicePaymentUseCase(
       repo,
       pool,
+      debtLoanRepo as unknown as DebtLoanRepository,
       dataSource as unknown as DataSource,
       logger as unknown as PinoLogger,
     );
@@ -106,5 +115,79 @@ describe('DeleteMonthlyServicePaymentUseCase', () => {
       }),
       'monthly_service_payment.deleted',
     );
+  });
+
+  describe('linked-debt cascade (shared-service-payments slice 2)', () => {
+    it('soft-deletes UNSETTLED linked debts inside the SAME transaction', async () => {
+      const p = buildMonthlyServicePayment({ id: 'payment-1', userId: USER, amount: 180 });
+      repo.findById.mockResolvedValue(p);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildDebtLoan({ id: 'debt-pending-1', status: DebtLoanStatus.PENDING }),
+        buildDebtLoan({ id: 'debt-pending-2', status: DebtLoanStatus.PENDING }),
+      ]);
+
+      await useCase.execute(p.id, USER);
+
+      expect(debtLoanRepo.findBySourcePaymentIds).toHaveBeenCalledWith([p.id], FAKE_MGR);
+      expect(debtLoanRepo.softDelete).toHaveBeenCalledTimes(2);
+      expect(debtLoanRepo.softDelete).toHaveBeenCalledWith('debt-pending-1', FAKE_MGR);
+      expect(debtLoanRepo.softDelete).toHaveBeenCalledWith('debt-pending-2', FAKE_MGR);
+    });
+
+    it('does NOT soft-delete SETTLED linked debts (they remain as history)', async () => {
+      const p = buildMonthlyServicePayment({ id: 'payment-1', userId: USER, amount: 100 });
+      repo.findById.mockResolvedValue(p);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildDebtLoan({ id: 'debt-settled', status: DebtLoanStatus.SETTLED, remainingAmount: 0 }),
+      ]);
+
+      await useCase.execute(p.id, USER);
+
+      expect(debtLoanRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT revert the pool credit of a SETTLED linked debt (only the payment refund applies)', async () => {
+      const p = buildMonthlyServicePayment({
+        id: 'payment-1',
+        userId: USER,
+        amount: 100,
+        currency: Currency.PEN,
+      });
+      repo.findById.mockResolvedValue(p);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildDebtLoan({ id: 'debt-settled', status: DebtLoanStatus.SETTLED, remainingAmount: 0 }),
+      ]);
+
+      await useCase.execute(p.id, USER);
+
+      // Only ONE applyDelta call — the payment's own refund. No second call
+      // reverting the settled LOAN's earlier pool credit.
+      expect(pool.applyDelta).toHaveBeenCalledTimes(1);
+      expect(pool.applyDelta).toHaveBeenCalledWith(USER, Currency.PEN, 100, FAKE_MGR);
+    });
+
+    it('mixes PENDING (soft-deleted) and SETTLED (untouched) linked debts correctly (triangulation)', async () => {
+      const p = buildMonthlyServicePayment({ id: 'payment-1', userId: USER, amount: 180 });
+      repo.findById.mockResolvedValue(p);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildDebtLoan({ id: 'debt-pending', status: DebtLoanStatus.PENDING }),
+        buildDebtLoan({ id: 'debt-settled', status: DebtLoanStatus.SETTLED, remainingAmount: 0 }),
+      ]);
+
+      await useCase.execute(p.id, USER);
+
+      expect(debtLoanRepo.softDelete).toHaveBeenCalledTimes(1);
+      expect(debtLoanRepo.softDelete).toHaveBeenCalledWith('debt-pending', FAKE_MGR);
+    });
+
+    it('is a no-op when the payment has no linked debts (non-shared payment, regression guard)', async () => {
+      const p = buildMonthlyServicePayment({ id: 'payment-1', userId: USER, amount: 50 });
+      repo.findById.mockResolvedValue(p);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([]);
+
+      await useCase.execute(p.id, USER);
+
+      expect(debtLoanRepo.softDelete).not.toHaveBeenCalled();
+    });
   });
 });

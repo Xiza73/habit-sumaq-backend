@@ -19,6 +19,7 @@ import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies
 import { CurrencyPoolService } from '../src/modules/currency-pools/application/currency-pool.service';
 import { DebtLoanSettlementComposer } from '../src/modules/debts-loans/application/services/debt-loan-settlement-composer';
 import { DebtLoan } from '../src/modules/debts-loans/domain/debt-loan.entity';
+import { DebtLoanRepository } from '../src/modules/debts-loans/domain/debt-loan.repository';
 import { DebtLoanStatus } from '../src/modules/debts-loans/domain/enums/debt-loan-status.enum';
 import { DebtLoanType } from '../src/modules/debts-loans/domain/enums/debt-loan-type.enum';
 import { CreateMonthlyServicePaymentUseCase } from '../src/modules/monthly-service-payments/application/use-cases/create-monthly-service-payment.use-case';
@@ -101,6 +102,14 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
     }),
   } as unknown as jest.Mocked<DebtLoanSettlementComposer>;
 
+  // shared-service-payments slice 2: delete-cascade of linked debts.
+  const mockDebtLoanRepo: jest.Mocked<
+    Pick<DebtLoanRepository, 'findBySourcePaymentIds' | 'softDelete'>
+  > = {
+    findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
+    softDelete: jest.fn(),
+  };
+
   const fakeManager = { tx: true } as unknown as EntityManager;
   const mockDataSource = {
     transaction: jest
@@ -130,6 +139,7 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
         { provide: CurrencyPoolService, useValue: mockPool },
         { provide: DebtLoanSettlementComposer, useValue: mockComposer },
+        { provide: DebtLoanRepository, useValue: mockDebtLoanRepo },
         { provide: DataSource, useValue: mockDataSource },
         JwtAccessStrategy,
         { provide: ConfigService, useValue: mockConfigService },
@@ -173,6 +183,7 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
       loan.applySettlement(loan.amount);
       return Promise.resolve(loan);
     });
+    mockDebtLoanRepo.findBySourcePaymentIds.mockResolvedValue([]);
   });
 
   describe('authentication', () => {
@@ -418,6 +429,68 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(404)
         .expect(({ body }) => expect(body.error.code).toBe('MSP_001'));
+    });
+
+    describe('linked-debt cascade (shared-service-payments slice 2)', () => {
+      it('soft-deletes PENDING linked debts and leaves SETTLED ones untouched', async () => {
+        mockRepo.findById.mockResolvedValueOnce(
+          buildMonthlyServicePayment({
+            id: PAYMENT_ID,
+            userId: USER_ID,
+            amount: 180,
+            currency: Currency.PEN,
+          }),
+        );
+        const now = new Date('2026-06-01T00:00:00.000Z');
+        mockDebtLoanRepo.findBySourcePaymentIds.mockResolvedValueOnce([
+          new DebtLoan(
+            'debt-pending',
+            USER_ID,
+            DebtLoanType.LOAN,
+            null,
+            Currency.PEN,
+            80,
+            80,
+            DebtLoanStatus.PENDING,
+            'Luis',
+            null,
+            now,
+            now,
+            now,
+            null,
+            PAYMENT_ID,
+          ),
+          new DebtLoan(
+            'debt-settled',
+            USER_ID,
+            DebtLoanType.LOAN,
+            null,
+            Currency.PEN,
+            100,
+            0,
+            DebtLoanStatus.SETTLED,
+            'Ana',
+            null,
+            now,
+            now,
+            now,
+            null,
+            PAYMENT_ID,
+          ),
+        ]);
+
+        await request(app.getHttpServer())
+          .delete(`/api/v1/monthly-service-payments/${PAYMENT_ID}`)
+          .set('Authorization', `Bearer ${token}`)
+          .expect(204);
+
+        expect(mockDebtLoanRepo.softDelete).toHaveBeenCalledTimes(1);
+        expect(mockDebtLoanRepo.softDelete).toHaveBeenCalledWith('debt-pending', fakeManager);
+        // Only the payment's own refund — the SETTLED loan's earlier credit
+        // is NOT reverted.
+        expect(mockPool.applyDelta).toHaveBeenCalledTimes(1);
+        expect(mockPool.applyDelta).toHaveBeenCalledWith(USER_ID, Currency.PEN, 180, fakeManager);
+      });
     });
   });
 });
