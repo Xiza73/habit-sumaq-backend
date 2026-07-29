@@ -104,6 +104,8 @@ export const ERROR_CODES = {
   MSP_PARTICIPANT_DUPLICATE_REFERENCE: 'MSP_007',
   MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED: 'MSP_008',
   MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE: 'MSP_009',
+  // Shared-payment slice 2: pay-with-splits.
+  MSP_SPLIT_EXCEEDS_TOTAL: 'MSP_010',
   // Currency pools (internal-only — v1.0.0 refactor).
   // Migration-time only: thrown by `BackfillCurrencyPools` and the
   // `check-balance-consistency` audit script when `accounts.balance`
