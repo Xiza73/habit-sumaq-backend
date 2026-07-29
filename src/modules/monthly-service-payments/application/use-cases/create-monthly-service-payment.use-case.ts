@@ -7,7 +7,9 @@ import { DataSource, type EntityManager } from 'typeorm';
 
 import { type Currency } from '@common/enums/currency.enum';
 import { DomainException } from '@common/exceptions/domain.exception';
+import { toCents } from '@common/money/to-cents';
 import { CurrencyPoolService } from '@modules/currency-pools/application/currency-pool.service';
+import { DebtLoanSettlementComposer } from '@modules/debts-loans/application/services/debt-loan-settlement-composer';
 import { type MonthlyService } from '@modules/monthly-services/domain/monthly-service.entity';
 import { MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
 import { dayInTimezone } from '@modules/monthly-services/infrastructure/timezone/day-in-timezone';
@@ -18,7 +20,10 @@ import {
 } from '../../domain/monthly-service-payment.entity';
 import { MonthlyServicePaymentRepository } from '../../domain/monthly-service-payment.repository';
 
-import type { CreateMonthlyServicePaymentDto } from '../dto/create-monthly-service-payment.dto';
+import type {
+  CreateMonthlyServicePaymentDto,
+  MonthlyServicePaymentParticipantDto,
+} from '../dto/create-monthly-service-payment.dto';
 
 /**
  * Syncing the service only needs the single most-recent payment: its amount
@@ -61,6 +66,16 @@ const RECENT_PAYMENTS_TO_FETCH = 1;
  * Why `timezone` is here: `dueDay` is "day-of-month of the most recent
  * payment in the user's local zone". The controller injects it from
  * the `x-timezone` header (same convention as the legacy pay endpoint).
+ *
+ * **Pay-with-splits (shared-service-payments slice 2)**: when `dto.participants`
+ * is present and non-empty, this use case ALSO generates one `LOAN` per
+ * participant (via `DebtLoanSettlementComposer`) inside the SAME
+ * transaction as the payment. The pool is STILL debited by the full
+ * `dto.amount` — the user's own share is implicit and generates no row.
+ * `sum(participants[].amount) > amount` is rejected BEFORE the
+ * transaction opens (`MSP_SPLIT_EXCEEDS_TOTAL`). An empty/omitted
+ * `participants` array is a strict no-op for this behavior — the payment
+ * behaves exactly as it did before this feature existed.
  */
 @Injectable()
 export class CreateMonthlyServicePaymentUseCase {
@@ -68,6 +83,7 @@ export class CreateMonthlyServicePaymentUseCase {
     private readonly repo: MonthlyServicePaymentRepository,
     private readonly serviceRepo: MonthlyServiceRepository,
     private readonly poolService: CurrencyPoolService,
+    private readonly settlementComposer: DebtLoanSettlementComposer,
     private readonly dataSource: DataSource,
     @InjectPinoLogger(CreateMonthlyServicePaymentUseCase.name)
     private readonly logger: PinoLogger,
@@ -104,6 +120,11 @@ export class CreateMonthlyServicePaymentUseCase {
       );
     }
 
+    const participants = dto.participants ?? [];
+    if (participants.length > 0) {
+      this.assertSplitDoesNotExceedTotal(dto.amount, participants);
+    }
+
     const now = new Date();
     const payment = new MonthlyServicePayment(
       randomUUID(),
@@ -126,6 +147,22 @@ export class CreateMonthlyServicePaymentUseCase {
       // KPI / nextDuePeriod / isPaidForCurrentMonth reflect this payment
       // immediately on the next GET.
       await this.syncService(service, dto.period, timezone, manager);
+
+      for (const participant of participants) {
+        const input = {
+          userId,
+          reference: participant.reference,
+          currency: service.currency as Currency,
+          amount: participant.amount,
+          sourceMonthlyServicePaymentId: persisted.id,
+        };
+        if (participant.alreadyPaid) {
+          await this.settlementComposer.createAndSettleLinked(manager, input);
+        } else {
+          await this.settlementComposer.createLinked(manager, input);
+        }
+      }
+
       return persisted;
     });
 
@@ -140,11 +177,30 @@ export class CreateMonthlyServicePaymentUseCase {
         amount: dto.amount,
         poolDelta: -dto.amount,
         lastPaidPeriodAdvancedTo: service.lastPaidPeriod,
+        participantsCount: participants.length,
       },
       'monthly_service_payment.created',
     );
 
     return saved;
+  }
+
+  /**
+   * Compares in integer cents (same convention as the participant-config
+   * use cases — `common/money/to-cents.ts`) to avoid JS float drift on
+   * decimal sums falsely rejecting an exactly-equal split.
+   */
+  private assertSplitDoesNotExceedTotal(
+    total: number,
+    participants: MonthlyServicePaymentParticipantDto[],
+  ): void {
+    const splitCents = participants.reduce((sum, p) => sum + toCents(p.amount), 0);
+    if (splitCents > toCents(total)) {
+      throw new DomainException(
+        'MSP_SPLIT_EXCEEDS_TOTAL',
+        'La suma de los montos de los participantes supera el monto total del pago',
+      );
+    }
   }
 
   /**

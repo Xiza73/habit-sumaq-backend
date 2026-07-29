@@ -17,6 +17,10 @@ import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
 import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies/jwt-access.strategy';
 import { CurrencyPoolService } from '../src/modules/currency-pools/application/currency-pool.service';
+import { DebtLoanSettlementComposer } from '../src/modules/debts-loans/application/services/debt-loan-settlement-composer';
+import { DebtLoan } from '../src/modules/debts-loans/domain/debt-loan.entity';
+import { DebtLoanStatus } from '../src/modules/debts-loans/domain/enums/debt-loan-status.enum';
+import { DebtLoanType } from '../src/modules/debts-loans/domain/enums/debt-loan-type.enum';
 import { CreateMonthlyServicePaymentUseCase } from '../src/modules/monthly-service-payments/application/use-cases/create-monthly-service-payment.use-case';
 import { DeleteMonthlyServicePaymentUseCase } from '../src/modules/monthly-service-payments/application/use-cases/delete-monthly-service-payment.use-case';
 import { GetMonthlyServicePaymentUseCase } from '../src/modules/monthly-service-payments/application/use-cases/get-monthly-service-payment.use-case';
@@ -64,6 +68,39 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
     applyDelta: jest.fn(),
   } as unknown as jest.Mocked<CurrencyPoolService>;
 
+  function buildLoanStub(overrides: Partial<{ reference: string; amount: number }> = {}): DebtLoan {
+    const now = new Date('2026-06-01T00:00:00.000Z');
+    const amount = overrides.amount ?? 100;
+    return new DebtLoan(
+      'loan-generated',
+      USER_ID,
+      DebtLoanType.LOAN,
+      null,
+      Currency.PEN,
+      amount,
+      amount,
+      DebtLoanStatus.PENDING,
+      overrides.reference ?? 'Ana',
+      null,
+      now,
+      now,
+      now,
+      null,
+      'payment-x',
+    );
+  }
+
+  const mockComposer = {
+    createLinked: jest
+      .fn()
+      .mockImplementation((_m, input) => Promise.resolve(buildLoanStub(input))),
+    createAndSettleLinked: jest.fn().mockImplementation((_m, input) => {
+      const loan = buildLoanStub(input);
+      loan.applySettlement(loan.amount);
+      return Promise.resolve(loan);
+    }),
+  } as unknown as jest.Mocked<DebtLoanSettlementComposer>;
+
   const fakeManager = { tx: true } as unknown as EntityManager;
   const mockDataSource = {
     transaction: jest
@@ -92,6 +129,7 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
         { provide: MonthlyServicePaymentRepository, useValue: mockRepo },
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
         { provide: CurrencyPoolService, useValue: mockPool },
+        { provide: DebtLoanSettlementComposer, useValue: mockComposer },
         { provide: DataSource, useValue: mockDataSource },
         JwtAccessStrategy,
         { provide: ConfigService, useValue: mockConfigService },
@@ -127,6 +165,14 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRepo.save.mockImplementation((p) => Promise.resolve(p));
+    mockComposer.createLinked.mockImplementation((_m, input) =>
+      Promise.resolve(buildLoanStub(input as Partial<{ reference: string; amount: number }>)),
+    );
+    mockComposer.createAndSettleLinked.mockImplementation((_m, input) => {
+      const loan = buildLoanStub(input as Partial<{ reference: string; amount: number }>);
+      loan.applySettlement(loan.amount);
+      return Promise.resolve(loan);
+    });
   });
 
   describe('authentication', () => {
@@ -228,6 +274,84 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
           amount: 50,
         })
         .expect(400);
+    });
+
+    describe('pay-with-splits (shared-service-payments slice 2)', () => {
+      it('debits the FULL bill and generates PENDING + SETTLED LOANs in the same atomic call', async () => {
+        mockServiceRepo.findById.mockResolvedValueOnce(
+          buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
+        );
+        mockRepo.findByServiceAndPeriod.mockResolvedValueOnce(null);
+
+        await request(app.getHttpServer())
+          .post('/api/v1/monthly-service-payments')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            monthlyServiceId: SERVICE_ID,
+            period: '2026-06',
+            amount: 300,
+            participants: [
+              { reference: 'Ana', amount: 100, alreadyPaid: true },
+              { reference: 'Luis', amount: 80, alreadyPaid: false },
+            ],
+          })
+          .expect(201)
+          .expect(({ body }) => {
+            expect(body.data.amount).toBe(300);
+          });
+
+        // Full bill debited, not just the own share (300 - 180 = 120).
+        expect(mockPool.applyDelta).toHaveBeenCalledWith(USER_ID, Currency.PEN, -300, fakeManager);
+        expect(mockComposer.createAndSettleLinked).toHaveBeenCalledTimes(1);
+        expect(mockComposer.createAndSettleLinked).toHaveBeenCalledWith(
+          fakeManager,
+          expect.objectContaining({ reference: 'Ana', amount: 100 }),
+        );
+        expect(mockComposer.createLinked).toHaveBeenCalledTimes(1);
+        expect(mockComposer.createLinked).toHaveBeenCalledWith(
+          fakeManager,
+          expect.objectContaining({ reference: 'Luis', amount: 80 }),
+        );
+      });
+
+      it('returns MSP_010 (422) BEFORE touching the pool when the split sum exceeds the total', async () => {
+        mockServiceRepo.findById.mockResolvedValueOnce(
+          buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
+        );
+        mockRepo.findByServiceAndPeriod.mockResolvedValueOnce(null);
+
+        await request(app.getHttpServer())
+          .post('/api/v1/monthly-service-payments')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            monthlyServiceId: SERVICE_ID,
+            period: '2026-06',
+            amount: 100,
+            participants: [{ reference: 'Ana', amount: 150 }],
+          })
+          .expect(422)
+          .expect(({ body }) => expect(body.error.code).toBe('MSP_010'));
+
+        expect(mockPool.applyDelta).not.toHaveBeenCalled();
+        expect(mockComposer.createLinked).not.toHaveBeenCalled();
+      });
+
+      it('an empty participants array is a strict no-op — behaves exactly like a non-shared payment', async () => {
+        mockServiceRepo.findById.mockResolvedValueOnce(
+          buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
+        );
+        mockRepo.findByServiceAndPeriod.mockResolvedValueOnce(null);
+
+        await request(app.getHttpServer())
+          .post('/api/v1/monthly-service-payments')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ monthlyServiceId: SERVICE_ID, period: '2026-06', amount: 50, participants: [] })
+          .expect(201);
+
+        expect(mockPool.applyDelta).toHaveBeenCalledWith(USER_ID, Currency.PEN, -50, fakeManager);
+        expect(mockComposer.createLinked).not.toHaveBeenCalled();
+        expect(mockComposer.createAndSettleLinked).not.toHaveBeenCalled();
+      });
     });
   });
 

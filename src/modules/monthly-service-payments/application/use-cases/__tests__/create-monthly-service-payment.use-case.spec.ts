@@ -5,6 +5,9 @@ import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { Currency } from '@common/enums/currency.enum';
 import { type DomainException } from '@common/exceptions/domain.exception';
 import { type CurrencyPoolService } from '@modules/currency-pools/application/currency-pool.service';
+import { type DebtLoanSettlementComposer } from '@modules/debts-loans/application/services/debt-loan-settlement-composer';
+import { DebtLoanStatus } from '@modules/debts-loans/domain/enums/debt-loan-status.enum';
+import { DebtLoanType } from '@modules/debts-loans/domain/enums/debt-loan-type.enum';
 import { buildMonthlyService } from '@modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { type MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
 
@@ -12,10 +15,34 @@ import { buildMonthlyServicePayment } from '../../../domain/__tests__/monthly-se
 import { type MonthlyServicePaymentRepository } from '../../../domain/monthly-service-payment.repository';
 import { CreateMonthlyServicePaymentUseCase } from '../create-monthly-service-payment.use-case';
 
+function buildLoanStub(overrides: Partial<{ id: string; reference: string; amount: number }> = {}) {
+  const now = new Date('2026-06-01T00:00:00.000Z');
+  return {
+    id: overrides.id ?? 'loan-1',
+    userId: 'user-1',
+    type: DebtLoanType.LOAN,
+    categoryId: null,
+    currency: Currency.PEN,
+    amount: overrides.amount ?? 100,
+    remainingAmount: overrides.amount ?? 100,
+    status: DebtLoanStatus.PENDING,
+    reference: overrides.reference ?? 'Ana',
+    description: null,
+    date: now,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    sourceMonthlyServicePaymentId: 'payment-x',
+  };
+}
+
 describe('CreateMonthlyServicePaymentUseCase', () => {
   let repo: jest.Mocked<MonthlyServicePaymentRepository>;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
   let pool: jest.Mocked<CurrencyPoolService>;
+  let composer: jest.Mocked<
+    Pick<DebtLoanSettlementComposer, 'createLinked' | 'createAndSettleLinked'>
+  >;
   let dataSource: jest.Mocked<Pick<DataSource, 'transaction'>>;
   let useCase: CreateMonthlyServicePaymentUseCase;
   let logger: ReturnType<typeof buildMockPinoLogger>;
@@ -45,6 +72,18 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
       softDelete: jest.fn(),
     };
     pool = { applyDelta: jest.fn() } as unknown as jest.Mocked<CurrencyPoolService>;
+    composer = {
+      createLinked: jest
+        .fn()
+        .mockImplementation((_m, input) => Promise.resolve(buildLoanStub(input))),
+      createAndSettleLinked: jest.fn().mockImplementation((_m, input) =>
+        Promise.resolve({
+          ...buildLoanStub(input),
+          status: DebtLoanStatus.SETTLED,
+          remainingAmount: 0,
+        }),
+      ),
+    };
     dataSource = {
       transaction: jest
         .fn()
@@ -55,6 +94,7 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
       repo,
       serviceRepo,
       pool,
+      composer as unknown as DebtLoanSettlementComposer,
       dataSource as unknown as DataSource,
       logger as unknown as PinoLogger,
     );
@@ -329,6 +369,268 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
       );
 
       expect(service.estimatedAmount).toBe(80);
+    });
+  });
+
+  describe('pay-with-splits (shared-service-payments slice 2)', () => {
+    beforeEach(() => {
+      serviceRepo.findById.mockResolvedValue(
+        buildMonthlyService({ id: SERVICE, userId: USER, currency: Currency.PEN }),
+      );
+      repo.findByServiceAndPeriod.mockResolvedValue(null);
+    });
+
+    it('rejects BEFORE any mutation when sum(participants) exceeds the total', async () => {
+      await expect(
+        useCase.execute(
+          USER,
+          {
+            monthlyServiceId: SERVICE,
+            period: '2026-06',
+            amount: 300,
+            participants: [
+              { reference: 'Ana', amount: 200 },
+              { reference: 'Luis', amount: 150 },
+            ],
+          },
+          TIMEZONE,
+        ),
+      ).rejects.toMatchObject({
+        code: 'MSP_SPLIT_EXCEEDS_TOTAL',
+      } satisfies Partial<DomainException>);
+
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(pool.applyDelta).not.toHaveBeenCalled();
+      expect(composer.createLinked).not.toHaveBeenCalled();
+    });
+
+    it('accepts when sum(participants) exactly equals the total (boundary, not exceeds)', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 180,
+          participants: [
+            { reference: 'Ana', amount: 100 },
+            { reference: 'Luis', amount: 80 },
+          ],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).toHaveBeenCalledTimes(2);
+    });
+
+    it('debits the pool by the FULL bill amount, not just the own share', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 300,
+          participants: [
+            { reference: 'Ana', amount: 100 },
+            { reference: 'Luis', amount: 80 },
+          ],
+        },
+        TIMEZONE,
+      );
+
+      // Own share (120) generates NO row; the pool debit is still the full 300.
+      expect(pool.applyDelta).toHaveBeenCalledWith(USER, Currency.PEN, -300, FAKE_MGR);
+    });
+
+    it('creates one PENDING LOAN per unpaid participant, linked to the saved payment, on the same manager', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 300,
+          participants: [
+            { reference: 'Ana', amount: 100 },
+            { reference: 'Luis', amount: 80 },
+          ],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).toHaveBeenCalledTimes(2);
+      expect(composer.createAndSettleLinked).not.toHaveBeenCalled();
+      expect(composer.createLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({
+          userId: USER,
+          reference: 'Ana',
+          currency: Currency.PEN,
+          amount: 100,
+        }),
+      );
+      expect(composer.createLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({
+          userId: USER,
+          reference: 'Luis',
+          currency: Currency.PEN,
+          amount: 80,
+        }),
+      );
+    });
+
+    it('uses the RAW (non-normalized) participant reference for the generated LOAN', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 100,
+          participants: [{ reference: '  José María  ', amount: 100 }],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ reference: '  José María  ' }),
+      );
+    });
+
+    it('links every generated LOAN to the id of the SAVED payment', async () => {
+      repo.save.mockImplementation((p) => Promise.resolve({ ...p, id: 'payment-42' }) as never);
+
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 100,
+          participants: [{ reference: 'Ana', amount: 100 }],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ sourceMonthlyServicePaymentId: 'payment-42' }),
+      );
+    });
+
+    it('already-paid participant settles immediately via createAndSettleLinked (create+settle, same manager)', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 100,
+          participants: [{ reference: 'Ana', amount: 100, alreadyPaid: true }],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createAndSettleLinked).toHaveBeenCalledTimes(1);
+      expect(composer.createAndSettleLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ reference: 'Ana', amount: 100 }),
+      );
+      expect(composer.createLinked).not.toHaveBeenCalled();
+    });
+
+    it('mixes unpaid (createLinked) and already-paid (createAndSettleLinked) participants correctly', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 180,
+          participants: [
+            { reference: 'Ana', amount: 100, alreadyPaid: true },
+            { reference: 'Luis', amount: 80, alreadyPaid: false },
+          ],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createAndSettleLinked).toHaveBeenCalledTimes(1);
+      expect(composer.createAndSettleLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ reference: 'Ana' }),
+      );
+      expect(composer.createLinked).toHaveBeenCalledTimes(1);
+      expect(composer.createLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ reference: 'Luis' }),
+      );
+    });
+
+    it('empty participants array behaves EXACTLY like a non-shared payment (no LOAN rows, regression guard)', async () => {
+      await useCase.execute(
+        USER,
+        { monthlyServiceId: SERVICE, period: '2026-06', amount: 50, participants: [] },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).not.toHaveBeenCalled();
+      expect(composer.createAndSettleLinked).not.toHaveBeenCalled();
+      expect(pool.applyDelta).toHaveBeenCalledWith(USER, Currency.PEN, -50, FAKE_MGR);
+    });
+
+    it('omitted participants field behaves EXACTLY like a non-shared payment (no LOAN rows, regression guard)', async () => {
+      await useCase.execute(
+        USER,
+        { monthlyServiceId: SERVICE, period: '2026-06', amount: 50 },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).not.toHaveBeenCalled();
+      expect(composer.createAndSettleLinked).not.toHaveBeenCalled();
+    });
+
+    it('all composer calls happen inside the SAME dataSource.transaction as the payment (single manager, no nested tx)', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-06',
+          amount: 180,
+          participants: [
+            { reference: 'Ana', amount: 100, alreadyPaid: true },
+            { reference: 'Luis', amount: 80 },
+          ],
+        },
+        TIMEZONE,
+      );
+
+      // Exactly ONE dataSource.transaction call for the whole operation —
+      // the composer must never open a second one.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('rolls back everything (no partial debt/pool state) when a composer call fails mid-loop', async () => {
+      composer.createLinked.mockRejectedValueOnce(new Error('boom'));
+
+      await expect(
+        useCase.execute(
+          USER,
+          {
+            monthlyServiceId: SERVICE,
+            period: '2026-06',
+            amount: 180,
+            participants: [
+              { reference: 'Ana', amount: 100, alreadyPaid: true },
+              { reference: 'Luis', amount: 80 },
+            ],
+          },
+          TIMEZONE,
+        ),
+      ).rejects.toThrow('boom');
+
+      // The failure propagated OUT of the dataSource.transaction callback —
+      // in production TypeORM would roll back the whole tx. We can't assert
+      // DB state from a unit test, but we CAN assert the use case never
+      // caught/swallowed the error to fake a partial success.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     });
   });
 });
