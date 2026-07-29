@@ -348,6 +348,79 @@ describe('MonthlyServicePaymentsController (e2e)', () => {
         expect(mockComposer.createLinked).not.toHaveBeenCalled();
       });
 
+      it('returns 400 from class-validator when a participant amount is 0 (IsPositive boundary)', async () => {
+        mockServiceRepo.findById.mockResolvedValueOnce(
+          buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
+        );
+        mockRepo.findByServiceAndPeriod.mockResolvedValueOnce(null);
+
+        await request(app.getHttpServer())
+          .post('/api/v1/monthly-service-payments')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            monthlyServiceId: SERVICE_ID,
+            period: '2026-06',
+            amount: 100,
+            participants: [{ reference: 'Ana', amount: 0 }],
+          })
+          .expect(400);
+
+        // Rejected at the DTO layer — the use case never runs, so the pool
+        // and composer are never touched.
+        expect(mockPool.applyDelta).not.toHaveBeenCalled();
+        expect(mockComposer.createLinked).not.toHaveBeenCalled();
+      });
+
+      it('returns 400 from class-validator when a participant amount is negative (IsPositive boundary)', async () => {
+        mockServiceRepo.findById.mockResolvedValueOnce(
+          buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
+        );
+        mockRepo.findByServiceAndPeriod.mockResolvedValueOnce(null);
+
+        await request(app.getHttpServer())
+          .post('/api/v1/monthly-service-payments')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            monthlyServiceId: SERVICE_ID,
+            period: '2026-06',
+            amount: 100,
+            participants: [{ reference: 'Ana', amount: -10 }],
+          })
+          .expect(400);
+
+        expect(mockPool.applyDelta).not.toHaveBeenCalled();
+        expect(mockComposer.createLinked).not.toHaveBeenCalled();
+      });
+
+      it('accepts a single participant whose amount == the payment total (own share 0 — paid entirely for someone else)', async () => {
+        mockServiceRepo.findById.mockResolvedValueOnce(
+          buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
+        );
+        mockRepo.findByServiceAndPeriod.mockResolvedValueOnce(null);
+
+        // sum(participants) == amount is the equality boundary of the
+        // "split cannot exceed total" guard (strict `>`), so it must PASS.
+        // Real case: "I paid the whole bill for Ana, my own share is 0."
+        await request(app.getHttpServer())
+          .post('/api/v1/monthly-service-payments')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            monthlyServiceId: SERVICE_ID,
+            period: '2026-06',
+            amount: 100,
+            participants: [{ reference: 'Ana', amount: 100 }],
+          })
+          .expect(201);
+
+        // Full bill still debited; one PENDING LOAN generated for the full amount.
+        expect(mockPool.applyDelta).toHaveBeenCalledWith(USER_ID, Currency.PEN, -100, fakeManager);
+        expect(mockComposer.createLinked).toHaveBeenCalledTimes(1);
+        expect(mockComposer.createLinked).toHaveBeenCalledWith(
+          fakeManager,
+          expect.objectContaining({ reference: 'Ana', amount: 100 }),
+        );
+      });
+
       it('an empty participants array is a strict no-op — behaves exactly like a non-shared payment', async () => {
         mockServiceRepo.findById.mockResolvedValueOnce(
           buildMonthlyService({ id: SERVICE_ID, userId: USER_ID, currency: Currency.PEN }),
