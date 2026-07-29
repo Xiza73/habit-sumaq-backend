@@ -51,20 +51,25 @@ export class ListMonthlyServicesUseCase {
     const services = await this.serviceRepo.findByUserId(userId, includeArchived);
     if (services.length === 0) return [];
 
-    const paidByService = await this.paymentRepo.sumByServiceIdsInPeriod(
-      services.map((s) => s.id),
-      currentPeriod,
-    );
+    const serviceIds = services.map((s) => s.id);
 
-    return Promise.all(
-      services.map(async (service) => ({
-        service,
-        // Services with no payments in the current period are absent from the
-        // map — treat them as 0 rather than null so the DTO field stays a plain
-        // `number` and the frontend can sum without nullish guards.
-        paidAmountForCurrentMonth: paidByService.get(service.id) ?? 0,
-        linkedDebts: await this.linkedDebtsGatherer.forService(service.id),
-      })),
-    );
+    // Both aggregates are batched to a BOUNDED number of queries for the
+    // whole list — no per-service fan-out. `sumByServiceIdsInPeriod` is one
+    // query; `forServices` is at most two. A prior version gathered
+    // linkedDebts with a per-service `forService` inside this map, which was
+    // an N+1 (1+2N queries) — restored to the batched pattern here.
+    const paidByService = await this.paymentRepo.sumByServiceIdsInPeriod(serviceIds, currentPeriod);
+    const linkedDebtsByService = await this.linkedDebtsGatherer.forServices(serviceIds);
+
+    return services.map((service) => ({
+      service,
+      // Services with no payments in the current period are absent from the
+      // map — treat them as 0 rather than null so the DTO field stays a plain
+      // `number` and the frontend can sum without nullish guards.
+      paidAmountForCurrentMonth: paidByService.get(service.id) ?? 0,
+      // Same convention: a service absent from the linked-debts map has no
+      // PENDING linked debts → empty array.
+      linkedDebts: linkedDebtsByService.get(service.id) ?? [],
+    }));
   }
 }

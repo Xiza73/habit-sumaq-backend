@@ -17,6 +17,18 @@ function buildPayment(overrides: Partial<{ id: string; monthlyServiceId: string 
   } as MonthlyServicePayment;
 }
 
+function buildLinkedDebtWithSource(
+  overrides: Partial<{
+    id: string;
+    reference: string;
+    remainingAmount: number;
+    status: DebtLoanStatus;
+    sourceMonthlyServicePaymentId: string;
+  }> = {},
+): DebtLoan {
+  return buildDebt(overrides);
+}
+
 function buildDebt(
   overrides: Partial<{
     id: string;
@@ -48,12 +60,14 @@ function buildDebt(
 }
 
 describe('LinkedDebtsGatherer', () => {
-  let paymentRepo: jest.Mocked<Pick<MonthlyServicePaymentRepository, 'findByServiceId'>>;
+  let paymentRepo: jest.Mocked<
+    Pick<MonthlyServicePaymentRepository, 'findByServiceId' | 'findByServiceIds'>
+  >;
   let debtLoanRepo: jest.Mocked<Pick<DebtLoanRepository, 'findBySourcePaymentIds'>>;
   let gatherer: LinkedDebtsGatherer;
 
   beforeEach(() => {
-    paymentRepo = { findByServiceId: jest.fn() };
+    paymentRepo = { findByServiceId: jest.fn(), findByServiceIds: jest.fn().mockResolvedValue([]) };
     debtLoanRepo = { findBySourcePaymentIds: jest.fn().mockResolvedValue([]) };
     gatherer = new LinkedDebtsGatherer(
       paymentRepo as unknown as MonthlyServicePaymentRepository,
@@ -61,45 +75,155 @@ describe('LinkedDebtsGatherer', () => {
     );
   });
 
-  it('returns an empty array when the service has no payments (no wasted round-trip)', async () => {
-    paymentRepo.findByServiceId.mockResolvedValue([]);
+  describe('forService (single)', () => {
+    it('returns an empty array when the service has no payments (no wasted round-trip)', async () => {
+      paymentRepo.findByServiceIds.mockResolvedValue([]);
 
-    const result = await gatherer.forService('service-1');
+      const result = await gatherer.forService('service-1');
 
-    expect(result).toEqual([]);
-    expect(debtLoanRepo.findBySourcePaymentIds).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+      expect(debtLoanRepo.findBySourcePaymentIds).not.toHaveBeenCalled();
+    });
+
+    it('gathers PENDING linked debts across all of the service payments', async () => {
+      paymentRepo.findByServiceIds.mockResolvedValue([
+        buildPayment({ id: 'payment-1', monthlyServiceId: 'service-1' }),
+        buildPayment({ id: 'payment-2', monthlyServiceId: 'service-1' }),
+      ]);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildLinkedDebtWithSource({
+          id: 'debt-1',
+          reference: 'Ana',
+          remainingAmount: 100,
+          sourceMonthlyServicePaymentId: 'payment-1',
+        }),
+        buildLinkedDebtWithSource({
+          id: 'debt-2',
+          reference: 'Luis',
+          remainingAmount: 80,
+          sourceMonthlyServicePaymentId: 'payment-2',
+        }),
+      ]);
+
+      const result = await gatherer.forService('service-1');
+
+      expect(debtLoanRepo.findBySourcePaymentIds).toHaveBeenCalledWith(['payment-1', 'payment-2']);
+      expect(result).toEqual([
+        { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+        { id: 'debt-2', reference: 'Luis', remainingAmount: 80, status: 'PENDING' },
+      ]);
+    });
+
+    it('excludes SETTLED linked debts from the result (only PENDING surfaces)', async () => {
+      paymentRepo.findByServiceIds.mockResolvedValue([
+        buildPayment({ id: 'payment-1', monthlyServiceId: 'service-1' }),
+      ]);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildLinkedDebtWithSource({
+          id: 'debt-1',
+          reference: 'Ana',
+          status: DebtLoanStatus.SETTLED,
+          sourceMonthlyServicePaymentId: 'payment-1',
+        }),
+        buildLinkedDebtWithSource({
+          id: 'debt-2',
+          reference: 'Luis',
+          status: DebtLoanStatus.PENDING,
+          sourceMonthlyServicePaymentId: 'payment-1',
+        }),
+      ]);
+
+      const result = await gatherer.forService('service-1');
+
+      expect(result).toEqual([
+        { id: 'debt-2', reference: 'Luis', remainingAmount: 100, status: 'PENDING' },
+      ]);
+    });
   });
 
-  it('gathers PENDING linked debts across all of the service payments', async () => {
-    paymentRepo.findByServiceId.mockResolvedValue([
-      buildPayment({ id: 'payment-1' }),
-      buildPayment({ id: 'payment-2' }),
-    ]);
-    debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
-      buildDebt({ id: 'debt-1', reference: 'Ana', remainingAmount: 100 }),
-      buildDebt({ id: 'debt-2', reference: 'Luis', remainingAmount: 80 }),
-    ]);
+  describe('forServices (batched — no N+1)', () => {
+    it('returns an empty map without querying debts when no service has payments', async () => {
+      paymentRepo.findByServiceIds.mockResolvedValue([]);
 
-    const result = await gatherer.forService('service-1');
+      const result = await gatherer.forServices(['service-1', 'service-2']);
 
-    expect(debtLoanRepo.findBySourcePaymentIds).toHaveBeenCalledWith(['payment-1', 'payment-2']);
-    expect(result).toEqual([
-      { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
-      { id: 'debt-2', reference: 'Luis', remainingAmount: 80, status: 'PENDING' },
-    ]);
-  });
+      expect(result).toEqual(new Map());
+      expect(debtLoanRepo.findBySourcePaymentIds).not.toHaveBeenCalled();
+    });
 
-  it('excludes SETTLED linked debts from the result (only PENDING surfaces)', async () => {
-    paymentRepo.findByServiceId.mockResolvedValue([buildPayment({ id: 'payment-1' })]);
-    debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
-      buildDebt({ id: 'debt-1', reference: 'Ana', status: DebtLoanStatus.SETTLED }),
-      buildDebt({ id: 'debt-2', reference: 'Luis', status: DebtLoanStatus.PENDING }),
-    ]);
+    it('returns an empty map for an empty serviceIds list (no round-trips at all)', async () => {
+      const result = await gatherer.forServices([]);
 
-    const result = await gatherer.forService('service-1');
+      expect(result).toEqual(new Map());
+      expect(paymentRepo.findByServiceIds).not.toHaveBeenCalled();
+      expect(debtLoanRepo.findBySourcePaymentIds).not.toHaveBeenCalled();
+    });
 
-    expect(result).toEqual([
-      { id: 'debt-2', reference: 'Luis', remainingAmount: 100, status: 'PENDING' },
-    ]);
+    it('issues at most TWO queries for N services (proves no N+1 fan-out)', async () => {
+      paymentRepo.findByServiceIds.mockResolvedValue([
+        buildPayment({ id: 'payment-1', monthlyServiceId: 'service-1' }),
+        buildPayment({ id: 'payment-2', monthlyServiceId: 'service-2' }),
+        buildPayment({ id: 'payment-3', monthlyServiceId: 'service-3' }),
+      ]);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([]);
+
+      await gatherer.forServices(['service-1', 'service-2', 'service-3']);
+
+      // The whole point of the batch: ONE payments fetch + ONE debts fetch,
+      // regardless of how many services are in the list. Anything more is the
+      // N+1 regression this method exists to kill.
+      expect(paymentRepo.findByServiceIds).toHaveBeenCalledTimes(1);
+      expect(paymentRepo.findByServiceIds).toHaveBeenCalledWith([
+        'service-1',
+        'service-2',
+        'service-3',
+      ]);
+      expect(debtLoanRepo.findBySourcePaymentIds).toHaveBeenCalledTimes(1);
+      expect(debtLoanRepo.findBySourcePaymentIds).toHaveBeenCalledWith([
+        'payment-1',
+        'payment-2',
+        'payment-3',
+      ]);
+    });
+
+    it('groups each PENDING debt back to its own service via the payment→service map', async () => {
+      paymentRepo.findByServiceIds.mockResolvedValue([
+        buildPayment({ id: 'payment-1', monthlyServiceId: 'service-1' }),
+        buildPayment({ id: 'payment-2', monthlyServiceId: 'service-2' }),
+      ]);
+      debtLoanRepo.findBySourcePaymentIds.mockResolvedValue([
+        buildLinkedDebtWithSource({
+          id: 'debt-1',
+          reference: 'Ana',
+          remainingAmount: 100,
+          sourceMonthlyServicePaymentId: 'payment-1',
+        }),
+        buildLinkedDebtWithSource({
+          id: 'debt-2',
+          reference: 'Luis',
+          remainingAmount: 80,
+          sourceMonthlyServicePaymentId: 'payment-2',
+        }),
+        // A SETTLED debt on service-2 must be dropped, not grouped.
+        buildLinkedDebtWithSource({
+          id: 'debt-3',
+          reference: 'Mia',
+          status: DebtLoanStatus.SETTLED,
+          sourceMonthlyServicePaymentId: 'payment-2',
+        }),
+      ]);
+
+      const result = await gatherer.forServices(['service-1', 'service-2', 'service-3']);
+
+      expect(result.get('service-1')).toEqual([
+        { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+      ]);
+      expect(result.get('service-2')).toEqual([
+        { id: 'debt-2', reference: 'Luis', remainingAmount: 80, status: 'PENDING' },
+      ]);
+      // Services with no PENDING linked debts are absent from the map — callers
+      // treat a missing key as an empty array.
+      expect(result.has('service-3')).toBe(false);
+    });
   });
 });

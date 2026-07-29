@@ -27,6 +27,7 @@ describe('DeleteMonthlyServicePaymentUseCase', () => {
   beforeEach(() => {
     repo = {
       findByServiceId: jest.fn(),
+      findByServiceIds: jest.fn().mockResolvedValue([]),
       findById: jest.fn(),
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn(),

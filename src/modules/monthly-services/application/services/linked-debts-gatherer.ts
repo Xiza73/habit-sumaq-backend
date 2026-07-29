@@ -32,19 +32,63 @@ export class LinkedDebtsGatherer {
     private readonly debtLoanRepo: DebtLoanRepository,
   ) {}
 
+  /**
+   * Single-service convenience wrapper. Delegates to {@link forServices}
+   * with one id so the gather-and-map logic lives in exactly one place —
+   * no duplicated query pipeline between the get and list use cases.
+   */
   async forService(monthlyServiceId: string): Promise<LinkedDebtSummary[]> {
-    const payments = await this.paymentRepo.findByServiceId(monthlyServiceId);
-    if (payments.length === 0) return [];
+    const byService = await this.forServices([monthlyServiceId]);
+    return byService.get(monthlyServiceId) ?? [];
+  }
+
+  /**
+   * Batched gather: resolves the PENDING `linkedDebts[]` for MANY services
+   * in at most TWO queries total — one to fetch every payment across all
+   * `serviceIds`, one to fetch every linked debt for those payments —
+   * regardless of how many services are passed. This is what keeps the
+   * list-monthly-services endpoint off the N+1 path (a per-service
+   * `forService` fan-out inside a `Promise.all` was 1+2N queries).
+   *
+   * Returns a `Map<serviceId, LinkedDebtSummary[]>`. Services with no
+   * PENDING linked debts are ABSENT from the map — callers treat a missing
+   * key as an empty array (mirrors the `sumByServiceIdsInPeriod` contract).
+   */
+  async forServices(monthlyServiceIds: string[]): Promise<Map<string, LinkedDebtSummary[]>> {
+    const result = new Map<string, LinkedDebtSummary[]>();
+    if (monthlyServiceIds.length === 0) return result;
+
+    const payments = await this.paymentRepo.findByServiceIds(monthlyServiceIds);
+    if (payments.length === 0) return result;
+
+    // paymentId → serviceId, so a debt (which only knows its source
+    // paymentId) can be grouped back to the service it belongs to.
+    const paymentToService = new Map<string, string>();
+    for (const p of payments) paymentToService.set(p.id, p.monthlyServiceId);
 
     const debts = await this.debtLoanRepo.findBySourcePaymentIds(payments.map((p) => p.id));
 
-    return debts
-      .filter((d) => d.status === DebtLoanStatus.PENDING)
-      .map((d) => ({
-        id: d.id,
-        reference: d.reference,
-        remainingAmount: d.remainingAmount,
-        status: 'PENDING' as const,
-      }));
+    for (const debt of debts) {
+      if (debt.status !== DebtLoanStatus.PENDING) continue;
+      const serviceId =
+        debt.sourceMonthlyServicePaymentId !== null
+          ? paymentToService.get(debt.sourceMonthlyServicePaymentId)
+          : undefined;
+      // A debt whose source payment isn't in the map can't be attributed to
+      // any of the requested services — skip it defensively.
+      if (serviceId === undefined) continue;
+
+      const summary: LinkedDebtSummary = {
+        id: debt.id,
+        reference: debt.reference,
+        remainingAmount: debt.remainingAmount,
+        status: 'PENDING',
+      };
+      const existing = result.get(serviceId);
+      if (existing) existing.push(summary);
+      else result.set(serviceId, [summary]);
+    }
+
+    return result;
   }
 }

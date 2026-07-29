@@ -58,6 +58,7 @@ describe('MonthlyServicesController (e2e)', () => {
   // the new payments module instead of legacy transactions.
   const mockPaymentRepo: jest.Mocked<MonthlyServicePaymentRepository> = {
     findByServiceId: jest.fn(),
+    findByServiceIds: jest.fn().mockResolvedValue([]),
     findById: jest.fn(),
     findByServiceAndPeriod: jest.fn(),
     sumByCurrencyInRange: jest.fn(),
@@ -78,8 +79,11 @@ describe('MonthlyServicesController (e2e)', () => {
 
   // shared-service-payments slice 2: not exercised by this file (no
   // service in these fixtures has shared payments) — always returns [].
-  const mockLinkedDebtsGatherer: jest.Mocked<Pick<LinkedDebtsGatherer, 'forService'>> = {
+  const mockLinkedDebtsGatherer: jest.Mocked<
+    Pick<LinkedDebtsGatherer, 'forService' | 'forServices'>
+  > = {
     forService: jest.fn().mockResolvedValue([]),
+    forServices: jest.fn().mockResolvedValue(new Map<string, unknown[]>()),
   };
 
   const mockConfigService = {
@@ -149,6 +153,7 @@ describe('MonthlyServicesController (e2e)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockLinkedDebtsGatherer.forService.mockResolvedValue([]);
+    mockLinkedDebtsGatherer.forServices.mockResolvedValue(new Map());
   });
 
   // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -276,9 +281,13 @@ describe('MonthlyServicesController (e2e)', () => {
     it('surfaces linkedDebts per service (shared-service-payments slice 2)', async () => {
       const service = buildMonthlyService({ id: SVC_ID, userId: USER_ID, name: 'Netflix' });
       mockServiceRepo.findByUserId.mockResolvedValue([service]);
-      mockLinkedDebtsGatherer.forService.mockResolvedValue([
-        { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
-      ]);
+      // The list endpoint resolves linkedDebts via the BATCHED forServices
+      // (one call for all services), not the per-service forService.
+      mockLinkedDebtsGatherer.forServices.mockResolvedValue(
+        new Map([
+          [SVC_ID, [{ id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' }]],
+        ]),
+      );
 
       return request(app.getHttpServer())
         .get('/api/v1/monthly-services')
