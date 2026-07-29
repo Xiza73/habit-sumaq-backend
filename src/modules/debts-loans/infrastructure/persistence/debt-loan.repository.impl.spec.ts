@@ -148,6 +148,15 @@ describe('DebtLoanRepositoryImpl', () => {
     // LOAN for "José" groups with a manually-created debt for "jose" (or
     // any accent/case variant) through the identical SQL clause — no
     // separate normalization path, no divergence.
+    //
+    // HONESTY NOTE (scope of this proof): the invariant is asserted at the
+    // SQL-CONSTRUCTION level only — we check the query STRING contains the
+    // `LOWER(unaccent(...))` grouping and omits any origin filter. It is NOT
+    // executed against a live Postgres, so the actual runtime behavior of
+    // `unaccent()` (extension installed, "José" ≡ "jose" collapsing into one
+    // group) is NOT validated here. This repo has no DB-backed integration
+    // test infra (project-wide convention), so that end-to-end grouping must
+    // be covered by manual QA against a real database.
     it('runs the exact same LOWER(unaccent(...)) grouping clause regardless of row origin', async () => {
       ormRepo.manager.query.mockResolvedValue([]);
 
