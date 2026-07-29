@@ -26,6 +26,7 @@ export function buildDebtLoan(
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    sourceMonthlyServicePaymentId: string | null;
   }> = {},
 ): DebtLoan {
   const amount = overrides.amount ?? 100;
@@ -44,5 +45,6 @@ export function buildDebtLoan(
     overrides.createdAt ?? new Date('2026-01-15T12:00:00.000Z'),
     overrides.updatedAt ?? new Date('2026-01-15T12:00:00.000Z'),
     overrides.deletedAt ?? null,
+    overrides.sourceMonthlyServicePaymentId ?? null,
   );
 }

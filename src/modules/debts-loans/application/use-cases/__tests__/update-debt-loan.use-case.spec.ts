@@ -19,6 +19,7 @@ describe('UpdateDebtLoanUseCase', () => {
       findPendingByNormalizedReference: jest.fn(),
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       softDelete: jest.fn(),
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     };
     useCase = new UpdateDebtLoanUseCase(repo);
   });

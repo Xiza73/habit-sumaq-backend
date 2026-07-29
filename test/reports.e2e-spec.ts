@@ -78,6 +78,7 @@ describe('ReportsController (e2e)', () => {
     findById: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
+    findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     aggregateByReference: jest.fn(),
     findPendingByNormalizedReference: jest.fn(),
   };

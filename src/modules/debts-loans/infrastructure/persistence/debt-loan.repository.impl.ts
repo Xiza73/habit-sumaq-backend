@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { type EntityManager, IsNull, Repository } from 'typeorm';
+import { type EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { type Currency } from '@common/enums/currency.enum';
 
@@ -149,6 +149,7 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
       createdAt: debt.createdAt,
       updatedAt: debt.updatedAt,
       deletedAt: debt.deletedAt,
+      sourceMonthlyServicePaymentId: debt.sourceMonthlyServicePaymentId,
     });
     return this.toDomain(saved);
   }
@@ -156,6 +157,15 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
   async softDelete(id: string, manager?: EntityManager): Promise<void> {
     const m = manager ?? this.ormRepo.manager;
     await m.softDelete(DebtLoanOrmEntity, id);
+  }
+
+  async findBySourcePaymentIds(paymentIds: string[], manager?: EntityManager): Promise<DebtLoan[]> {
+    if (paymentIds.length === 0) return [];
+    const m = manager ?? this.ormRepo.manager;
+    const rows = await m.find(DebtLoanOrmEntity, {
+      where: { sourceMonthlyServicePaymentId: In(paymentIds), deletedAt: IsNull() },
+    });
+    return rows.map((r) => this.toDomain(r));
   }
 
   private toDomain(orm: DebtLoanOrmEntity): DebtLoan {
@@ -174,6 +184,7 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
       orm.createdAt,
       orm.updatedAt,
       orm.deletedAt,
+      orm.sourceMonthlyServicePaymentId,
     );
   }
 }

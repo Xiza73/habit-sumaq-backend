@@ -55,6 +55,7 @@ describe('GetFinancesDashboardUseCase', () => {
       findByUserId: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
       aggregateByReference: jest.fn().mockResolvedValue([]),
       findPendingByNormalizedReference: jest.fn(),
     };

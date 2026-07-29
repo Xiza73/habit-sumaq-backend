@@ -51,6 +51,7 @@ describe('DebtsLoansController (e2e)', () => {
     findPendingByNormalizedReference: jest.fn(),
     save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     softDelete: jest.fn(),
+    findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
   };
 
   const mockPaymentRepo: jest.Mocked<DebtLoanPaymentRepository> = {
