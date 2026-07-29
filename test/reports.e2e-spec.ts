@@ -63,6 +63,7 @@ describe('ReportsController (e2e)', () => {
 
   const mockMspRepo: jest.Mocked<MonthlyServicePaymentRepository> = {
     findByServiceId: jest.fn(),
+    findByServiceIds: jest.fn().mockResolvedValue([]),
     findById: jest.fn(),
     findByServiceAndPeriod: jest.fn(),
     sumByCurrencyInRange: jest.fn(),
@@ -78,6 +79,7 @@ describe('ReportsController (e2e)', () => {
     findById: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
+    findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     aggregateByReference: jest.fn(),
     findPendingByNormalizedReference: jest.fn(),
   };

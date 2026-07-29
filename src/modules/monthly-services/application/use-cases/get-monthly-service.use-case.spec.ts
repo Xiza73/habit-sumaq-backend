@@ -1,4 +1,5 @@
 import { DomainException } from '@common/exceptions/domain.exception';
+import { type LinkedDebtsGatherer } from '@modules/monthly-services/application/services/linked-debts-gatherer';
 
 import { buildMonthlyService } from '../../domain/__tests__/monthly-service.factory';
 import { type MonthlyServiceRepository } from '../../domain/monthly-service.repository';
@@ -8,6 +9,7 @@ import { GetMonthlyServiceUseCase } from './get-monthly-service.use-case';
 describe('GetMonthlyServiceUseCase', () => {
   let useCase: GetMonthlyServiceUseCase;
   let repo: jest.Mocked<MonthlyServiceRepository>;
+  let linkedDebtsGatherer: jest.Mocked<Pick<LinkedDebtsGatherer, 'forService'>>;
 
   beforeEach(() => {
     repo = {
@@ -17,7 +19,11 @@ describe('GetMonthlyServiceUseCase', () => {
       save: jest.fn(),
       softDelete: jest.fn(),
     };
-    useCase = new GetMonthlyServiceUseCase(repo);
+    linkedDebtsGatherer = { forService: jest.fn().mockResolvedValue([]) };
+    useCase = new GetMonthlyServiceUseCase(
+      repo,
+      linkedDebtsGatherer as unknown as LinkedDebtsGatherer,
+    );
   });
 
   it('returns the service when it exists and belongs to the user', async () => {
@@ -26,7 +32,7 @@ describe('GetMonthlyServiceUseCase', () => {
 
     const result = await useCase.execute(service.id, 'user-1');
 
-    expect(result).toBe(service);
+    expect(result.service).toBe(service);
   });
 
   it('throws MONTHLY_SERVICE_NOT_FOUND when the id does not exist', async () => {
@@ -43,5 +49,30 @@ describe('GetMonthlyServiceUseCase', () => {
     await expect(useCase.execute(service.id, 'user-1')).rejects.toThrow(
       'Servicio mensual no encontrado',
     );
+  });
+
+  it('attaches linkedDebts gathered for the service', async () => {
+    const service = buildMonthlyService({ userId: 'user-1' });
+    repo.findById.mockResolvedValue(service);
+    linkedDebtsGatherer.forService.mockResolvedValue([
+      { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+    ]);
+
+    const result = await useCase.execute(service.id, 'user-1');
+
+    expect(linkedDebtsGatherer.forService).toHaveBeenCalledWith(service.id);
+    expect(result.linkedDebts).toEqual([
+      { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+    ]);
+  });
+
+  it('linkedDebts is an empty array for a service with no linked debts (triangulation)', async () => {
+    const service = buildMonthlyService({ userId: 'user-1' });
+    repo.findById.mockResolvedValue(service);
+    linkedDebtsGatherer.forService.mockResolvedValue([]);
+
+    const result = await useCase.execute(service.id, 'user-1');
+
+    expect(result.linkedDebts).toEqual([]);
   });
 });

@@ -105,6 +105,7 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `MSP_003` | 409  | Ya existe un pago para esa `(service, period)`     | POST sobre un par que ya tiene una row activa       |
 | `MSP_004` | 422  | Currency del pago ≠ currency del servicio          | POST con currency distinta a la del monthly service |
 | `MSP_005` | 422  | Formato de período inválido (esperado `YYYY-MM`)   | POST con period malformado                          |
+| `MSP_010` | 422  | La suma de `participants[].amount` supera el `amount` total del pago | POST con splits cuya suma excede el total pagado |
 
 ### Hábitos
 

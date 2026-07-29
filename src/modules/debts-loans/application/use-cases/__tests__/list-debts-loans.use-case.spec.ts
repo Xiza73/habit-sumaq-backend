@@ -14,6 +14,7 @@ describe('ListDebtsLoansUseCase', () => {
       findPendingByNormalizedReference: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     };
     useCase = new ListDebtsLoansUseCase(repo);
   });

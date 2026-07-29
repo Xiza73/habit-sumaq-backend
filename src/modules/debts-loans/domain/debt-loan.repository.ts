@@ -71,4 +71,16 @@ export abstract class DebtLoanRepository {
    * reverting that pool delta in its own transaction.
    */
   abstract softDelete(id: string, manager?: EntityManager): Promise<void>;
+
+  /**
+   * Find all rows (any status, excluding soft-deleted) whose
+   * `sourceMonthlyServicePaymentId` is one of `paymentIds`. Used by:
+   *   - the monthly-service get/list use cases to surface `linkedDebts[]`
+   *   - the delete-payment use case to cascade soft-delete UNSETTLED
+   *     linked rows on payment revert
+   */
+  abstract findBySourcePaymentIds(
+    paymentIds: string[],
+    manager?: EntityManager,
+  ): Promise<DebtLoan[]>;
 }

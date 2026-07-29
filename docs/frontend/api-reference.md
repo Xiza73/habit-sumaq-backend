@@ -328,17 +328,47 @@ Obtiene un pago por id.
 
 ### `POST /monthly-service-payments`
 
-Registra un pago. **DEBITA el currency pool** del user por `amount`. Currency se hereda del
-servicio. `period` (`YYYY-MM`) es explícito — se puede back-pay o pay-ahead. La combinación
-`(monthlyServiceId, period)` es única entre rows activas.
+Registra un pago. **DEBITA el currency pool** del user por `amount` (el monto TOTAL de la
+factura). Currency se hereda del servicio. `period` (`YYYY-MM`) es explícito — se puede
+back-pay o pay-ahead. La combinación `(monthlyServiceId, period)` es única entre rows activas.
 
 | Campo | Tipo | Requerido | Notas |
 | --- | --- | --- | --- |
 | `monthlyServiceId` | UUID | sí | Servicio que se paga. |
 | `period` | `YYYY-MM` | sí | Período al que aplica el pago. |
-| `amount` | number | sí | > 0, hasta 2 decimales. |
+| `amount` | number | sí | > 0, hasta 2 decimales. Monto TOTAL de la factura (incluye la parte de todos los participantes). |
 | `date` | ISO datetime | no | Fecha real del pago. Default: ahora. NO determina el period. |
 | `description` | string | no | Max 255 chars. |
+| `participants` | array | no | Splits para servicios compartidos. Ver abajo. |
+
+**Splits (`participants[]`, servicios compartidos):**
+
+```json
+{
+  "monthlyServiceId": "uuid",
+  "period": "2026-06",
+  "amount": 300.0,
+  "participants": [
+    { "reference": "Ana", "amount": 100.0, "alreadyPaid": false },
+    { "reference": "Luis", "amount": 80.0, "alreadyPaid": true }
+  ]
+}
+```
+
+| Campo | Tipo | Requerido | Notas |
+| --- | --- | --- | --- |
+| `reference` | string | sí | Nombre de la persona. No tiene que coincidir literalmente con un participante configurado — se usa tal cual para crear el préstamo (`LOAN`) vinculado. |
+| `amount` | number | sí | > 0. Monto que le corresponde a esta persona para ESTE pago (puede diferir del `defaultAmount` configurado). |
+| `alreadyPaid` | boolean | no (default `false`) | Si `true`, el préstamo se crea y liquida en la misma transacción (la persona ya te devolvió su parte). Si `false`, queda `PENDING`. |
+
+Reglas:
+
+- El pool SIEMPRE se debita por el `amount` TOTAL del pago — el usuario adelanta la factura completa.
+- La parte propia del usuario (`amount − sum(participants[].amount)`) NO genera ningún registro en Deudas/Préstamos — es implícita.
+- `sum(participants[].amount)` NO puede superar `amount`. Se valida ANTES de tocar la base de datos.
+- Por cada participante se crea un `LOAN` (préstamo) en el módulo Deudas/Préstamos, vinculado a este pago vía `sourceMonthlyServicePaymentId`. Si `alreadyPaid=true`, el préstamo queda `SETTLED` de inmediato (con su crédito al pool aplicado en la misma transacción); si no, queda `PENDING` y se liquida después desde `POST /debts/:id/settle`.
+- Si `participants` se omite o es un array vacío, el pago se comporta exactamente igual que un pago no compartido (sin cambios de comportamiento).
+- Todo lo anterior ocurre en UNA sola transacción atómica junto con el pago y la sincronización del servicio — si algo falla, no queda estado parcial.
 
 **Respuesta:** `201 Created`, `data: MonthlyServicePaymentResponseDto`.
 
@@ -346,6 +376,7 @@ servicio. `period` (`YYYY-MM`) es explícito — se puede back-pay o pay-ahead. 
 | --- | --- | --- |
 | `MSP_003` | 409 | Ya existe un pago activo para ese `(service, period)` |
 | `MSP_005` | 422 | `period` mal formado |
+| `MSP_010` | 422 | `sum(participants[].amount)` supera `amount` |
 
 ### `PATCH /monthly-service-payments/:id`
 
@@ -358,6 +389,10 @@ inmutables. Si cambia el `amount`, el pool ajusta la diferencia en una sola tx.
 
 Soft-deletea el pago Y **revierte el pool** (`+amount`). Mismo patrón que
 `DELETE /budget-movements/:id`.
+
+Si el pago tenía préstamos vinculados (`sourceMonthlyServicePaymentId`), los que estén
+`PENDING` se soft-deletean también (en la misma transacción). Los que ya estén `SETTLED`
+quedan intactos como historial — su crédito al pool NO se revierte.
 
 **Respuesta:** `204 No Content`.
 
@@ -1280,6 +1315,14 @@ Lista los servicios activos del usuario. `includeArchived=true` trae también lo
     "isOverdue": false,
     "isPaidForCurrentMonth": false,
     "paidAmountForCurrentMonth": 35.0,
+    "linkedDebts": [
+      {
+        "id": "uuid",
+        "reference": "Ana",
+        "remainingAmount": 100.0,
+        "status": "PENDING"
+      }
+    ],
     "createdAt": "2026-01-05T12:00:00.000Z",
     "updatedAt": "2026-04-01T20:10:00.000Z"
   }
@@ -1295,6 +1338,18 @@ cliente. Driver del KPI "Pagado / Estimado" en el dashboard de servicios.
 > emiten `0` — la list response es la única que necesita el cálculo y evita la query extra en el
 > resto de los endpoints. Si el frontend necesita el monto fresco post-pago, debe re-fetchear la
 > lista.
+
+**`linkedDebts`** (array, siempre presente — `[]` si el servicio no tiene préstamos vinculados):
+préstamos (`LOAN`, módulo Deudas/Préstamos) generados por pagos compartidos de este servicio
+(`sourceMonthlyServicePaymentId`), agrupados por todos los pagos del servicio. Solo incluye los que
+siguen `PENDING` — los `SETTLED` dejan de listarse acá (siguen visibles como historial en
+`GET /debts`). Cada ítem: `id` (UUID del `DebtLoan`, usar para `POST /debts/:id/settle`),
+`reference` (nombre de la persona, tal cual se guardó — sin normalizar), `remainingAmount`,
+`status` (siempre `'PENDING'` en este array). Se popula con valor exacto en `GET /monthly-services`
+(list) y `GET /monthly-services/:id` (detalle) — mismo patrón que `paidAmountForCurrentMonth`. El
+resto de endpoints (`POST`, `PATCH`, `POST /:id/skip`, `PATCH /:id/archive`) emiten `[]` — no
+necesitan el cálculo extra y un `POST` (creación) estructuralmente no puede tener préstamos
+vinculados todavía.
 
 ### `GET /monthly-services/:id`
 
@@ -1395,9 +1450,10 @@ Soft-delete (marca `deletedAt = now()`), **sólo** si el servicio no tiene pagos
 
 ### Participantes de servicios compartidos
 
-> **Slice 1 (backend, este PR)**: sólo configuración de participantes (CRUD). La generación de
-> deudas/préstamos al pagar un servicio compartido (`sourceMonthlyServicePaymentId`, `linkedDebts[]`
-> en la respuesta del servicio) llega en un PR siguiente — no está implementada todavía.
+Un servicio mensual puede tener una lista opcional de participantes configurados (ver CRUD abajo)
+Y/o recibir splits ad-hoc en cada pago (`participants[]` en `POST /monthly-service-payments`, ver
+esa sección). La configuración es sólo un default sugerido — el pago puede usar montos distintos
+sin tocar la config.
 
 Un servicio mensual puede tener una lista opcional de participantes. Cada participante referencia
 un valor `debts_loans.reference` (normalizado internamente: trim + minúsculas + sin acentos) y un

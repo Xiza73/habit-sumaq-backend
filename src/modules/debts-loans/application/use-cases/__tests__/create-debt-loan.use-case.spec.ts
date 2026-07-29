@@ -30,6 +30,7 @@ describe('CreateDebtLoanUseCase', () => {
       findPendingByNormalizedReference: jest.fn(),
       save: jest.fn().mockImplementation((debt) => Promise.resolve(debt)),
       softDelete: jest.fn(),
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     };
     logger = buildMockPinoLogger();
     useCase = new CreateDebtLoanUseCase(repo, logger as unknown as PinoLogger);

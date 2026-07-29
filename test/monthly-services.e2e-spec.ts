@@ -17,6 +17,7 @@ import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies
 import { buildCategory } from '../src/modules/categories/domain/__tests__/category.factory';
 import { CategoryRepository } from '../src/modules/categories/domain/category.repository';
 import { MonthlyServicePaymentRepository } from '../src/modules/monthly-service-payments/domain/monthly-service-payment.repository';
+import { LinkedDebtsGatherer } from '../src/modules/monthly-services/application/services/linked-debts-gatherer';
 import { AddMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/add-monthly-service-participant.use-case';
 import { ArchiveMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/create-monthly-service.use-case';
@@ -57,6 +58,7 @@ describe('MonthlyServicesController (e2e)', () => {
   // the new payments module instead of legacy transactions.
   const mockPaymentRepo: jest.Mocked<MonthlyServicePaymentRepository> = {
     findByServiceId: jest.fn(),
+    findByServiceIds: jest.fn().mockResolvedValue([]),
     findById: jest.fn(),
     findByServiceAndPeriod: jest.fn(),
     sumByCurrencyInRange: jest.fn(),
@@ -73,6 +75,15 @@ describe('MonthlyServicesController (e2e)', () => {
     findById: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
+  };
+
+  // shared-service-payments slice 2: not exercised by this file (no
+  // service in these fixtures has shared payments) — always returns [].
+  const mockLinkedDebtsGatherer: jest.Mocked<
+    Pick<LinkedDebtsGatherer, 'forService' | 'forServices'>
+  > = {
+    forService: jest.fn().mockResolvedValue([]),
+    forServices: jest.fn().mockResolvedValue(new Map<string, unknown[]>()),
   };
 
   const mockConfigService = {
@@ -106,6 +117,7 @@ describe('MonthlyServicesController (e2e)', () => {
         { provide: MonthlyServiceParticipantRepository, useValue: {} },
         { provide: MonthlyServicePaymentRepository, useValue: mockPaymentRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
+        { provide: LinkedDebtsGatherer, useValue: mockLinkedDebtsGatherer },
         JwtAccessStrategy,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -138,7 +150,11 @@ describe('MonthlyServicesController (e2e)', () => {
 
   afterAll(() => app.close());
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockLinkedDebtsGatherer.forService.mockResolvedValue([]);
+    mockLinkedDebtsGatherer.forServices.mockResolvedValue(new Map());
+  });
 
   // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -262,6 +278,29 @@ describe('MonthlyServicesController (e2e)', () => {
         });
     });
 
+    it('surfaces linkedDebts per service (shared-service-payments slice 2)', async () => {
+      const service = buildMonthlyService({ id: SVC_ID, userId: USER_ID, name: 'Netflix' });
+      mockServiceRepo.findByUserId.mockResolvedValue([service]);
+      // The list endpoint resolves linkedDebts via the BATCHED forServices
+      // (one call for all services), not the per-service forService.
+      mockLinkedDebtsGatherer.forServices.mockResolvedValue(
+        new Map([
+          [SVC_ID, [{ id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' }]],
+        ]),
+      );
+
+      return request(app.getHttpServer())
+        .get('/api/v1/monthly-services')
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data[0].linkedDebts).toEqual([
+            { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+          ]);
+        });
+    });
+
     it('should hide archived services by default and include them with ?includeArchived=true', async () => {
       const active = buildMonthlyService({
         userId: USER_ID,
@@ -370,6 +409,25 @@ describe('MonthlyServicesController (e2e)', () => {
         .expect(({ body }) => {
           expect(body.data.id).toBe(SVC_ID);
           expect(body.data.name).toBe('Netflix');
+        });
+    });
+
+    it('surfaces linkedDebts gathered for the service (shared-service-payments slice 2)', async () => {
+      const service = buildMonthlyService({ id: SVC_ID, userId: USER_ID });
+      mockServiceRepo.findById.mockResolvedValue(service);
+      mockLinkedDebtsGatherer.forService.mockResolvedValue([
+        { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+      ]);
+
+      return request(app.getHttpServer())
+        .get(`/api/v1/monthly-services/${SVC_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data.linkedDebts).toEqual([
+            { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+          ]);
         });
     });
 

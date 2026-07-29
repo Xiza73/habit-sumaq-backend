@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { type EntityManager, IsNull, Repository } from 'typeorm';
+import { type EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { MonthlyServicePayment } from '../../domain/monthly-service-payment.entity';
 import { MonthlyServicePaymentRepository } from '../../domain/monthly-service-payment.repository';
@@ -20,6 +20,15 @@ export class MonthlyServicePaymentRepositoryImpl extends MonthlyServicePaymentRe
   async findByServiceId(monthlyServiceId: string): Promise<MonthlyServicePayment[]> {
     const rows = await this.ormRepo.find({
       where: { monthlyServiceId, deletedAt: IsNull() },
+      order: { period: 'DESC', date: 'DESC' },
+    });
+    return rows.map((r) => this.toDomain(r));
+  }
+
+  async findByServiceIds(monthlyServiceIds: string[]): Promise<MonthlyServicePayment[]> {
+    if (monthlyServiceIds.length === 0) return [];
+    const rows = await this.ormRepo.find({
+      where: { monthlyServiceId: In(monthlyServiceIds), deletedAt: IsNull() },
       order: { period: 'DESC', date: 'DESC' },
     });
     return rows.map((r) => this.toDomain(r));
