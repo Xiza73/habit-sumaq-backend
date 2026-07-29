@@ -24,16 +24,23 @@ import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
 import { CreateMonthlyServiceDto } from '../application/dto/create-monthly-service.dto';
+import { CreateMonthlyServiceParticipantDto } from '../application/dto/create-monthly-service-participant.dto';
+import { MonthlyServiceParticipantResponseDto } from '../application/dto/monthly-service-participant-response.dto';
 import { MonthlyServiceResponseDto } from '../application/dto/monthly-service-response.dto';
 import { SkipMonthDto } from '../application/dto/skip-month.dto';
 import { UpdateMonthlyServiceDto } from '../application/dto/update-monthly-service.dto';
+import { UpdateMonthlyServiceParticipantDto } from '../application/dto/update-monthly-service-participant.dto';
+import { AddMonthlyServiceParticipantUseCase } from '../application/use-cases/add-monthly-service-participant.use-case';
 import { ArchiveMonthlyServiceUseCase } from '../application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../application/use-cases/create-monthly-service.use-case';
 import { DeleteMonthlyServiceUseCase } from '../application/use-cases/delete-monthly-service.use-case';
 import { GetMonthlyServiceUseCase } from '../application/use-cases/get-monthly-service.use-case';
+import { ListMonthlyServiceParticipantsUseCase } from '../application/use-cases/list-monthly-service-participants.use-case';
 import { ListMonthlyServicesUseCase } from '../application/use-cases/list-monthly-services.use-case';
+import { RemoveMonthlyServiceParticipantUseCase } from '../application/use-cases/remove-monthly-service-participant.use-case';
 import { SkipMonthlyServiceMonthUseCase } from '../application/use-cases/skip-monthly-service-month.use-case';
 import { UpdateMonthlyServiceUseCase } from '../application/use-cases/update-monthly-service.use-case';
+import { UpdateMonthlyServiceParticipantUseCase } from '../application/use-cases/update-monthly-service-participant.use-case';
 import { currentPeriodInTimezone } from '../infrastructure/timezone/current-period-in-timezone';
 
 import type { JwtPayload } from '../../auth/application/dto/jwt-payload.dto';
@@ -50,6 +57,10 @@ export class MonthlyServicesController {
     private readonly skipMonthlyServiceMonth: SkipMonthlyServiceMonthUseCase,
     private readonly archiveMonthlyService: ArchiveMonthlyServiceUseCase,
     private readonly deleteMonthlyService: DeleteMonthlyServiceUseCase,
+    private readonly listMonthlyServiceParticipants: ListMonthlyServiceParticipantsUseCase,
+    private readonly addMonthlyServiceParticipant: AddMonthlyServiceParticipantUseCase,
+    private readonly updateMonthlyServiceParticipant: UpdateMonthlyServiceParticipantUseCase,
+    private readonly removeMonthlyServiceParticipant: RemoveMonthlyServiceParticipantUseCase,
   ) {}
 
   @Get()
@@ -243,5 +254,114 @@ export class MonthlyServicesController {
   })
   async remove(@CurrentUser() payload: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.deleteMonthlyService.execute(id, payload.sub);
+  }
+
+  @Get(':id/participants')
+  @ApiOperation({
+    summary: 'Listar participantes de un servicio compartido',
+    description:
+      'Slice 1: sólo configuración. La generación de deudas al pagar llega en un PR siguiente.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del servicio' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de participantes configurados',
+    type: [MonthlyServiceParticipantResponseDto],
+  })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  async findParticipants(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<ApiResponseDto<MonthlyServiceParticipantResponseDto[]>> {
+    const participants = await this.listMonthlyServiceParticipants.execute(id, payload.sub);
+    return ApiResponseDto.ok(
+      participants.map((p) => MonthlyServiceParticipantResponseDto.fromDomain(p)),
+      'Participantes obtenidos exitosamente',
+    );
+  }
+
+  @Post(':id/participants')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Agregar un participante a un servicio compartido',
+    description:
+      'La referencia se normaliza (trim + minúsculas + sin acentos) para detectar duplicados. ' +
+      'Si el servicio tiene estimatedAmount, la suma de montos por defecto no puede superarlo.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del servicio' })
+  @ApiResponse({
+    status: 201,
+    description: 'Participante agregado',
+    type: MonthlyServiceParticipantResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  @ApiResponse({ status: 409, description: 'Ya existe un participante con esa referencia' })
+  @ApiResponse({
+    status: 422,
+    description: 'Monto no positivo o suma de montos supera el estimado del servicio',
+  })
+  async addParticipant(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateMonthlyServiceParticipantDto,
+  ): Promise<ApiResponseDto<MonthlyServiceParticipantResponseDto>> {
+    const participant = await this.addMonthlyServiceParticipant.execute(id, payload.sub, dto);
+    return ApiResponseDto.ok(
+      MonthlyServiceParticipantResponseDto.fromDomain(participant),
+      'Participante agregado exitosamente',
+    );
+  }
+
+  @Patch(':id/participants/:participantId')
+  @ApiOperation({
+    summary: 'Editar el monto por defecto de un participante',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del servicio' })
+  @ApiParam({ name: 'participantId', description: 'UUID del participante' })
+  @ApiResponse({
+    status: 200,
+    description: 'Participante actualizado',
+    type: MonthlyServiceParticipantResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Servicio o participante no encontrado' })
+  @ApiResponse({
+    status: 422,
+    description: 'Monto no positivo o suma de montos supera el estimado del servicio',
+  })
+  async updateParticipant(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @Param('participantId') participantId: string,
+    @Body() dto: UpdateMonthlyServiceParticipantDto,
+  ): Promise<ApiResponseDto<MonthlyServiceParticipantResponseDto>> {
+    const participant = await this.updateMonthlyServiceParticipant.execute(
+      id,
+      participantId,
+      payload.sub,
+      dto,
+    );
+    return ApiResponseDto.ok(
+      MonthlyServiceParticipantResponseDto.fromDomain(participant),
+      'Participante actualizado exitosamente',
+    );
+  }
+
+  @Delete(':id/participants/:participantId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Quitar un participante de un servicio compartido',
+    description:
+      'Soft-delete. Quitar todos los participantes deja al servicio sin configuración compartida.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del servicio' })
+  @ApiParam({ name: 'participantId', description: 'UUID del participante' })
+  @ApiResponse({ status: 204, description: 'Participante eliminado' })
+  @ApiResponse({ status: 404, description: 'Servicio o participante no encontrado' })
+  async removeParticipant(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @Param('participantId') participantId: string,
+  ): Promise<void> {
+    await this.removeMonthlyServiceParticipant.execute(id, participantId, payload.sub);
   }
 }

@@ -1393,6 +1393,79 @@ Soft-delete (marca `deletedAt = now()`), **sólo** si el servicio no tiene pagos
 - `404 MSVC_002` servicio no encontrado.
 - `409 MSVC_001` servicio con pagos — no se puede eliminar.
 
+### Participantes de servicios compartidos
+
+> **Slice 1 (backend, este PR)**: sólo configuración de participantes (CRUD). La generación de
+> deudas/préstamos al pagar un servicio compartido (`sourceMonthlyServicePaymentId`, `linkedDebts[]`
+> en la respuesta del servicio) llega en un PR siguiente — no está implementada todavía.
+
+Un servicio mensual puede tener una lista opcional de participantes. Cada participante referencia
+un valor `debts_loans.reference` (normalizado internamente: trim + minúsculas + sin acentos) y un
+monto por defecto fijo. No puede haber dos participantes con la misma referencia normalizada en un
+mismo servicio. Si el servicio tiene `estimatedAmount`, la suma de los montos por defecto no puede
+superarlo.
+
+#### `POST /monthly-services/:id/participants`
+
+Agrega un participante a la configuración del servicio.
+
+- **Body:**
+
+```json
+{
+  "reference": "Ana",
+  "defaultAmount": 100.0
+}
+```
+
+- **Response:** `201` — `MonthlyServiceParticipantResponseDto`
+- `404 MSVC_002` servicio no encontrado o de otro usuario.
+- `409 MSP_PARTICIPANT_DUPLICATE_REFERENCE` ya existe un participante con esa referencia normalizada.
+- `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma de montos (incluyendo el nuevo) supera `estimatedAmount`.
+- `422 MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE` `defaultAmount` ≤ 0.
+
+#### `GET /monthly-services/:id/participants`
+
+Lista los participantes configurados para el servicio.
+
+- **Response:** `200` — `MonthlyServiceParticipantResponseDto[]`
+- `404 MSVC_002` servicio no encontrado o de otro usuario.
+
+#### `PATCH /monthly-services/:id/participants/:participantId`
+
+Edita el monto por defecto de un participante existente.
+
+- **Body:**
+
+```json
+{ "defaultAmount": 120.0 }
+```
+
+- **Response:** `200` — `MonthlyServiceParticipantResponseDto`
+- `404 MSVC_002` / `404 MSP_PARTICIPANT_NOT_FOUND`
+- `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma resultante supera `estimatedAmount`.
+- `422 MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE` `defaultAmount` ≤ 0.
+
+#### `DELETE /monthly-services/:id/participants/:participantId`
+
+Quita un participante de la configuración (soft-delete). Eliminar todos los participantes deja al
+servicio sin configuración compartida (vuelve a comportarse como servicio no compartido).
+
+- **Response:** `204 No Content`
+- `404 MSVC_002` / `404 MSP_PARTICIPANT_NOT_FOUND`
+
+```json
+{
+  "id": "uuid",
+  "monthlyServiceId": "uuid",
+  "userId": "uuid",
+  "reference": "Ana",
+  "defaultAmount": 100.0,
+  "createdAt": "2026-07-27T12:00:00.000Z",
+  "updatedAt": "2026-07-27T12:00:00.000Z"
+}
+```
+
 ---
 
 ## Chores

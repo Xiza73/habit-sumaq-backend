@@ -80,6 +80,10 @@ export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
   MONTHLY_SERVICE_PAYMENT_ALREADY_EXISTS_FOR_PERIOD: HttpStatus.CONFLICT,
   MONTHLY_SERVICE_PAYMENT_CURRENCY_MISMATCH: HttpStatus.UNPROCESSABLE_ENTITY,
   MONTHLY_SERVICE_PAYMENT_INVALID_PERIOD_FORMAT: HttpStatus.UNPROCESSABLE_ENTITY,
+  MSP_PARTICIPANT_NOT_FOUND: HttpStatus.NOT_FOUND,
+  MSP_PARTICIPANT_DUPLICATE_REFERENCE: HttpStatus.CONFLICT,
+  MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED: HttpStatus.UNPROCESSABLE_ENTITY,
+  MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE: HttpStatus.UNPROCESSABLE_ENTITY,
   // POOL_001 is migration-time only — never thrown from HTTP request handlers.
   // The 500 mapping exists purely to satisfy the `Record<ErrorCodeKey, number>`
   // exhaustiveness check. If this ever surfaces as an HTTP response, treat it

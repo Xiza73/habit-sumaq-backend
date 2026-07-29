@@ -17,15 +17,20 @@ import { JwtAccessStrategy } from '../src/modules/auth/infrastructure/strategies
 import { buildCategory } from '../src/modules/categories/domain/__tests__/category.factory';
 import { CategoryRepository } from '../src/modules/categories/domain/category.repository';
 import { MonthlyServicePaymentRepository } from '../src/modules/monthly-service-payments/domain/monthly-service-payment.repository';
+import { AddMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/add-monthly-service-participant.use-case';
 import { ArchiveMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/create-monthly-service.use-case';
 import { DeleteMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/delete-monthly-service.use-case';
 import { GetMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/get-monthly-service.use-case';
+import { ListMonthlyServiceParticipantsUseCase } from '../src/modules/monthly-services/application/use-cases/list-monthly-service-participants.use-case';
 import { ListMonthlyServicesUseCase } from '../src/modules/monthly-services/application/use-cases/list-monthly-services.use-case';
+import { RemoveMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/remove-monthly-service-participant.use-case';
 import { SkipMonthlyServiceMonthUseCase } from '../src/modules/monthly-services/application/use-cases/skip-monthly-service-month.use-case';
 import { UpdateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/update-monthly-service.use-case';
+import { UpdateMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/update-monthly-service-participant.use-case';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
+import { MonthlyServiceParticipantRepository } from '../src/modules/monthly-services/domain/repositories/monthly-service-participant.repository';
 import { MonthlyServicesController } from '../src/modules/monthly-services/presentation/monthly-services.controller';
 
 import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
@@ -90,7 +95,15 @@ describe('MonthlyServicesController (e2e)', () => {
         SkipMonthlyServiceMonthUseCase,
         ArchiveMonthlyServiceUseCase,
         DeleteMonthlyServiceUseCase,
+        // Participant use cases (shared-service-payments slice 1) — not
+        // exercised by this file (see monthly-service-participants.e2e-spec.ts),
+        // but the controller constructor requires them.
+        { provide: ListMonthlyServiceParticipantsUseCase, useValue: {} },
+        { provide: AddMonthlyServiceParticipantUseCase, useValue: {} },
+        { provide: UpdateMonthlyServiceParticipantUseCase, useValue: {} },
+        { provide: RemoveMonthlyServiceParticipantUseCase, useValue: {} },
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
+        { provide: MonthlyServiceParticipantRepository, useValue: {} },
         { provide: MonthlyServicePaymentRepository, useValue: mockPaymentRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
         JwtAccessStrategy,

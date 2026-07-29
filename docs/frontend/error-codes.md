@@ -137,6 +137,15 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `MSVC_003` | 409  | Ya tenés un servicio activo con ese nombre  | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
 | `MSVC_004` | 409  | El servicio ya está pagado para el mes actual | POST /monthly-services/:id/pay cuando el servicio ya está al día (idempotency guard).              |
 
+### Participantes de servicios compartidos
+
+| Código                              | HTTP | Descripción                                              | Cuándo ocurre                                                                                     |
+| ------------------------------------ | ---- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `MSP_PARTICIPANT_NOT_FOUND`          | 404  | Participante no encontrado                                | PATCH/DELETE .../participants/:participantId con UUID inexistente o de otro servicio/usuario.       |
+| `MSP_PARTICIPANT_DUPLICATE_REFERENCE`| 409  | Ya existe un participante con esa referencia               | POST con `reference` que normaliza igual a un participante ya configurado en el servicio.           |
+| `MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` | 422 | La suma de montos supera el estimado del servicio        | POST/PATCH cuando `sum(defaultAmount)` de todos los participantes supera `estimatedAmount`.         |
+| `MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE`| 422  | El monto por defecto debe ser mayor a 0                    | POST/PATCH con `defaultAmount` ≤ 0.                                                                 |
+
 ### Chores (Tareas recurrentes no diarias)
 
 | Código     | HTTP | Descripción                                  | Cuándo ocurre                                                                                |

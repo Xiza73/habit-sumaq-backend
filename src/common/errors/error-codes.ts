@@ -97,6 +97,13 @@ export const ERROR_CODES = {
   MONTHLY_SERVICE_PAYMENT_ALREADY_EXISTS_FOR_PERIOD: 'MSP_003',
   MONTHLY_SERVICE_PAYMENT_CURRENCY_MISMATCH: 'MSP_004',
   MONTHLY_SERVICE_PAYMENT_INVALID_PERIOD_FORMAT: 'MSP_005',
+  // Shared-service participant config (v2 — participants CRUD, slice 1 of
+  // the shared-payment-services feature. Payment generation / linked debts
+  // land in a later slice).
+  MSP_PARTICIPANT_NOT_FOUND: 'MSP_006',
+  MSP_PARTICIPANT_DUPLICATE_REFERENCE: 'MSP_007',
+  MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED: 'MSP_008',
+  MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE: 'MSP_009',
   // Currency pools (internal-only — v1.0.0 refactor).
   // Migration-time only: thrown by `BackfillCurrencyPools` and the
   // `check-balance-consistency` audit script when `accounts.balance`
