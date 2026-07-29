@@ -479,7 +479,16 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
       );
     });
 
-    it('uses the RAW (non-normalized) participant reference for the generated LOAN', async () => {
+    it('uses the RAW (non-normalized) participant reference for the generated LOAN (normalizeReference/unaccent divergence gotcha)', async () => {
+      // Design decision resolving the normalizeReference (JS) vs Postgres
+      // unaccent() divergence flagged in the slice-1 review: the generated
+      // LOAN's `reference` is written EXACTLY as the participant typed it —
+      // never routed through `common/text/normalize-reference.ts`. This
+      // means the LOAN is grouped/matched via the SAME
+      // `LOWER(unaccent(dl.reference))` SQL clause every other manually
+      // -created debt uses (`aggregateByReference`,
+      // `findPendingByNormalizedReference`), so there is no divergence to
+      // worry about — the JS normalizer is never in this code path at all.
       await useCase.execute(
         USER,
         {
