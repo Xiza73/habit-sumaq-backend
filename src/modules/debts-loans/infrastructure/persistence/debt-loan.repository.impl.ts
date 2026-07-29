@@ -164,6 +164,11 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
     const m = manager ?? this.ormRepo.manager;
     const rows = await m.find(DebtLoanOrmEntity, {
       where: { sourceMonthlyServicePaymentId: In(paymentIds), deletedAt: IsNull() },
+      // The linkedDebts[] array this feeds is a frontend-consumed contract.
+      // Without an explicit ORDER BY, Postgres returns heap order —
+      // nondeterministic across VACUUM/updates. `id` is a stable tiebreaker
+      // for split debts that share a createdAt (same-transaction generation).
+      order: { createdAt: 'ASC', id: 'ASC' },
     });
     return rows.map((r) => this.toDomain(r));
   }

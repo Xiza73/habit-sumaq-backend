@@ -121,6 +121,21 @@ describe('DebtLoanRepositoryImpl', () => {
       expect(managerFind).toHaveBeenCalledTimes(1);
       expect(ormRepo.manager.find).not.toHaveBeenCalled();
     });
+
+    it('orders by createdAt ASC then id ASC so the frontend linkedDebts contract is deterministic', async () => {
+      await repo.findBySourcePaymentIds(['payment-1']);
+
+      const [, options] = ormRepo.manager.find.mock.calls[0] as [
+        unknown,
+        { order?: Record<string, unknown> },
+      ];
+      // Without an explicit ORDER BY, Postgres returns rows in
+      // physical/heap order — nondeterministic across VACUUM/updates. The
+      // linkedDebts[] array is a frontend-consumed contract, so the order
+      // must be stable: createdAt ASC, with id as a tiebreaker when two
+      // linked debts share a createdAt (same-transaction split generation).
+      expect(options.order).toEqual({ createdAt: 'ASC', id: 'ASC' });
+    });
   });
 
   describe('aggregateByReference — shared-payment LOAN grouping (normalizeReference/unaccent gotcha)', () => {
