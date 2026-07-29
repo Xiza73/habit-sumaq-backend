@@ -1345,8 +1345,11 @@ préstamos (`LOAN`, módulo Deudas/Préstamos) generados por pagos compartidos d
 siguen `PENDING` — los `SETTLED` dejan de listarse acá (siguen visibles como historial en
 `GET /debts`). Cada ítem: `id` (UUID del `DebtLoan`, usar para `POST /debts/:id/settle`),
 `reference` (nombre de la persona, tal cual se guardó — sin normalizar), `remainingAmount`,
-`status` (siempre `'PENDING'` en este array). Se popula en TODOS los endpoints que devuelven
-`MonthlyServiceResponseDto` (list, get, create, update, skip, archive).
+`status` (siempre `'PENDING'` en este array). Se popula con valor exacto en `GET /monthly-services`
+(list) y `GET /monthly-services/:id` (detalle) — mismo patrón que `paidAmountForCurrentMonth`. El
+resto de endpoints (`POST`, `PATCH`, `POST /:id/skip`, `PATCH /:id/archive`) emiten `[]` — no
+necesitan el cálculo extra y un `POST` (creación) estructuralmente no puede tener préstamos
+vinculados todavía.
 
 ### `GET /monthly-services/:id`
 

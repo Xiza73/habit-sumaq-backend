@@ -2,8 +2,10 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CategoriesModule } from '@modules/categories/presentation/categories.module';
+import { DebtsLoansModule } from '@modules/debts-loans/presentation/debts-loans.module';
 import { MonthlyServicePaymentsModule } from '@modules/monthly-service-payments/presentation/monthly-service-payments.module';
 
+import { LinkedDebtsGatherer } from '../application/services/linked-debts-gatherer';
 import { AddMonthlyServiceParticipantUseCase } from '../application/use-cases/add-monthly-service-participant.use-case';
 import { ArchiveMonthlyServiceUseCase } from '../application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../application/use-cases/create-monthly-service.use-case';
@@ -36,6 +38,11 @@ import { MonthlyServicesController } from './monthly-services.controller';
     // `DeleteMonthlyServiceUseCase` to guard against deleting a service
     // with recorded payments).
     forwardRef(() => MonthlyServicePaymentsModule),
+    // shared-service-payments slice 2: `DebtLoanRepository` for
+    // `LinkedDebtsGatherer` (surfaces `linkedDebts[]` on get/list).
+    // One-directional — no forwardRef needed (same reasoning as the
+    // `MonthlyServicePaymentsModule` → `DebtsLoansModule` edge).
+    DebtsLoansModule,
   ],
   controllers: [MonthlyServicesController],
   providers: [
@@ -44,6 +51,7 @@ import { MonthlyServicesController } from './monthly-services.controller';
       provide: MonthlyServiceParticipantRepository,
       useClass: MonthlyServiceParticipantRepositoryImpl,
     },
+    LinkedDebtsGatherer,
     ListMonthlyServicesUseCase,
     GetMonthlyServiceUseCase,
     CreateMonthlyServiceUseCase,

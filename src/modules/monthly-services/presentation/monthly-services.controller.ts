@@ -97,7 +97,12 @@ export class MonthlyServicesController {
     );
     return ApiResponseDto.ok(
       items.map((i) =>
-        MonthlyServiceResponseDto.fromDomain(i.service, currentPeriod, i.paidAmountForCurrentMonth),
+        MonthlyServiceResponseDto.fromDomain(
+          i.service,
+          currentPeriod,
+          i.paidAmountForCurrentMonth,
+          i.linkedDebts,
+        ),
       ),
       'Servicios obtenidos exitosamente',
     );
@@ -113,11 +118,16 @@ export class MonthlyServicesController {
     @ClientTimezone() timezone: string,
     @Param('id') id: string,
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
-    const service = await this.getMonthlyService.execute(id, payload.sub);
+    const { service, linkedDebts } = await this.getMonthlyService.execute(id, payload.sub);
     return ApiResponseDto.ok(
       // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
       // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
+      MonthlyServiceResponseDto.fromDomain(
+        service,
+        currentPeriodInTimezone(timezone),
+        0,
+        linkedDebts,
+      ),
       'Servicio obtenido exitosamente',
     );
   }

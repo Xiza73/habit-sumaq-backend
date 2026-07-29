@@ -1,4 +1,5 @@
 import { type MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
+import { type LinkedDebtsGatherer } from '@modules/monthly-services/application/services/linked-debts-gatherer';
 
 import { buildMonthlyService } from '../../domain/__tests__/monthly-service.factory';
 import { type MonthlyServiceRepository } from '../../domain/monthly-service.repository';
@@ -9,6 +10,7 @@ describe('ListMonthlyServicesUseCase', () => {
   let useCase: ListMonthlyServicesUseCase;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
   let paymentRepo: jest.Mocked<MonthlyServicePaymentRepository>;
+  let linkedDebtsGatherer: jest.Mocked<Pick<LinkedDebtsGatherer, 'forService'>>;
 
   const currentPeriod = '2026-05';
   const timezone = 'America/Lima';
@@ -37,7 +39,13 @@ describe('ListMonthlyServicesUseCase', () => {
       softDelete: jest.fn(),
     };
 
-    useCase = new ListMonthlyServicesUseCase(serviceRepo, paymentRepo);
+    linkedDebtsGatherer = { forService: jest.fn().mockResolvedValue([]) };
+
+    useCase = new ListMonthlyServicesUseCase(
+      serviceRepo,
+      paymentRepo,
+      linkedDebtsGatherer as unknown as LinkedDebtsGatherer,
+    );
   });
 
   it('returns an empty list (and skips the SQL aggregate) when the user has no services', async () => {
@@ -77,9 +85,9 @@ describe('ListMonthlyServicesUseCase', () => {
     const result = await useCase.execute('user-1', false, currentPeriod, timezone);
 
     expect(result).toEqual([
-      { service: services[0], paidAmountForCurrentMonth: 35.5 },
-      { service: services[1], paidAmountForCurrentMonth: 90 },
-      { service: services[2], paidAmountForCurrentMonth: 0 },
+      { service: services[0], paidAmountForCurrentMonth: 35.5, linkedDebts: [] },
+      { service: services[1], paidAmountForCurrentMonth: 90, linkedDebts: [] },
+      { service: services[2], paidAmountForCurrentMonth: 0, linkedDebts: [] },
     ]);
     // v1.0.0: no timezone arg because the MSP table buckets by literal
     // YYYY-MM period column (the repo's `sumByServiceIdsInPeriod` is
@@ -88,5 +96,29 @@ describe('ListMonthlyServicesUseCase', () => {
       ['svc-1', 'svc-2', 'svc-3'],
       currentPeriod,
     );
+  });
+
+  it('gathers linkedDebts per service via LinkedDebtsGatherer', async () => {
+    const services = [
+      buildMonthlyService({ id: 'svc-1', userId: 'user-1' }),
+      buildMonthlyService({ id: 'svc-2', userId: 'user-1' }),
+    ];
+    serviceRepo.findByUserId.mockResolvedValue(services);
+    linkedDebtsGatherer.forService.mockImplementation((id: string) =>
+      Promise.resolve(
+        id === 'svc-1'
+          ? [{ id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' as const }]
+          : [],
+      ),
+    );
+
+    const result = await useCase.execute('user-1', false, currentPeriod, timezone);
+
+    expect(linkedDebtsGatherer.forService).toHaveBeenCalledWith('svc-1');
+    expect(linkedDebtsGatherer.forService).toHaveBeenCalledWith('svc-2');
+    expect(result[0].linkedDebts).toEqual([
+      { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+    ]);
+    expect(result[1].linkedDebts).toEqual([]);
   });
 });

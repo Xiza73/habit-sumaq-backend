@@ -4,6 +4,7 @@ import { MonthlyServicePaymentRepository } from '@modules/monthly-service-paymen
 
 import { MonthlyService } from '../../domain/monthly-service.entity';
 import { MonthlyServiceRepository } from '../../domain/monthly-service.repository';
+import { LinkedDebtsGatherer, type LinkedDebtSummary } from '../services/linked-debts-gatherer';
 
 /**
  * What a list-monthly-services call returns to the caller. The `service`
@@ -25,6 +26,7 @@ import { MonthlyServiceRepository } from '../../domain/monthly-service.repositor
 export interface MonthlyServiceWithPaidAmount {
   service: MonthlyService;
   paidAmountForCurrentMonth: number;
+  linkedDebts: LinkedDebtSummary[];
 }
 
 @Injectable()
@@ -32,6 +34,7 @@ export class ListMonthlyServicesUseCase {
   constructor(
     private readonly serviceRepo: MonthlyServiceRepository,
     private readonly paymentRepo: MonthlyServicePaymentRepository,
+    private readonly linkedDebtsGatherer: LinkedDebtsGatherer,
   ) {}
 
   async execute(
@@ -53,12 +56,15 @@ export class ListMonthlyServicesUseCase {
       currentPeriod,
     );
 
-    return services.map((service) => ({
-      service,
-      // Services with no payments in the current period are absent from the
-      // map — treat them as 0 rather than null so the DTO field stays a plain
-      // `number` and the frontend can sum without nullish guards.
-      paidAmountForCurrentMonth: paidByService.get(service.id) ?? 0,
-    }));
+    return Promise.all(
+      services.map(async (service) => ({
+        service,
+        // Services with no payments in the current period are absent from the
+        // map — treat them as 0 rather than null so the DTO field stays a plain
+        // `number` and the frontend can sum without nullish guards.
+        paidAmountForCurrentMonth: paidByService.get(service.id) ?? 0,
+        linkedDebts: await this.linkedDebtsGatherer.forService(service.id),
+      })),
+    );
   }
 }
