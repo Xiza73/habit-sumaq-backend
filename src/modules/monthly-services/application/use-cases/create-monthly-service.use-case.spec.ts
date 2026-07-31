@@ -1,4 +1,5 @@
 import { type PinoLogger } from 'nestjs-pino';
+import { type DataSource, type EntityManager, QueryFailedError } from 'typeorm';
 
 import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { DomainException } from '@common/exceptions/domain.exception';
@@ -7,6 +8,7 @@ import { type CategoryRepository } from '@modules/categories/domain/category.rep
 
 import { buildMonthlyService } from '../../domain/__tests__/monthly-service.factory';
 import { type MonthlyServiceRepository } from '../../domain/monthly-service.repository';
+import { type MonthlyServiceParticipantRepository } from '../../domain/repositories/monthly-service-participant.repository';
 
 import { CreateMonthlyServiceUseCase } from './create-monthly-service.use-case';
 
@@ -16,9 +18,12 @@ describe('CreateMonthlyServiceUseCase', () => {
   let useCase: CreateMonthlyServiceUseCase;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
   let categoryRepo: jest.Mocked<CategoryRepository>;
+  let participantRepo: jest.Mocked<MonthlyServiceParticipantRepository>;
+  let dataSource: jest.Mocked<Pick<DataSource, 'transaction'>>;
   let mockLogger: ReturnType<typeof buildMockPinoLogger>;
 
   const userId = 'user-1';
+  const FAKE_MGR = { tx: true } as unknown as EntityManager;
   const baseDto: CreateMonthlyServiceDto = {
     name: 'Netflix',
     categoryId: 'cat-1',
@@ -45,10 +50,25 @@ describe('CreateMonthlyServiceUseCase', () => {
       softDelete: jest.fn(),
     };
 
+    participantRepo = {
+      findByServiceId: jest.fn().mockResolvedValue([]),
+      findByNormalizedReference: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockImplementation((p) => Promise.resolve(p)),
+      softDelete: jest.fn(),
+    };
+
+    dataSource = {
+      transaction: jest
+        .fn()
+        .mockImplementation(<T>(cb: (m: EntityManager) => Promise<T>) => cb(FAKE_MGR)),
+    };
+
     mockLogger = buildMockPinoLogger();
     useCase = new CreateMonthlyServiceUseCase(
       serviceRepo,
       categoryRepo,
+      participantRepo,
+      dataSource as unknown as DataSource,
       mockLogger as unknown as PinoLogger,
     );
   });
@@ -111,5 +131,157 @@ describe('CreateMonthlyServiceUseCase', () => {
     await expect(useCase.execute(userId, baseDto, 'UTC')).rejects.toThrow(
       'Ya tienes un servicio activo con ese nombre',
     );
+  });
+
+  describe('optional participants[] at create time', () => {
+    it('creates without opening a transaction when participants is omitted (no regression)', async () => {
+      await useCase.execute(userId, baseDto, 'UTC');
+
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(serviceRepo.save).toHaveBeenCalledWith(expect.anything());
+      expect(participantRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('creates without opening a transaction when participants is an empty array (no regression)', async () => {
+      await useCase.execute(userId, { ...baseDto, participants: [] }, 'UTC');
+
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(participantRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('creates the service AND its participants atomically in one transaction', async () => {
+      const result = await useCase.execute(
+        userId,
+        {
+          ...baseDto,
+          estimatedAmount: 300,
+          participants: [
+            { reference: 'Ana', defaultAmount: 100 },
+            { reference: 'Luis', defaultAmount: 80 },
+          ],
+        },
+        'UTC',
+      );
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(serviceRepo.save).toHaveBeenCalledWith(expect.anything(), FAKE_MGR);
+      expect(participantRepo.save).toHaveBeenCalledTimes(2);
+      expect(participantRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ reference: 'Ana', defaultAmount: 100 }),
+        FAKE_MGR,
+      );
+      expect(participantRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ reference: 'Luis', defaultAmount: 80 }),
+        FAKE_MGR,
+      );
+      expect(result.name).toBe('Netflix');
+    });
+
+    it('rejects duplicate normalized references within the create-time batch', async () => {
+      await expect(
+        useCase.execute(
+          userId,
+          {
+            ...baseDto,
+            participants: [
+              { reference: 'Ana', defaultAmount: 100 },
+              { reference: 'ana', defaultAmount: 50 },
+            ],
+          },
+          'UTC',
+        ),
+      ).rejects.toMatchObject({ code: 'MSP_PARTICIPANT_DUPLICATE_REFERENCE' });
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(serviceRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-positive amount in the create-time batch', async () => {
+      await expect(
+        useCase.execute(
+          userId,
+          { ...baseDto, participants: [{ reference: 'Ana', defaultAmount: 0 }] },
+          'UTC',
+        ),
+      ).rejects.toMatchObject({ code: 'MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE' });
+      expect(serviceRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the create-time batch sum exceeds estimatedAmount', async () => {
+      await expect(
+        useCase.execute(
+          userId,
+          {
+            ...baseDto,
+            estimatedAmount: 100,
+            participants: [{ reference: 'Ana', defaultAmount: 150 }],
+          },
+          'UTC',
+        ),
+      ).rejects.toMatchObject({ code: 'MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED' });
+      expect(serviceRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the service when a participant write fails mid-transaction', async () => {
+      // The default `beforeEach` mock already invokes the callback with
+      // `FAKE_MGR` and propagates whatever it throws — exactly what
+      // `dataSource.transaction`'s real rollback-on-throw behavior does.
+      //
+      // Capture the actual EntityManager instance passed to BOTH the service
+      // write and the participant write. Asserting they are the SAME instance
+      // is the strongest available unit-level proof that both writes share one
+      // transaction (a real rollback would then undo both). We can't assert
+      // real DB rollback without integration infra — tracked separately.
+      let serviceMgr: unknown;
+      let participantMgr: unknown;
+      serviceRepo.save.mockImplementationOnce((s, mgr) => {
+        serviceMgr = mgr;
+        return Promise.resolve(s);
+      });
+      participantRepo.save.mockImplementationOnce((_p, mgr) => {
+        participantMgr = mgr;
+        return Promise.reject(new Error('db exploded'));
+      });
+
+      await expect(
+        useCase.execute(
+          userId,
+          {
+            ...baseDto,
+            estimatedAmount: 300,
+            participants: [{ reference: 'Ana', defaultAmount: 100 }],
+          },
+          'UTC',
+        ),
+      ).rejects.toThrow('db exploded');
+
+      // The service row was only ever written through the transactional
+      // manager — never through the non-transactional path.
+      expect(serviceRepo.save).toHaveBeenCalledTimes(1);
+      expect(serviceRepo.save).toHaveBeenCalledWith(expect.anything(), FAKE_MGR);
+
+      // Both writes received the exact same manager instance -> one shared
+      // transaction. Without this, the participant failure would not roll back
+      // the already-persisted service row.
+      expect(serviceMgr).toBeDefined();
+      expect(participantMgr).toBe(serviceMgr);
+    });
+
+    it('translates a unique-index race (23505) into MSP_PARTICIPANT_DUPLICATE_REFERENCE', async () => {
+      const driverError = Object.assign(new Error('duplicate key value'), { code: '23505' });
+      const queryFailed = new QueryFailedError('INSERT ...', [], driverError);
+      participantRepo.save.mockRejectedValueOnce(queryFailed);
+
+      await expect(
+        useCase.execute(
+          userId,
+          {
+            ...baseDto,
+            estimatedAmount: 300,
+            participants: [{ reference: 'Ana', defaultAmount: 100 }],
+          },
+          'UTC',
+        ),
+      ).rejects.toMatchObject({ code: 'MSP_PARTICIPANT_DUPLICATE_REFERENCE' });
+    });
   });
 });

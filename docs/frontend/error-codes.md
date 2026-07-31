@@ -140,12 +140,15 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 
 ### Participantes de servicios compartidos
 
+Modelo batch replace (`PUT /monthly-services/:id/participants`, y opcionalmente `participants[]`
+en `POST /monthly-services`) — no hay endpoints de agregar/editar/quitar uno por uno.
+
 | Código                              | HTTP | Descripción                                              | Cuándo ocurre                                                                                     |
 | ------------------------------------ | ---- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `MSP_PARTICIPANT_NOT_FOUND`          | 404  | Participante no encontrado                                | PATCH/DELETE .../participants/:participantId con UUID inexistente o de otro servicio/usuario.       |
-| `MSP_PARTICIPANT_DUPLICATE_REFERENCE`| 409  | Ya existe un participante con esa referencia               | POST con `reference` que normaliza igual a un participante ya configurado en el servicio.           |
-| `MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` | 422 | La suma de montos supera el estimado del servicio        | POST/PATCH cuando `sum(defaultAmount)` de todos los participantes supera `estimatedAmount`.         |
-| `MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE`| 422  | El monto por defecto debe ser mayor a 0                    | POST/PATCH con `defaultAmount` ≤ 0.                                                                 |
+| `MSP_PARTICIPANT_NOT_FOUND`          | 404  | Participante no encontrado                                | Reservado — no se lanza actualmente (no hay endpoint que busque un participante individual por id). |
+| `MSP_PARTICIPANT_DUPLICATE_REFERENCE`| 409  | Ya existe un participante con esa referencia               | `PUT .../participants` o `participants[]` en `POST /monthly-services` con dos referencias que normalizan igual DENTRO del mismo envío (o una carrera de unicidad contra la base de datos). |
+| `MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` | 422 | La suma de montos supera el estimado del servicio        | `sum(participants[].defaultAmount)` del envío supera `estimatedAmount` del servicio.               |
+| `MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE`| 422  | El monto por defecto debe ser mayor a 0                    | Algún `participants[].defaultAmount` ≤ 0 (defensa adicional — `class-validator` ya rechaza esto con 400 antes de llegar al use case). |
 
 ### Chores (Tareas recurrentes no diarias)
 

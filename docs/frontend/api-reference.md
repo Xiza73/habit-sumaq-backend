@@ -1374,17 +1374,33 @@ Crea un servicio. La moneda debe coincidir con la cuenta por defecto.
   "frequencyMonths": 1,
   "estimatedAmount": 45.0,
   "dueDay": 15,
-  "startPeriod": "2026-04"
+  "startPeriod": "2026-04",
+  "participants": [
+    { "reference": "Ana", "defaultAmount": 20.0 },
+    { "reference": "Luis", "defaultAmount": 15.0 }
+  ]
 }
 ```
 
 `frequencyMonths` defaults to `1` (monthly). Allowed values: `1, 3, 6, 12` (mensual, trimestral, semestral, anual). **Inmutable** — no se puede cambiar después de crear el servicio.
 
+`participants` es OPCIONAL — mismo shape y mismas validaciones que
+`PUT /monthly-services/:id/participants` (referencia normalizada única dentro del array,
+`defaultAmount > 0`, `sum(defaultAmount) ≤ estimatedAmount` cuando este último está definido).
+Cuando se envía (y es no vacío), el servicio y sus participantes se crean atómicamente en una sola
+transacción — si algún participante es inválido, la creación del servicio se revierte por
+completo (no queda un servicio sin participantes ni un estado parcial). Omitir el campo o enviar
+`[]` crea el servicio exactamente igual que antes de esta funcionalidad (sin cambios de
+comportamiento).
+
 - **Response:** `201` — `MonthlyServiceResponseDto`
 - `404 ACC_001` si la cuenta no existe o no es tuya.
 - `404 CAT_001` si la categoría no existe o no es tuya.
 - `409 MSVC_003` si ya tenés un servicio activo con ese nombre.
+- `409 MSP_PARTICIPANT_DUPLICATE_REFERENCE` referencias duplicadas dentro de `participants[]`.
 - `422 VAL_002` si la moneda del DTO no coincide con la cuenta.
+- `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma de `participants[].defaultAmount` supera `estimatedAmount`.
+- `422 MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE` algún `participants[].defaultAmount` ≤ 0.
 
 ### `PATCH /monthly-services/:id`
 
@@ -1450,10 +1466,10 @@ Soft-delete (marca `deletedAt = now()`), **sólo** si el servicio no tiene pagos
 
 ### Participantes de servicios compartidos
 
-Un servicio mensual puede tener una lista opcional de participantes configurados (ver CRUD abajo)
-Y/o recibir splits ad-hoc en cada pago (`participants[]` en `POST /monthly-service-payments`, ver
-esa sección). La configuración es sólo un default sugerido — el pago puede usar montos distintos
-sin tocar la config.
+Un servicio mensual puede tener una lista opcional de participantes configurados (ver batch
+replace abajo) Y/o recibir splits ad-hoc en cada pago (`participants[]` en
+`POST /monthly-service-payments`, ver esa sección). La configuración es sólo un default sugerido
+— el pago puede usar montos distintos sin tocar la config.
 
 Un servicio mensual puede tener una lista opcional de participantes. Cada participante referencia
 un valor `debts_loans.reference` (normalizado internamente: trim + minúsculas + sin acentos) y un
@@ -1461,24 +1477,46 @@ monto por defecto fijo. No puede haber dos participantes con la misma referencia
 mismo servicio. Si el servicio tiene `estimatedAmount`, la suma de los montos por defecto no puede
 superarlo.
 
-#### `POST /monthly-services/:id/participants`
+**Modelo de edición: batch replace.** La configuración se administra con un único endpoint
+`PUT` que reemplaza la lista COMPLETA — no hay endpoints de agregar/editar/quitar uno por uno. El
+frontend muestra filas editables y un botón "Guardar" que persiste la lista entera de una vez. El
+array enviado ES el set activo final: lo que no está en el array se da de baja.
 
-Agrega un participante a la configuración del servicio.
+También se puede configurar la lista inicial de participantes directamente al crear el servicio
+(`participants[]` en `POST /monthly-services`, ver esa sección).
+
+#### `PUT /monthly-services/:id/participants`
+
+Reemplaza toda la configuración de participantes del servicio. NO es incremental — el array
+enviado ES la lista activa final.
 
 - **Body:**
 
 ```json
 {
-  "reference": "Ana",
-  "defaultAmount": 100.0
+  "participants": [
+    { "reference": "Ana", "defaultAmount": 120.0 },
+    { "reference": "Marta", "defaultAmount": 60.0 }
+  ]
 }
 ```
 
-- **Response:** `201` — `MonthlyServiceParticipantResponseDto`
+- **Comportamiento (diff por referencia normalizada, todo en una sola transacción):**
+  - Un participante activo cuya referencia normalizada SÍ está en el array recibido: se
+    actualiza (`defaultAmount` y `reference` crudo), conservando su `id`/`createdAt`.
+  - Un participante activo cuya referencia normalizada NO está en el array recibido: se da de
+    baja (soft-delete).
+  - Una referencia normalizada nueva (no existía como participante activo): se inserta.
+  - Array vacío (`{ "participants": [] }`) = quita todos los participantes configurados (vuelve a
+    comportarse como servicio no compartido).
+- **Response:** `200` — `MonthlyServiceParticipantResponseDto[]` (la lista resultante tras el
+  reemplazo).
 - `404 MSVC_002` servicio no encontrado o de otro usuario.
-- `409 MSP_PARTICIPANT_DUPLICATE_REFERENCE` ya existe un participante con esa referencia normalizada.
-- `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma de montos (incluyendo el nuevo) supera `estimatedAmount`.
-- `422 MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE` `defaultAmount` ≤ 0.
+- `409 MSP_PARTICIPANT_DUPLICATE_REFERENCE` referencias duplicadas DENTRO del mismo envío
+  (normalizadas), o una carrera de unicidad contra la base de datos.
+- `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma de `defaultAmount` del array supera
+  `estimatedAmount` del servicio.
+- `422 MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE` algún `defaultAmount` ≤ 0.
 
 #### `GET /monthly-services/:id/participants`
 
@@ -1486,29 +1524,6 @@ Lista los participantes configurados para el servicio.
 
 - **Response:** `200` — `MonthlyServiceParticipantResponseDto[]`
 - `404 MSVC_002` servicio no encontrado o de otro usuario.
-
-#### `PATCH /monthly-services/:id/participants/:participantId`
-
-Edita el monto por defecto de un participante existente.
-
-- **Body:**
-
-```json
-{ "defaultAmount": 120.0 }
-```
-
-- **Response:** `200` — `MonthlyServiceParticipantResponseDto`
-- `404 MSVC_002` / `404 MSP_PARTICIPANT_NOT_FOUND`
-- `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma resultante supera `estimatedAmount`.
-- `422 MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE` `defaultAmount` ≤ 0.
-
-#### `DELETE /monthly-services/:id/participants/:participantId`
-
-Quita un participante de la configuración (soft-delete). Eliminar todos los participantes deja al
-servicio sin configuración compartida (vuelve a comportarse como servicio no compartido).
-
-- **Response:** `204 No Content`
-- `404 MSVC_002` / `404 MSP_PARTICIPANT_NOT_FOUND`
 
 ```json
 {

@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
+import { DataSource } from 'typeorm';
 
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
@@ -18,17 +19,15 @@ import { buildCategory } from '../src/modules/categories/domain/__tests__/catego
 import { CategoryRepository } from '../src/modules/categories/domain/category.repository';
 import { MonthlyServicePaymentRepository } from '../src/modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { LinkedDebtsGatherer } from '../src/modules/monthly-services/application/services/linked-debts-gatherer';
-import { AddMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/add-monthly-service-participant.use-case';
 import { ArchiveMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/create-monthly-service.use-case';
 import { DeleteMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/delete-monthly-service.use-case';
 import { GetMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/get-monthly-service.use-case';
 import { ListMonthlyServiceParticipantsUseCase } from '../src/modules/monthly-services/application/use-cases/list-monthly-service-participants.use-case';
 import { ListMonthlyServicesUseCase } from '../src/modules/monthly-services/application/use-cases/list-monthly-services.use-case';
-import { RemoveMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/remove-monthly-service-participant.use-case';
+import { ReplaceMonthlyServiceParticipantsUseCase } from '../src/modules/monthly-services/application/use-cases/replace-monthly-service-participants.use-case';
 import { SkipMonthlyServiceMonthUseCase } from '../src/modules/monthly-services/application/use-cases/skip-monthly-service-month.use-case';
 import { UpdateMonthlyServiceUseCase } from '../src/modules/monthly-services/application/use-cases/update-monthly-service.use-case';
-import { UpdateMonthlyServiceParticipantUseCase } from '../src/modules/monthly-services/application/use-cases/update-monthly-service-participant.use-case';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
 import { MonthlyServiceParticipantRepository } from '../src/modules/monthly-services/domain/repositories/monthly-service-participant.repository';
@@ -106,15 +105,17 @@ describe('MonthlyServicesController (e2e)', () => {
         SkipMonthlyServiceMonthUseCase,
         ArchiveMonthlyServiceUseCase,
         DeleteMonthlyServiceUseCase,
-        // Participant use cases (shared-service-payments slice 1) — not
-        // exercised by this file (see monthly-service-participants.e2e-spec.ts),
-        // but the controller constructor requires them.
+        // Participant use cases (batch replace) — not exercised by this
+        // file (see monthly-service-participants-batch.e2e-spec.ts), but
+        // the controller constructor requires them.
         { provide: ListMonthlyServiceParticipantsUseCase, useValue: {} },
-        { provide: AddMonthlyServiceParticipantUseCase, useValue: {} },
-        { provide: UpdateMonthlyServiceParticipantUseCase, useValue: {} },
-        { provide: RemoveMonthlyServiceParticipantUseCase, useValue: {} },
+        { provide: ReplaceMonthlyServiceParticipantsUseCase, useValue: {} },
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
         { provide: MonthlyServiceParticipantRepository, useValue: {} },
+        // CreateMonthlyServiceUseCase now depends on DataSource (opened
+        // only when dto.participants is non-empty) — no test in this file
+        // sends participants, so the transaction path is never exercised.
+        { provide: DataSource, useValue: { transaction: jest.fn() } },
         { provide: MonthlyServicePaymentRepository, useValue: mockPaymentRepo },
         { provide: CategoryRepository, useValue: mockCategoryRepo },
         { provide: LinkedDebtsGatherer, useValue: mockLinkedDebtsGatherer },
@@ -257,6 +258,33 @@ describe('MonthlyServicesController (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .set('x-timezone', 'America/Lima')
         .send({ ...fullBody, currency: 'PE' })
+        .expect(400);
+    });
+
+    it('should return 400 when the create-time participants batch exceeds the array size cap', () => {
+      // Anti-DoS bound: a 51-element participants[] is rejected by
+      // `@ArrayMaxSize(50)` before the create use case runs.
+      const participants = Array.from({ length: 51 }, (_, i) => ({
+        reference: `P${i}`,
+        defaultAmount: 1,
+      }));
+
+      return request(app.getHttpServer())
+        .post('/api/v1/monthly-services')
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .send({ ...fullBody, participants })
+        .expect(400);
+    });
+
+    it('should return 400 for a malformed nested participant item at create time', () => {
+      // Wrong per-item types (`reference` a number, `defaultAmount` a string)
+      // fail nested `@ValidateNested`/`@Type` validation.
+      return request(app.getHttpServer())
+        .post('/api/v1/monthly-services')
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .send({ ...fullBody, participants: [{ reference: 123, defaultAmount: 'x' }] })
         .expect(400);
     });
   });
