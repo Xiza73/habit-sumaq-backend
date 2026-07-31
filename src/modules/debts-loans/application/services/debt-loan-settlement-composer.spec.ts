@@ -89,6 +89,19 @@ describe('DebtLoanSettlementComposer', () => {
       expect(result.amount).toBe(45.5);
       expect(result.sourceMonthlyServicePaymentId).toBe('payment-3');
     });
+
+    it('persists the caller-supplied description (origin label, e.g. "Netflix · 2026-07")', async () => {
+      const result = await composer.createLinked(FAKE_MGR, {
+        userId: USER,
+        reference: 'Ana',
+        currency: Currency.PEN,
+        amount: 100,
+        sourceMonthlyServicePaymentId: 'payment-1',
+        description: 'Netflix · 2026-07',
+      });
+
+      expect(result.description).toBe('Netflix · 2026-07');
+    });
   });
 
   describe('createAndSettleLinked', () => {
@@ -148,6 +161,19 @@ describe('DebtLoanSettlementComposer', () => {
 
       expect(result.status).toBe(DebtLoanStatus.SETTLED);
       expect(pool.applyDelta).toHaveBeenCalledWith(USER, Currency.USD, 37.25, FAKE_MGR);
+    });
+
+    it('persists the caller-supplied description on the settled LOAN too', async () => {
+      const result = await composer.createAndSettleLinked(FAKE_MGR, {
+        userId: USER,
+        reference: 'Ana',
+        currency: Currency.PEN,
+        amount: 100,
+        sourceMonthlyServicePaymentId: 'payment-1',
+        description: 'Netflix · 2026-07',
+      });
+
+      expect(result.description).toBe('Netflix · 2026-07');
     });
   });
 });

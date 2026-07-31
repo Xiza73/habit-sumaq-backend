@@ -76,6 +76,11 @@ const RECENT_PAYMENTS_TO_FETCH = 1;
  * transaction opens (`MSP_SPLIT_EXCEEDS_TOTAL`). An empty/omitted
  * `participants` array is a strict no-op for this behavior — the payment
  * behaves exactly as it did before this feature existed.
+ *
+ * Each generated `LOAN` gets `description = "{service.name} · {period}"`
+ * (e.g. `"Netflix · 2026-07"`) so the Debts/Loans view can show where the
+ * debt came from — built here (this use case owns both `service` and
+ * `period`) and threaded through the composer's `description` input.
  */
 @Injectable()
 export class CreateMonthlyServicePaymentUseCase {
@@ -148,6 +153,8 @@ export class CreateMonthlyServicePaymentUseCase {
       // immediately on the next GET.
       await this.syncService(service, dto.period, timezone, manager);
 
+      const loanDescription = `${service.name} · ${dto.period}`;
+
       for (const participant of participants) {
         const input = {
           userId,
@@ -155,6 +162,7 @@ export class CreateMonthlyServicePaymentUseCase {
           currency: service.currency as Currency,
           amount: participant.amount,
           sourceMonthlyServicePaymentId: persisted.id,
+          description: loanDescription,
         };
         if (participant.alreadyPaid) {
           await this.settlementComposer.createAndSettleLinked(manager, input);

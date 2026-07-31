@@ -20,6 +20,15 @@ export interface CreateLinkedDebtLoanInput {
   currency: Currency;
   amount: number;
   sourceMonthlyServicePaymentId: string;
+  /**
+   * Human-readable origin label for the generated `LOAN`, e.g.
+   * `"Netflix · 2026-07"` (`{service.name} · {period}"`). Built by the
+   * caller (`CreateMonthlyServicePaymentUseCase`, which has `service` and
+   * `period` in scope) — this composer stays agnostic of the
+   * monthly-services domain. Optional/`null` for callers that don't have
+   * an origin to describe.
+   */
+  description?: string | null;
 }
 
 /**
@@ -71,7 +80,7 @@ export class DebtLoanSettlementComposer {
       input.amount,
       DebtLoanStatus.PENDING,
       input.reference,
-      null,
+      input.description ?? null,
       now,
       now,
       now,
