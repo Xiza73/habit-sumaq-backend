@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsIn,
   IsInt,
   IsNumber,
@@ -12,6 +14,7 @@ import {
   Matches,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 /**
@@ -19,6 +22,35 @@ import {
  * INTEGER with a CHECK constraint) so we don't need a Postgres enum type.
  */
 export const ALLOWED_FREQUENCY_MONTHS = [1, 3, 6, 12] as const;
+
+/**
+ * One participant row for the optional create-time batch. Same shape as
+ * `ReplaceMonthlyServiceParticipantItemDto` — kept as a separate class
+ * (rather than importing across DTO files) so each DTO owns its own
+ * Swagger schema name, matching the existing per-DTO nested-class pattern
+ * in this codebase (e.g. `MonthlyServicePaymentParticipantDto`).
+ */
+export class CreateMonthlyServiceParticipantItemDto {
+  @ApiProperty({
+    example: 'Ana',
+    minLength: 1,
+    maxLength: 255,
+    description:
+      'Nombre/referencia de la persona. Se normaliza internamente (trim + minúsculas + sin ' +
+      'acentos) para detectar duplicados dentro del mismo batch.',
+  })
+  @IsString()
+  @Length(1, 255)
+  reference: string;
+
+  @ApiProperty({
+    example: 100.0,
+    description: 'Monto fijo que le corresponde a este participante cuando se paga el servicio.',
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  defaultAmount: number;
+}
 
 export class CreateMonthlyServiceDto {
   @ApiProperty({ example: 'Netflix', minLength: 1, maxLength: 100 })
@@ -88,4 +120,17 @@ export class CreateMonthlyServiceDto {
   @IsString()
   @Matches(/^\d{4}-\d{2}$/, { message: 'startPeriod debe tener formato YYYY-MM' })
   startPeriod?: string;
+
+  @ApiPropertyOptional({
+    type: [CreateMonthlyServiceParticipantItemDto],
+    description:
+      'Configuración inicial de participantes (servicio compartido). Opcional — omitir o ' +
+      'enviar `[]` crea el servicio sin cambios de comportamiento. Cuando se envía, el servicio ' +
+      'y sus participantes se crean atómicamente en una sola transacción.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateMonthlyServiceParticipantItemDto)
+  participants?: CreateMonthlyServiceParticipantItemDto[];
 }
