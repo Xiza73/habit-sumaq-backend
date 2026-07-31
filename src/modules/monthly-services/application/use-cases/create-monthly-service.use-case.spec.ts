@@ -225,7 +225,22 @@ describe('CreateMonthlyServiceUseCase', () => {
       // The default `beforeEach` mock already invokes the callback with
       // `FAKE_MGR` and propagates whatever it throws — exactly what
       // `dataSource.transaction`'s real rollback-on-throw behavior does.
-      participantRepo.save.mockRejectedValueOnce(new Error('db exploded'));
+      //
+      // Capture the actual EntityManager instance passed to BOTH the service
+      // write and the participant write. Asserting they are the SAME instance
+      // is the strongest available unit-level proof that both writes share one
+      // transaction (a real rollback would then undo both). We can't assert
+      // real DB rollback without integration infra — tracked separately.
+      let serviceMgr: unknown;
+      let participantMgr: unknown;
+      serviceRepo.save.mockImplementationOnce((s, mgr) => {
+        serviceMgr = mgr;
+        return Promise.resolve(s);
+      });
+      participantRepo.save.mockImplementationOnce((_p, mgr) => {
+        participantMgr = mgr;
+        return Promise.reject(new Error('db exploded'));
+      });
 
       await expect(
         useCase.execute(
@@ -240,10 +255,15 @@ describe('CreateMonthlyServiceUseCase', () => {
       ).rejects.toThrow('db exploded');
 
       // The service row was only ever written through the transactional
-      // manager — never through the non-transactional path — so a real
-      // rollback would undo it too. Assert the call shape proves this.
+      // manager — never through the non-transactional path.
       expect(serviceRepo.save).toHaveBeenCalledTimes(1);
       expect(serviceRepo.save).toHaveBeenCalledWith(expect.anything(), FAKE_MGR);
+
+      // Both writes received the exact same manager instance -> one shared
+      // transaction. Without this, the participant failure would not roll back
+      // the already-persisted service row.
+      expect(serviceMgr).toBeDefined();
+      expect(participantMgr).toBe(serviceMgr);
     });
 
     it('translates a unique-index race (23505) into MSP_PARTICIPANT_DUPLICATE_REFERENCE', async () => {

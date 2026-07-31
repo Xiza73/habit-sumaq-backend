@@ -100,6 +100,47 @@ describe('ReplaceMonthlyServiceParticipantsUseCase', () => {
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects accent-insensitive duplicate references within the batch (José vs jose)', async () => {
+    // `normalizeReference` strips diacritics, so `José` and `jose` collide on
+    // the same normalized key — locks in the accent-insensitive dedup contract.
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
+    serviceRepo.findById.mockResolvedValue(service);
+
+    await expect(
+      useCase.execute('service-1', userId, {
+        participants: [
+          { reference: 'José', defaultAmount: 100 },
+          { reference: 'jose', defaultAmount: 50 },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'MSP_PARTICIPANT_DUPLICATE_REFERENCE' });
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('inserts a fresh row for a reference that was soft-deleted in a prior save', async () => {
+    // A reference removed in a previous replace leaves no ACTIVE participant
+    // (`findByServiceId` returns only active rows). Re-submitting that same
+    // normalized reference must INSERT a new row, not update — and must not
+    // trip the unique-violation path.
+    const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
+    serviceRepo.findById.mockResolvedValue(service);
+    participantRepo.findByServiceId.mockResolvedValue([]);
+
+    const result = await useCase.execute('service-1', userId, {
+      participants: [{ reference: 'Ana', defaultAmount: 100 }],
+    });
+
+    // Inserted fresh (no existing id reused), single save call, no throw.
+    expect(participantRepo.save).toHaveBeenCalledTimes(1);
+    expect(participantRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ reference: 'Ana', normalizedReference: 'ana', defaultAmount: 100 }),
+      FAKE_MGR,
+    );
+    expect(participantRepo.softDelete).not.toHaveBeenCalled();
+    expect(result).toHaveLength(1);
+    expect(result[0].reference).toBe('Ana');
+  });
+
   it('rejects a non-positive amount in the batch', async () => {
     const service = buildMonthlyService({ id: 'service-1', userId, estimatedAmount: 300 });
     serviceRepo.findById.mockResolvedValue(service);

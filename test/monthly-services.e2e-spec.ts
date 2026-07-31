@@ -260,6 +260,33 @@ describe('MonthlyServicesController (e2e)', () => {
         .send({ ...fullBody, currency: 'PE' })
         .expect(400);
     });
+
+    it('should return 400 when the create-time participants batch exceeds the array size cap', () => {
+      // Anti-DoS bound: a 51-element participants[] is rejected by
+      // `@ArrayMaxSize(50)` before the create use case runs.
+      const participants = Array.from({ length: 51 }, (_, i) => ({
+        reference: `P${i}`,
+        defaultAmount: 1,
+      }));
+
+      return request(app.getHttpServer())
+        .post('/api/v1/monthly-services')
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .send({ ...fullBody, participants })
+        .expect(400);
+    });
+
+    it('should return 400 for a malformed nested participant item at create time', () => {
+      // Wrong per-item types (`reference` a number, `defaultAmount` a string)
+      // fail nested `@ValidateNested`/`@Type` validation.
+      return request(app.getHttpServer())
+        .post('/api/v1/monthly-services')
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .send({ ...fullBody, participants: [{ reference: 123, defaultAmount: 'x' }] })
+        .expect(400);
+    });
   });
 
   // ─── GET /monthly-services ────────────────────────────────────────────────────

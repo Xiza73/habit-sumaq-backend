@@ -271,6 +271,31 @@ describe('MonthlyServiceParticipants batch replace (e2e)', () => {
         .send({})
         .expect(400);
     });
+
+    it('should return 400 when the batch exceeds the array size cap (@ArrayMaxSize)', async () => {
+      // Anti-DoS bound: a 51-element batch is rejected at the validation
+      // layer (`@ArrayMaxSize(50)`) before the use case ever runs.
+      const participants = Array.from({ length: 51 }, (_, i) => ({
+        reference: `P${i}`,
+        defaultAmount: 1,
+      }));
+
+      await request(app.getHttpServer())
+        .put(`/api/v1/monthly-services/${SVC_ID}/participants`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ participants })
+        .expect(400);
+    });
+
+    it('should return 400 for a malformed nested participant item (nested class-validator)', async () => {
+      // A row with the wrong types (`reference` a number, `defaultAmount` a
+      // string) fails `@ValidateNested`/`@Type` per-item validation.
+      await request(app.getHttpServer())
+        .put(`/api/v1/monthly-services/${SVC_ID}/participants`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ participants: [{ reference: 123, defaultAmount: 'x' }] })
+        .expect(400);
+    });
   });
 
   // ─── GET /monthly-services/:id/participants (unchanged, still present) ───
