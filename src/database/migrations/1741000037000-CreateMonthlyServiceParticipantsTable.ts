@@ -70,19 +70,21 @@ export class CreateMonthlyServiceParticipantsTable1741000037000 implements Migra
     `);
 
     await queryRunner.query(
-      `CREATE INDEX "IDX_msp_service" ON "monthly_service_participants" ("monthlyServiceId")`,
+      `CREATE INDEX "IDX_msp_participants_service" ON "monthly_service_participants" ("monthlyServiceId")`,
     );
 
     await queryRunner.query(`
-      CREATE UNIQUE INDEX "UQ_msp_service_normalized_reference_active"
+      CREATE UNIQUE INDEX "UQ_msp_participants_normalized_reference_active"
         ON "monthly_service_participants" ("monthlyServiceId", "normalizedReference")
         WHERE "deletedAt" IS NULL
     `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "UQ_msp_service_normalized_reference_active"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_msp_service"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "UQ_msp_participants_normalized_reference_active"`,
+    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_msp_participants_service"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "monthly_service_participants"`);
   }
 }
