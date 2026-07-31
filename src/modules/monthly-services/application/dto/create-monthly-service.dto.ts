@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsIn,
   IsInt,
@@ -126,10 +127,12 @@ export class CreateMonthlyServiceDto {
     description:
       'Configuración inicial de participantes (servicio compartido). Opcional — omitir o ' +
       'enviar `[]` crea el servicio sin cambios de comportamiento. Cuando se envía, el servicio ' +
-      'y sus participantes se crean atómicamente en una sola transacción.',
+      'y sus participantes se crean atómicamente en una sola transacción. Máximo 50 participantes.',
+    maxItems: 50,
   })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => CreateMonthlyServiceParticipantItemDto)
   participants?: CreateMonthlyServiceParticipantItemDto[];

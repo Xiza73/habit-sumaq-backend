@@ -1,7 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 import { Type } from 'class-transformer';
-import { IsArray, IsNumber, IsPositive, IsString, Length, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsNumber,
+  IsPositive,
+  IsString,
+  Length,
+  ValidateNested,
+} from 'class-validator';
 
 /**
  * One row of the batch participant list. Same shape as the retired
@@ -43,9 +51,12 @@ export class ReplaceMonthlyServiceParticipantsDto {
     type: [ReplaceMonthlyServiceParticipantItemDto],
     description:
       'Lista completa de participantes activos deseada. Reemplaza toda la configuración ' +
-      'existente del servicio. Array vacío = sin participantes configurados.',
+      'existente del servicio. Array vacío = sin participantes configurados. Máximo 50 ' +
+      'participantes por servicio.',
+    maxItems: 50,
   })
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => ReplaceMonthlyServiceParticipantItemDto)
   participants: ReplaceMonthlyServiceParticipantItemDto[];
