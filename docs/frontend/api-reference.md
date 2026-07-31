@@ -367,6 +367,7 @@ Reglas:
 - La parte propia del usuario (`amount − sum(participants[].amount)`) NO genera ningún registro en Deudas/Préstamos — es implícita.
 - `sum(participants[].amount)` NO puede superar `amount`. Se valida ANTES de tocar la base de datos.
 - Por cada participante se crea un `LOAN` (préstamo) en el módulo Deudas/Préstamos, vinculado a este pago vía `sourceMonthlyServicePaymentId`. Si `alreadyPaid=true`, el préstamo queda `SETTLED` de inmediato (con su crédito al pool aplicado en la misma transacción); si no, queda `PENDING` y se liquida después desde `POST /debts/:id/settle`.
+- El `LOAN` generado siempre lleva `description = "{service.name} · {period}"` (ej. `"Netflix · 2026-07"`), para que la vista de Deudas/Préstamos pueda mostrar de dónde salió el préstamo.
 - Si `participants` se omite o es un array vacío, el pago se comporta exactamente igual que un pago no compartido (sin cambios de comportamiento).
 - Todo lo anterior ocurre en UNA sola transacción atómica junto con el pago y la sincronización del servicio — si algo falla, no queda estado parcial.
 
