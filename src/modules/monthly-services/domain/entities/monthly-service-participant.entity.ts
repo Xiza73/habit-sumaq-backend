@@ -15,7 +15,7 @@ export interface MonthlyServiceParticipantProps {
  * (`reference`) and the fixed default amount they owe when the service is
  * paid. `normalizedReference` mirrors `reference` through
  * `common/text/normalize-reference.ts` and is what the DB partial unique
- * index (`UQ_msp_service_normalized_reference_active`) enforces
+ * index (`UQ_msp_participants_normalized_reference_active`) enforces
  * one-per-service uniqueness on.
  *
  * Slice 1 (this entity): config only. Linking to `debts_loans` rows on

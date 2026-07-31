@@ -102,7 +102,7 @@ export class AddMonthlyServiceParticipantUseCase {
     } catch (error) {
       // Defense-in-depth for the reference pre-check TOCTOU: under concurrency
       // two inserts can race, the second hitting the partial unique index
-      // `UQ_msp_service_normalized_reference_active` (SQLSTATE 23505). Translate
+      // `UQ_msp_participants_normalized_reference_active` (SQLSTATE 23505). Translate
       // it into the same 409 the pre-check raises instead of surfacing a 500.
       if (isUniqueViolation(error)) {
         throw new DomainException(

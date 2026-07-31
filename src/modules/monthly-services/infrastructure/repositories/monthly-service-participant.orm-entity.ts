@@ -16,7 +16,7 @@ import {
  * so the migration remains the source of truth for those.
  */
 @Entity('monthly_service_participants')
-@Index('IDX_msp_service', ['monthlyServiceId'])
+@Index('IDX_msp_participants_service', ['monthlyServiceId'])
 export class MonthlyServiceParticipantOrmEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
