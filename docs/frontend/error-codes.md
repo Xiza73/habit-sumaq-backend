@@ -105,6 +105,7 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `MSP_003` | 409  | Ya existe un pago para esa `(service, period)`     | POST sobre un par que ya tiene una row activa       |
 | `MSP_004` | 422  | Currency del pago ≠ currency del servicio          | POST con currency distinta a la del monthly service |
 | `MSP_005` | 422  | Formato de período inválido (esperado `YYYY-MM`)   | POST con period malformado                          |
+| `MSP_010` | 422  | La suma de `participants[].amount` supera el `amount` total del pago | POST con splits cuya suma excede el total pagado |
 
 ### Hábitos
 
@@ -136,6 +137,18 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `MSVC_002` | 404  | Servicio mensual no encontrado              | GET/PATCH/POST .../pay .../skip DELETE con UUID inexistente o perteneciente a otro usuario.          |
 | `MSVC_003` | 409  | Ya tenés un servicio activo con ese nombre  | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
 | `MSVC_004` | 409  | El servicio ya está pagado para el mes actual | POST /monthly-services/:id/pay cuando el servicio ya está al día (idempotency guard).              |
+
+### Participantes de servicios compartidos
+
+Modelo batch replace (`PUT /monthly-services/:id/participants`, y opcionalmente `participants[]`
+en `POST /monthly-services`) — no hay endpoints de agregar/editar/quitar uno por uno.
+
+| Código                              | HTTP | Descripción                                              | Cuándo ocurre                                                                                     |
+| ------------------------------------ | ---- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `MSP_PARTICIPANT_NOT_FOUND`          | 404  | Participante no encontrado                                | Reservado — no se lanza actualmente (no hay endpoint que busque un participante individual por id). |
+| `MSP_PARTICIPANT_DUPLICATE_REFERENCE`| 409  | Ya existe un participante con esa referencia               | `PUT .../participants` o `participants[]` en `POST /monthly-services` con dos referencias que normalizan igual DENTRO del mismo envío (o una carrera de unicidad contra la base de datos). |
+| `MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` | 422 | La suma de montos supera el estimado del servicio        | `sum(participants[].defaultAmount)` del envío supera `estimatedAmount` del servicio.               |
+| `MSP_PARTICIPANT_AMOUNT_NOT_POSITIVE`| 422  | El monto por defecto debe ser mayor a 0                    | Algún `participants[].defaultAmount` ≤ 0 (defensa adicional — `class-validator` ya rechaza esto con 400 antes de llegar al use case). |
 
 ### Chores (Tareas recurrentes no diarias)
 

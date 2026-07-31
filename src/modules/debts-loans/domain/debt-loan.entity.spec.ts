@@ -104,6 +104,18 @@ describe('DebtLoan', () => {
     });
   });
 
+  describe('sourceMonthlyServicePaymentId', () => {
+    it('defaults to null when not provided', () => {
+      const debt = buildDebtLoan({});
+      expect(debt.sourceMonthlyServicePaymentId).toBeNull();
+    });
+
+    it('is set when a shared-payment-generated LOAN provides it', () => {
+      const debt = buildDebtLoan({ sourceMonthlyServicePaymentId: 'payment-1' });
+      expect(debt.sourceMonthlyServicePaymentId).toBe('payment-1');
+    });
+  });
+
   describe('isPending / isSettled / isDeleted', () => {
     it('isPending true for PENDING status', () => {
       expect(buildDebtLoan({ status: DebtLoanStatus.PENDING }).isPending()).toBe(true);

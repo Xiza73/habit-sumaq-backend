@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CurrencyPoolsModule } from '@modules/currency-pools/presentation/currency-pools.module';
 
+import { DebtLoanSettlementComposer } from '../application/services/debt-loan-settlement-composer';
 import { BulkSettleByReferenceUseCase } from '../application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateDebtLoanUseCase } from '../application/use-cases/create-debt-loan.use-case';
 import { DeleteDebtLoanUseCase } from '../application/use-cases/delete-debt-loan.use-case';
@@ -29,9 +30,11 @@ import { DebtsLoansController } from './debts-loans.controller';
  * `accounts-to-modular-finance` (Phase A3-B).
  *
  * Importa `CurrencyPoolsModule` para usar `CurrencyPoolService` en los
- * settle real-payment. No exporta su propio repo — ningún otro módulo
- * (todavía) consume debts_loans directamente; Phase A5 cablea reports
- * cuando llegue el momento.
+ * settle real-payment. Exporta `DebtLoanRepository` (consumido por
+ * `reports` para Phase A5) y `DebtLoanSettlementComposer`
+ * (shared-service-payments slice 2 — consumido por
+ * `MonthlyServicePaymentsModule` para generar/liquidar `LOAN`s dentro de
+ * la misma tx del pago compartido).
  *
  * `DebtLoanPayment*` (Fase 1 de payment-history) viven dentro de este
  * mismo módulo — son child del parent `DebtLoan` y no tienen sentido
@@ -57,7 +60,8 @@ import { DebtsLoansController } from './debts-loans.controller';
     ListDebtLoanPaymentsUseCase,
     UpdateDebtLoanPaymentUseCase,
     DeleteDebtLoanPaymentUseCase,
+    DebtLoanSettlementComposer,
   ],
-  exports: [DebtLoanRepository],
+  exports: [DebtLoanRepository, DebtLoanSettlementComposer],
 })
 export class DebtsLoansModule {}

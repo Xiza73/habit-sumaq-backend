@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -24,14 +25,18 @@ import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ApiResponse as ApiResponseDto } from '@common/dto/api-response.dto';
 
 import { CreateMonthlyServiceDto } from '../application/dto/create-monthly-service.dto';
+import { MonthlyServiceParticipantResponseDto } from '../application/dto/monthly-service-participant-response.dto';
 import { MonthlyServiceResponseDto } from '../application/dto/monthly-service-response.dto';
+import { ReplaceMonthlyServiceParticipantsDto } from '../application/dto/replace-monthly-service-participants.dto';
 import { SkipMonthDto } from '../application/dto/skip-month.dto';
 import { UpdateMonthlyServiceDto } from '../application/dto/update-monthly-service.dto';
 import { ArchiveMonthlyServiceUseCase } from '../application/use-cases/archive-monthly-service.use-case';
 import { CreateMonthlyServiceUseCase } from '../application/use-cases/create-monthly-service.use-case';
 import { DeleteMonthlyServiceUseCase } from '../application/use-cases/delete-monthly-service.use-case';
 import { GetMonthlyServiceUseCase } from '../application/use-cases/get-monthly-service.use-case';
+import { ListMonthlyServiceParticipantsUseCase } from '../application/use-cases/list-monthly-service-participants.use-case';
 import { ListMonthlyServicesUseCase } from '../application/use-cases/list-monthly-services.use-case';
+import { ReplaceMonthlyServiceParticipantsUseCase } from '../application/use-cases/replace-monthly-service-participants.use-case';
 import { SkipMonthlyServiceMonthUseCase } from '../application/use-cases/skip-monthly-service-month.use-case';
 import { UpdateMonthlyServiceUseCase } from '../application/use-cases/update-monthly-service.use-case';
 import { currentPeriodInTimezone } from '../infrastructure/timezone/current-period-in-timezone';
@@ -50,6 +55,8 @@ export class MonthlyServicesController {
     private readonly skipMonthlyServiceMonth: SkipMonthlyServiceMonthUseCase,
     private readonly archiveMonthlyService: ArchiveMonthlyServiceUseCase,
     private readonly deleteMonthlyService: DeleteMonthlyServiceUseCase,
+    private readonly listMonthlyServiceParticipants: ListMonthlyServiceParticipantsUseCase,
+    private readonly replaceMonthlyServiceParticipants: ReplaceMonthlyServiceParticipantsUseCase,
   ) {}
 
   @Get()
@@ -86,7 +93,12 @@ export class MonthlyServicesController {
     );
     return ApiResponseDto.ok(
       items.map((i) =>
-        MonthlyServiceResponseDto.fromDomain(i.service, currentPeriod, i.paidAmountForCurrentMonth),
+        MonthlyServiceResponseDto.fromDomain(
+          i.service,
+          currentPeriod,
+          i.paidAmountForCurrentMonth,
+          i.linkedDebts,
+        ),
       ),
       'Servicios obtenidos exitosamente',
     );
@@ -102,11 +114,16 @@ export class MonthlyServicesController {
     @ClientTimezone() timezone: string,
     @Param('id') id: string,
   ): Promise<ApiResponseDto<MonthlyServiceResponseDto>> {
-    const service = await this.getMonthlyService.execute(id, payload.sub);
+    const { service, linkedDebts } = await this.getMonthlyService.execute(id, payload.sub);
     return ApiResponseDto.ok(
       // `paidAmountForCurrentMonth` is only authoritative on GET /monthly-services
       // (the list view). Single-service endpoints emit 0 — see the DTO field doc.
-      MonthlyServiceResponseDto.fromDomain(service, currentPeriodInTimezone(timezone), 0),
+      MonthlyServiceResponseDto.fromDomain(
+        service,
+        currentPeriodInTimezone(timezone),
+        0,
+        linkedDebts,
+      ),
       'Servicio obtenido exitosamente',
     );
   }
@@ -243,5 +260,66 @@ export class MonthlyServicesController {
   })
   async remove(@CurrentUser() payload: JwtPayload, @Param('id') id: string): Promise<void> {
     await this.deleteMonthlyService.execute(id, payload.sub);
+  }
+
+  @Get(':id/participants')
+  @ApiOperation({
+    summary: 'Listar participantes de un servicio compartido',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del servicio' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de participantes configurados',
+    type: [MonthlyServiceParticipantResponseDto],
+  })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  async findParticipants(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<ApiResponseDto<MonthlyServiceParticipantResponseDto[]>> {
+    const participants = await this.listMonthlyServiceParticipants.execute(id, payload.sub);
+    return ApiResponseDto.ok(
+      participants.map((p) => MonthlyServiceParticipantResponseDto.fromDomain(p)),
+      'Participantes obtenidos exitosamente',
+    );
+  }
+
+  @Put(':id/participants')
+  @ApiOperation({
+    summary: 'Reemplazar la lista completa de participantes de un servicio compartido',
+    description:
+      'La lista enviada REEMPLAZA toda la configuración existente (batch replace, no ' +
+      'incremental). Diffea contra los participantes activos por referencia normalizada: ' +
+      'actualiza los que coinciden, agrega los nuevos y da de baja (soft-delete) los que ya no ' +
+      'están en la lista. Array vacío = quita todos los participantes configurados. Las ' +
+      'referencias se normalizan (trim + minúsculas + sin acentos) para detectar duplicados ' +
+      'DENTRO del mismo envío. Si el servicio tiene estimatedAmount, la suma de montos por ' +
+      'defecto no puede superarlo. Operación atómica (una sola transacción).',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del servicio' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de participantes resultante tras el reemplazo',
+    type: [MonthlyServiceParticipantResponseDto],
+  })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  @ApiResponse({
+    status: 409,
+    description: 'Referencia duplicada dentro del envío (o carrera contra la DB)',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Monto no positivo o suma de montos supera el estimado del servicio',
+  })
+  async replaceParticipants(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ReplaceMonthlyServiceParticipantsDto,
+  ): Promise<ApiResponseDto<MonthlyServiceParticipantResponseDto[]>> {
+    const participants = await this.replaceMonthlyServiceParticipants.execute(id, payload.sub, dto);
+    return ApiResponseDto.ok(
+      participants.map((p) => MonthlyServiceParticipantResponseDto.fromDomain(p)),
+      'Participantes actualizados exitosamente',
+    );
   }
 }

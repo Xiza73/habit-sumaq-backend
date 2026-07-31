@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CurrencyPoolsModule } from '@modules/currency-pools/presentation/currency-pools.module';
+import { DebtsLoansModule } from '@modules/debts-loans/presentation/debts-loans.module';
 import { MonthlyServicesModule } from '@modules/monthly-services/presentation/monthly-services.module';
 
 import { CreateMonthlyServicePaymentUseCase } from '../application/use-cases/create-monthly-service-payment.use-case';
@@ -24,6 +25,12 @@ import { MonthlyServicePaymentsController } from './monthly-service-payments.con
  *     (validate ownership + currency).
  *   - `CurrencyPoolsModule` for `CurrencyPoolService` (atomic pool
  *     deltas).
+ *   - `DebtsLoansModule` (shared-service-payments slice 2) for
+ *     `DebtLoanSettlementComposer` — generates/settles the `LOAN`s for a
+ *     shared-service pay-with-splits inside this module's own payment
+ *     transaction. One-directional: `DebtsLoansModule` only imports
+ *     `CurrencyPoolsModule`, so this edge introduces no cycle (no
+ *     `forwardRef` needed here, unlike the `MonthlyServicesModule` edge).
  */
 @Module({
   imports: [
@@ -31,6 +38,7 @@ import { MonthlyServicePaymentsController } from './monthly-service-payments.con
     // forwardRef — see MonthlyServicesModule for the rationale.
     forwardRef(() => MonthlyServicesModule),
     CurrencyPoolsModule,
+    DebtsLoansModule,
   ],
   controllers: [MonthlyServicePaymentsController],
   providers: [

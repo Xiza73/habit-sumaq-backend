@@ -1,4 +1,5 @@
 import { type MonthlyServicePaymentRepository } from '@modules/monthly-service-payments/domain/monthly-service-payment.repository';
+import { type LinkedDebtsGatherer } from '@modules/monthly-services/application/services/linked-debts-gatherer';
 
 import { buildMonthlyService } from '../../domain/__tests__/monthly-service.factory';
 import { type MonthlyServiceRepository } from '../../domain/monthly-service.repository';
@@ -9,6 +10,7 @@ describe('ListMonthlyServicesUseCase', () => {
   let useCase: ListMonthlyServicesUseCase;
   let serviceRepo: jest.Mocked<MonthlyServiceRepository>;
   let paymentRepo: jest.Mocked<MonthlyServicePaymentRepository>;
+  let linkedDebtsGatherer: jest.Mocked<Pick<LinkedDebtsGatherer, 'forServices'>>;
 
   const currentPeriod = '2026-05';
   const timezone = 'America/Lima';
@@ -27,6 +29,7 @@ describe('ListMonthlyServicesUseCase', () => {
     // shape without expanding the surface area under test.
     paymentRepo = {
       findByServiceId: jest.fn(),
+      findByServiceIds: jest.fn().mockResolvedValue([]),
       findById: jest.fn(),
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn(),
@@ -37,7 +40,15 @@ describe('ListMonthlyServicesUseCase', () => {
       softDelete: jest.fn(),
     };
 
-    useCase = new ListMonthlyServicesUseCase(serviceRepo, paymentRepo);
+    linkedDebtsGatherer = {
+      forServices: jest.fn().mockResolvedValue(new Map<string, unknown[]>()),
+    };
+
+    useCase = new ListMonthlyServicesUseCase(
+      serviceRepo,
+      paymentRepo,
+      linkedDebtsGatherer as unknown as LinkedDebtsGatherer,
+    );
   });
 
   it('returns an empty list (and skips the SQL aggregate) when the user has no services', async () => {
@@ -77,9 +88,9 @@ describe('ListMonthlyServicesUseCase', () => {
     const result = await useCase.execute('user-1', false, currentPeriod, timezone);
 
     expect(result).toEqual([
-      { service: services[0], paidAmountForCurrentMonth: 35.5 },
-      { service: services[1], paidAmountForCurrentMonth: 90 },
-      { service: services[2], paidAmountForCurrentMonth: 0 },
+      { service: services[0], paidAmountForCurrentMonth: 35.5, linkedDebts: [] },
+      { service: services[1], paidAmountForCurrentMonth: 90, linkedDebts: [] },
+      { service: services[2], paidAmountForCurrentMonth: 0, linkedDebts: [] },
     ]);
     // v1.0.0: no timezone arg because the MSP table buckets by literal
     // YYYY-MM period column (the repo's `sumByServiceIdsInPeriod` is
@@ -88,5 +99,36 @@ describe('ListMonthlyServicesUseCase', () => {
       ['svc-1', 'svc-2', 'svc-3'],
       currentPeriod,
     );
+  });
+
+  it('gathers linkedDebts for ALL services in a single batched call (no N+1 fan-out)', async () => {
+    const services = [
+      buildMonthlyService({ id: 'svc-1', userId: 'user-1' }),
+      buildMonthlyService({ id: 'svc-2', userId: 'user-1' }),
+      buildMonthlyService({ id: 'svc-3', userId: 'user-1' }),
+    ];
+    serviceRepo.findByUserId.mockResolvedValue(services);
+    linkedDebtsGatherer.forServices.mockResolvedValue(
+      new Map([
+        ['svc-1', [{ id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' }]],
+        // svc-2 and svc-3 are absent from the map — must surface as [].
+      ]),
+    );
+
+    const result = await useCase.execute('user-1', false, currentPeriod, timezone);
+
+    // The regression this guards: the old code called forService inside a
+    // Promise.all(services.map(...)) — one gatherer round-trip PER service
+    // (1+2N queries). The batched forServices is invoked exactly ONCE with
+    // every serviceId, regardless of list size.
+    expect(linkedDebtsGatherer.forServices).toHaveBeenCalledTimes(1);
+    expect(linkedDebtsGatherer.forServices).toHaveBeenCalledWith(['svc-1', 'svc-2', 'svc-3']);
+    expect(result[0].linkedDebts).toEqual([
+      { id: 'debt-1', reference: 'Ana', remainingAmount: 100, status: 'PENDING' },
+    ]);
+    // Services absent from the map default to an empty array (no nullish
+    // leakage into the DTO).
+    expect(result[1].linkedDebts).toEqual([]);
+    expect(result[2].linkedDebts).toEqual([]);
   });
 });

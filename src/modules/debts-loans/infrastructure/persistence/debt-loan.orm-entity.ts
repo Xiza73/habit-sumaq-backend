@@ -68,4 +68,7 @@ export class DebtLoanOrmEntity {
 
   @DeleteDateColumn({ type: 'timestamptz' })
   deletedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  sourceMonthlyServicePaymentId: string | null;
 }

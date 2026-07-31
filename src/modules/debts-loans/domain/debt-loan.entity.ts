@@ -20,6 +20,12 @@ import { type DebtLoanType } from './enums/debt-loan-type.enum';
  *    without touching the pool. Use case for "we squared up face-to-face
  *    so close the books, no need to record it as a real cash flow".
  *  - Soft-delete via `deletedAt` per CLAUDE.md rule #7.
+ *  - `sourceMonthlyServicePaymentId` (shared-service-payments slice 2):
+ *    when set, this row is a `LOAN` generated automatically by a shared
+ *    monthly-service payment split (`CreateMonthlyServicePaymentUseCase`
+ *    via `DebtLoanSettlementComposer`). Plain nullable link, no FK —
+ *    same decoupled-FK convention as `categoryId`. `null` for regular
+ *    manually-created debts/loans.
  */
 export class DebtLoan {
   constructor(
@@ -37,6 +43,7 @@ export class DebtLoan {
     readonly createdAt: Date,
     public updatedAt: Date,
     public deletedAt: Date | null,
+    readonly sourceMonthlyServicePaymentId: string | null = null,
   ) {}
 
   isPending(): boolean {

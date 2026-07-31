@@ -16,6 +16,16 @@ export abstract class MonthlyServicePaymentRepository {
    */
   abstract findByServiceId(monthlyServiceId: string): Promise<MonthlyServicePayment[]>;
 
+  /**
+   * Batched sibling of {@link findByServiceId}: lists active payments for
+   * ALL of `monthlyServiceIds` in a single query. Used by
+   * `LinkedDebtsGatherer.forServices` to avoid an N+1 fan-out when the
+   * monthly-services list endpoint resolves `linkedDebts[]` for many
+   * services at once. Excludes soft-deleted rows. Returns a flat list —
+   * the caller groups back to `monthlyServiceId` via the entity field.
+   */
+  abstract findByServiceIds(monthlyServiceIds: string[]): Promise<MonthlyServicePayment[]>;
+
   abstract findById(id: string): Promise<MonthlyServicePayment | null>;
 
   /**

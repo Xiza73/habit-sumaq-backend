@@ -40,6 +40,7 @@ describe('GetFinancesDashboardUseCase', () => {
 
     mspRepo = {
       findByServiceId: jest.fn(),
+      findByServiceIds: jest.fn().mockResolvedValue([]),
       findById: jest.fn(),
       findByServiceAndPeriod: jest.fn(),
       sumByCurrencyInRange: jest.fn().mockResolvedValue([]),
@@ -55,6 +56,7 @@ describe('GetFinancesDashboardUseCase', () => {
       findByUserId: jest.fn(),
       save: jest.fn(),
       softDelete: jest.fn(),
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
       aggregateByReference: jest.fn().mockResolvedValue([]),
       findPendingByNormalizedReference: jest.fn(),
     };

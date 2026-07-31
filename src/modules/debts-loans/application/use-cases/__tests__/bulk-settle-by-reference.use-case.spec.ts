@@ -32,6 +32,7 @@ describe('BulkSettleByReferenceUseCase', () => {
       findPendingByNormalizedReference: jest.fn(),
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       softDelete: jest.fn(),
+      findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     };
     paymentRepo = {
       create: jest.fn().mockImplementation((p) => Promise.resolve(p)),
