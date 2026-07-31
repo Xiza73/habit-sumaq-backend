@@ -527,6 +527,42 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
       );
     });
 
+    it('builds the generated LOAN description as "{service.name} · {period}" for unpaid participants', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-07',
+          amount: 100,
+          participants: [{ reference: 'Ana', amount: 100 }],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ description: 'Netflix · 2026-07' }),
+      );
+    });
+
+    it('builds the generated LOAN description as "{service.name} · {period}" for already-paid participants too', async () => {
+      await useCase.execute(
+        USER,
+        {
+          monthlyServiceId: SERVICE,
+          period: '2026-07',
+          amount: 100,
+          participants: [{ reference: 'Ana', amount: 100, alreadyPaid: true }],
+        },
+        TIMEZONE,
+      );
+
+      expect(composer.createAndSettleLinked).toHaveBeenCalledWith(
+        FAKE_MGR,
+        expect.objectContaining({ description: 'Netflix · 2026-07' }),
+      );
+    });
+
     it('already-paid participant settles immediately via createAndSettleLinked (create+settle, same manager)', async () => {
       await useCase.execute(
         USER,
