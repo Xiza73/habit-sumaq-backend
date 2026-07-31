@@ -100,6 +100,10 @@ export const ERROR_CODES = {
   // Shared-service participant config (v2 — participants CRUD, slice 1 of
   // the shared-payment-services feature. Payment generation / linked debts
   // land in a later slice).
+  // Reserved: no longer thrown after the single-participant endpoints were
+  // removed in the batch-replace rework. Kept for `Record<ErrorCodeKey, number>`
+  // exhaustiveness (removing it would be a breaking code-space change).
+  // TODO (cleanup): drop if a future major release renumbers the MSP space.
   MSP_PARTICIPANT_NOT_FOUND: 'MSP_006',
   MSP_PARTICIPANT_DUPLICATE_REFERENCE: 'MSP_007',
   MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED: 'MSP_008',
