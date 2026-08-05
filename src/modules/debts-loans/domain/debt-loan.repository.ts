@@ -2,6 +2,7 @@ import { type EntityManager } from 'typeorm';
 
 import { type Currency } from '@common/enums/currency.enum';
 
+import { type DebtLoanType } from './enums/debt-loan-type.enum';
 import { type DebtLoan } from './debt-loan.entity';
 
 /**
@@ -61,6 +62,20 @@ export abstract class DebtLoanRepository {
     userId: string,
     reference: string,
     currency?: Currency,
+  ): Promise<DebtLoan[]>;
+
+  /**
+   * Find all PENDING rows for a normalized reference within a single
+   * `(currency, type)` group, ordered OLDEST-FIRST (`date` ASC, tiebroken
+   * by `createdAt` ASC then `id` ASC for determinism). Used by the
+   * amount-based FIFO settle (`SettleAmountByReferenceUseCase`), which
+   * distributes a chosen amount across these rows from oldest to newest.
+   */
+  abstract findPendingByReferenceCurrencyType(
+    userId: string,
+    reference: string,
+    currency: Currency,
+    type: DebtLoanType,
   ): Promise<DebtLoan[]>;
 
   abstract save(debt: DebtLoan, manager?: EntityManager): Promise<DebtLoan>;

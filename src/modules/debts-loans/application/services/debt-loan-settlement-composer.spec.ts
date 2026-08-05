@@ -25,6 +25,7 @@ describe('DebtLoanSettlementComposer', () => {
       findById: jest.fn(),
       aggregateByReference: jest.fn(),
       findPendingByNormalizedReference: jest.fn(),
+      findPendingByReferenceCurrencyType: jest.fn(),
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       softDelete: jest.fn(),
       findBySourcePaymentIds: jest.fn().mockResolvedValue([]),

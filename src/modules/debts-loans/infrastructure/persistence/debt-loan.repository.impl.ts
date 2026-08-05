@@ -12,6 +12,7 @@ import {
   type DebtsSummaryRow,
 } from '../../domain/debt-loan.repository';
 import { DebtLoanStatus } from '../../domain/enums/debt-loan-status.enum';
+import { type DebtLoanType } from '../../domain/enums/debt-loan-type.enum';
 
 import { DebtLoanOrmEntity } from './debt-loan.orm-entity';
 
@@ -129,6 +130,31 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
     }
 
     const rows = await qb.getMany();
+    return rows.map((r) => this.toDomain(r));
+  }
+
+  async findPendingByReferenceCurrencyType(
+    userId: string,
+    reference: string,
+    currency: Currency,
+    type: DebtLoanType,
+  ): Promise<DebtLoan[]> {
+    // Oldest-first for the amount-based FIFO settle. Without an explicit
+    // ORDER BY, Postgres returns heap order — nondeterministic. `createdAt`
+    // then `id` are stable tiebreakers when several rows share the same
+    // `date` (e.g. bulk-created same day), so the FIFO distribution is
+    // reproducible run to run.
+    const rows = await this.ormRepo
+      .createQueryBuilder('dl')
+      .where('dl.userId = :userId', { userId })
+      .andWhere(`dl.status = 'PENDING'`)
+      .andWhere('LOWER(unaccent(dl.reference)) = LOWER(unaccent(:reference))', { reference })
+      .andWhere('dl.currency = :currency', { currency })
+      .andWhere('dl.type = :type', { type })
+      .orderBy('dl.date', 'ASC')
+      .addOrderBy('dl.createdAt', 'ASC')
+      .addOrderBy('dl.id', 'ASC')
+      .getMany();
     return rows.map((r) => this.toDomain(r));
   }
 
