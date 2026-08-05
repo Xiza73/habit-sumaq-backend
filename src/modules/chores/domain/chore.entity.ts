@@ -51,6 +51,27 @@ export class Chore {
   }
 
   /**
+   * Undoes the most recent "done", rewinding the chore to the state it had
+   * before that completion. `previousDoneAt` is the `doneAt` of the log that
+   * becomes the latest AFTER the reverted one is soft-deleted:
+   *
+   * - if present: `lastDoneDate = previousDoneAt` and `nextDueDate =
+   *   previousDoneAt + interval` (mirror of `markDone`, rule A).
+   * - if `null` (no logs remain): `lastDoneDate = null` and `nextDueDate`
+   *   resets to `startDate` — the "never done" state a fresh chore has.
+   */
+  revertLastDone(previousDoneAt: string | null): void {
+    if (previousDoneAt !== null) {
+      this.lastDoneDate = previousDoneAt;
+      this.nextDueDate = addInterval(previousDoneAt, this.intervalValue, this.intervalUnit);
+    } else {
+      this.lastDoneDate = null;
+      this.nextDueDate = this.startDate;
+    }
+    this.updatedAt = new Date();
+  }
+
+  /**
    * Skips one cycle — pushes `nextDueDate` forward by one interval without
    * touching `lastDoneDate`. Used when the user wants to "not now" without
    * lying about having done it.

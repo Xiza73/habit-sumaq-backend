@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
+import { DataSource, type EntityManager } from 'typeorm';
 
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
@@ -21,6 +22,7 @@ import { GetChoreUseCase } from '../src/modules/chores/application/use-cases/get
 import { ListChoreLogsUseCase } from '../src/modules/chores/application/use-cases/list-chore-logs.use-case';
 import { ListChoresUseCase } from '../src/modules/chores/application/use-cases/list-chores.use-case';
 import { MarkChoreDoneUseCase } from '../src/modules/chores/application/use-cases/mark-chore-done.use-case';
+import { RevertLastChoreDoneUseCase } from '../src/modules/chores/application/use-cases/revert-last-chore-done.use-case';
 import { SkipChoreCycleUseCase } from '../src/modules/chores/application/use-cases/skip-chore-cycle.use-case';
 import { UpdateChoreUseCase } from '../src/modules/chores/application/use-cases/update-chore.use-case';
 import { buildChore } from '../src/modules/chores/domain/__tests__/chore.factory';
@@ -51,8 +53,17 @@ describe('ChoresController (e2e)', () => {
   const mockLogRepo: jest.Mocked<ChoreLogRepository> = {
     findByChoreId: jest.fn(),
     countByChoreId: jest.fn(),
+    findLatestByChoreId: jest.fn(),
     save: jest.fn(),
+    softDelete: jest.fn(),
   };
+
+  const fakeManager = { tx: true } as unknown as EntityManager;
+  const mockDataSource = {
+    transaction: jest
+      .fn()
+      .mockImplementation(<T>(cb: (m: EntityManager) => Promise<T>) => cb(fakeManager)),
+  } as unknown as DataSource;
 
   const mockConfigService = {
     get: jest.fn((key: string) => (key === 'jwt.accessSecret' ? TEST_JWT_SECRET : undefined)),
@@ -73,11 +84,13 @@ describe('ChoresController (e2e)', () => {
         CreateChoreUseCase,
         UpdateChoreUseCase,
         MarkChoreDoneUseCase,
+        RevertLastChoreDoneUseCase,
         SkipChoreCycleUseCase,
         ArchiveChoreUseCase,
         DeleteChoreUseCase,
         { provide: ChoreRepository, useValue: mockChoreRepo },
         { provide: ChoreLogRepository, useValue: mockLogRepo },
+        { provide: DataSource, useValue: mockDataSource },
         JwtAccessStrategy,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -88,6 +101,7 @@ describe('ChoresController (e2e)', () => {
           AllExceptionsFilter.name,
           CreateChoreUseCase.name,
           MarkChoreDoneUseCase.name,
+          RevertLastChoreDoneUseCase.name,
           SkipChoreCycleUseCase.name,
         ]),
       ],
@@ -462,6 +476,132 @@ describe('ChoresController (e2e)', () => {
         });
 
       expect(mockLogRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── POST /chores/:id/revert-last-done ────────────────────────────────────────
+
+  describe('POST /api/v1/chores/:id/revert-last-done', () => {
+    it('rebuilds lastDoneDate + nextDueDate from the previous log when one remains', async () => {
+      const chore = buildChore({
+        id: CHORE_ID,
+        userId: USER_ID,
+        intervalValue: 2,
+        intervalUnit: IntervalUnit.WEEKS,
+        startDate: '2026-04-01',
+        lastDoneDate: '2026-04-15',
+        nextDueDate: '2026-04-29',
+      });
+      const latest = buildChoreLog({ id: 'log-latest', choreId: CHORE_ID, doneAt: '2026-04-15' });
+      const previous = buildChoreLog({ id: 'log-prev', choreId: CHORE_ID, doneAt: '2026-04-01' });
+
+      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockChoreRepo.save.mockImplementation((c) => Promise.resolve(c));
+      mockLogRepo.findLatestByChoreId.mockResolvedValueOnce(latest).mockResolvedValueOnce(previous);
+      mockLogRepo.softDelete.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/chores/${CHORE_ID}/revert-last-done`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data.lastDoneDate).toBe('2026-04-01');
+          // 2 weeks from 2026-04-01 = 2026-04-15
+          expect(body.data.nextDueDate).toBe('2026-04-15');
+        });
+
+      expect(mockLogRepo.softDelete).toHaveBeenCalledWith('log-latest', expect.anything());
+    });
+
+    it('resets to null lastDoneDate + startDate nextDueDate when the only log is reverted', async () => {
+      const chore = buildChore({
+        id: CHORE_ID,
+        userId: USER_ID,
+        startDate: '2026-04-01',
+        lastDoneDate: '2026-04-15',
+        nextDueDate: '2026-04-29',
+      });
+      const only = buildChoreLog({ id: 'log-only', choreId: CHORE_ID, doneAt: '2026-04-15' });
+
+      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockChoreRepo.save.mockImplementation((c) => Promise.resolve(c));
+      mockLogRepo.findLatestByChoreId.mockResolvedValueOnce(only).mockResolvedValueOnce(null);
+      mockLogRepo.softDelete.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/chores/${CHORE_ID}/revert-last-done`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data.lastDoneDate).toBeNull();
+          expect(body.data.nextDueDate).toBe('2026-04-01');
+        });
+    });
+
+    it('returns 409 CHRE_003 when the chore has no logs to revert', async () => {
+      const chore = buildChore({ id: CHORE_ID, userId: USER_ID });
+      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockLogRepo.findLatestByChoreId.mockResolvedValueOnce(null);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/chores/${CHORE_ID}/revert-last-done`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.success).toBe(false);
+          expect(body.error.code).toBe('CHRE_003');
+        });
+
+      expect(mockLogRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 CHRE_002 when the chore belongs to another user', async () => {
+      mockChoreRepo.findById.mockResolvedValue(buildChore({ id: CHORE_ID, userId: 'other-user' }));
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/chores/${CHORE_ID}/revert-last-done`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.error.code).toBe('CHRE_002');
+        });
+    });
+
+    it('excludes the reverted log from a subsequent GET /chores/:id/logs', async () => {
+      const chore = buildChore({ id: CHORE_ID, userId: USER_ID });
+      const latest = buildChoreLog({ id: 'log-latest', choreId: CHORE_ID, doneAt: '2026-04-15' });
+      const remaining = buildChoreLog({ id: 'log-prev', choreId: CHORE_ID, doneAt: '2026-04-01' });
+
+      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockChoreRepo.save.mockImplementation((c) => Promise.resolve(c));
+      mockLogRepo.findLatestByChoreId
+        .mockResolvedValueOnce(latest)
+        .mockResolvedValueOnce(remaining);
+      mockLogRepo.softDelete.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/chores/${CHORE_ID}/revert-last-done`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-timezone', 'America/Lima')
+        .expect(200);
+
+      // The repo's findByChoreId excludes soft-deleted rows (TypeORM
+      // @DeleteDateColumn), so the reverted log no longer appears.
+      mockLogRepo.findByChoreId.mockResolvedValue({ data: [remaining], total: 1 });
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/chores/${CHORE_ID}/logs`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect(({ body }) => {
+          const ids = (body.data as Array<{ id: string }>).map((l) => l.id);
+          expect(ids).toHaveLength(1);
+          expect(ids).not.toContain('log-latest');
+        });
     });
   });
 
