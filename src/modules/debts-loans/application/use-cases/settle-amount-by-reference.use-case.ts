@@ -36,9 +36,20 @@ import type { SettleAmountByReferenceDto } from '../dto/settle-amount-by-referen
  *    comparten `type`, el neto tiene un único signo.
  *  - omitido / `false` → cierre informal: no toca el pool.
  *
- * Toda la operación (N updates de rows + N rows de payment history + 0/1
- * delta de pool) corre en una sola `dataSource.transaction()` para
- * garantizar atomicidad — mismo patrón que `BulkSettleByReferenceUseCase`.
+ * Toda la operación (lectura de las rows PENDING + N updates de rows + N
+ * rows de payment history + 0/1 delta de pool) corre en una sola
+ * `dataSource.transaction()` para garantizar atomicidad — mismo patrón que
+ * `BulkSettleByReferenceUseCase`.
+ *
+ * **Concurrencia (lost update)**: la lectura de las rows pendientes se hace
+ * DENTRO de la transacción con un lock `pessimistic_write` (`SELECT ... FOR
+ * UPDATE`, ver `findPendingByReferenceCurrencyType`). El settle es un
+ * read-modify-write sobre `remainingAmount` cuyo neto mueve el pool; sin el
+ * lock, dos settles concurrentes sobre el mismo grupo `(userId, reference,
+ * currency, type)` podrían leer el mismo `remainingAmount`, liquidar ambos y
+ * (en real-payment) duplicar el delta del pool. El lock serializa el grupo:
+ * el segundo settle espera al commit del primero — misma defensa que
+ * `CurrencyPoolService.applyDelta` aplica sobre la row del pool.
  *
  * Toda la aritmética de dinero se hace en centavos enteros (`toCents`) para
  * evitar drift de floats al sumar/comparar saldos parciales.
@@ -63,35 +74,55 @@ export class SettleAmountByReferenceUseCase {
       throw new DomainException('DEBT_LOAN_REFERENCE_REQUIRED', '`reference` no puede estar vacía');
     }
 
-    const targets = await this.repo.findPendingByReferenceCurrencyType(
-      userId,
-      reference,
-      dto.currency,
-      dto.type,
-    );
-
-    if (targets.length === 0) {
-      throw new DomainException(
-        'DEBT_LOAN_NO_PENDING_FOR_REFERENCE',
-        'No hay obligaciones pendientes para esa referencia, moneda y tipo',
-      );
-    }
-
-    // Defensive cross-user guard — the repo query already filters by userId,
-    // but this is the last line of defense if anything ever bypasses it.
-    for (const row of targets) {
-      if (row.userId !== userId) {
-        throw new DomainException(
-          'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-          'No tenés acceso a una de las deudas/préstamos',
-        );
-      }
-    }
-
     const isRealPayment = dto.realPayment === true;
     const paymentCurrency = isRealPayment ? dto.currency : null;
 
     const outcome = await this.dataSource.transaction(async (manager) => {
+      // The pending-rows read runs INSIDE the transaction with a
+      // `pessimistic_write` row lock (see repo docblock). This is the
+      // money-path concurrency guard: the read-modify-write on
+      // `remainingAmount` (+ the derived pool delta) must be serialized per
+      // (userId, reference, currency, type) group. Reading unlocked, or
+      // before opening the transaction, would let two concurrent settles both
+      // observe the same `remainingAmount` and double-apply the pool delta
+      // (lost update) — mirrors how CurrencyPoolService.applyDelta locks the
+      // pool row before mutating it. Holding the lock inside the tx means the
+      // no-pending / cross-user / wrong-group guards below also run under it.
+      const targets = await this.repo.findPendingByReferenceCurrencyType(
+        userId,
+        reference,
+        dto.currency,
+        dto.type,
+        manager,
+      );
+
+      if (targets.length === 0) {
+        throw new DomainException(
+          'DEBT_LOAN_NO_PENDING_FOR_REFERENCE',
+          'No hay obligaciones pendientes para esa referencia, moneda y tipo',
+        );
+      }
+
+      // Defense-in-depth on the rows the repo returned. The query already
+      // filters by userId, currency and type, but re-checking per row is the
+      // last line of defense if that filter ever regressed: a wrong-user row
+      // is an access leak, and a wrong-type/currency row would compute a
+      // silently wrong-signed (or wrong-pool) delta. Fail loudly instead.
+      for (const row of targets) {
+        if (row.userId !== userId) {
+          throw new DomainException(
+            'DEBT_LOAN_BELONGS_TO_OTHER_USER',
+            'No tenés acceso a una de las deudas/préstamos',
+          );
+        }
+        if (row.type !== dto.type || row.currency !== dto.currency) {
+          throw new DomainException(
+            'DEBT_LOAN_NO_PENDING_FOR_REFERENCE',
+            'Una de las filas no pertenece al grupo (referencia, moneda, tipo) solicitado',
+          );
+        }
+      }
+
       let amountLeftCents = toCents(dto.amount);
       let settledCount = 0;
       let fullySettledCount = 0;

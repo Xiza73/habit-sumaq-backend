@@ -141,7 +141,7 @@ describe('DebtLoanRepositoryImpl', () => {
   describe('findPendingByReferenceCurrencyType — FIFO ordering for the amount-based settle', () => {
     function buildQb(rows: DebtLoanOrmEntity[]) {
       const qb: Record<string, jest.Mock> = {};
-      for (const m of ['where', 'andWhere', 'orderBy', 'addOrderBy']) {
+      for (const m of ['where', 'andWhere', 'orderBy', 'addOrderBy', 'setLock']) {
         qb[m] = jest.fn().mockReturnValue(qb);
       }
       qb.getMany = jest.fn().mockResolvedValue(rows);
@@ -203,6 +203,49 @@ describe('DebtLoanRepositoryImpl', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('debt-x');
+    });
+
+    it('acquires a pessimistic_write lock (SELECT ... FOR UPDATE) so concurrent settles serialize', async () => {
+      // The amount-based settle reads remainingAmount and then writes it back;
+      // without FOR UPDATE two concurrent settles on the same
+      // (userId, reference, currency, type) group would both read the same
+      // remainingAmount and double-apply the pool delta (lost update). The row
+      // lock — mirroring CurrencyPoolService's pool-row lock — holds the rows
+      // for the caller's transaction so the second settle blocks until commit.
+      const qb = buildQb([]);
+      ormRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await repo.findPendingByReferenceCurrencyType(
+        'user-1',
+        'Juan',
+        Currency.PEN,
+        DebtLoanType.DEBT,
+      );
+
+      expect(qb.setLock).toHaveBeenCalledWith('pessimistic_write');
+    });
+
+    it('runs against the transactional manager repository when a manager is provided', async () => {
+      // The lock is only meaningful inside the caller's transaction, so the
+      // query must run through the transactional EntityManager's repository.
+      const qb = buildQb([]);
+      const managerCreateQueryBuilder = jest.fn().mockReturnValue(qb);
+      const manager = {
+        getRepository: jest.fn().mockReturnValue({ createQueryBuilder: managerCreateQueryBuilder }),
+      } as unknown as EntityManager;
+
+      await repo.findPendingByReferenceCurrencyType(
+        'user-1',
+        'Juan',
+        Currency.PEN,
+        DebtLoanType.DEBT,
+        manager,
+      );
+
+      expect(manager.getRepository).toHaveBeenCalled();
+      expect(managerCreateQueryBuilder).toHaveBeenCalledTimes(1);
+      expect(qb.setLock).toHaveBeenCalledWith('pessimistic_write');
+      expect(ormRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 

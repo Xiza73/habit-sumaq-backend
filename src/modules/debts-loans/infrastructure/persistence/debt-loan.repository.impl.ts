@@ -138,14 +138,26 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
     reference: string,
     currency: Currency,
     type: DebtLoanType,
+    manager?: EntityManager,
   ): Promise<DebtLoan[]> {
     // Oldest-first for the amount-based FIFO settle. Without an explicit
     // ORDER BY, Postgres returns heap order — nondeterministic. `createdAt`
     // then `id` are stable tiebreakers when several rows share the same
     // `date` (e.g. bulk-created same day), so the FIFO distribution is
     // reproducible run to run.
-    const rows = await this.ormRepo
+    //
+    // `setLock('pessimistic_write')` emits `SELECT ... FOR UPDATE`, holding
+    // the matched pending rows for the caller's transaction — the same
+    // defense CurrencyPoolService uses on the pool row. This serializes two
+    // concurrent settles on the same (userId, reference, currency, type)
+    // group: the second blocks until the first commits, so they can't both
+    // read the same remainingAmount and double-apply the pool delta (lost
+    // update). `manager` MUST be the transactional EntityManager for the lock
+    // to be scoped to (and released with) that transaction.
+    const scoped = manager ? manager.getRepository(DebtLoanOrmEntity) : this.ormRepo;
+    const rows = await scoped
       .createQueryBuilder('dl')
+      .setLock('pessimistic_write')
       .where('dl.userId = :userId', { userId })
       .andWhere(`dl.status = 'PENDING'`)
       .andWhere('LOWER(unaccent(dl.reference)) = LOWER(unaccent(:reference))', { reference })

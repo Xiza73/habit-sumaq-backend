@@ -70,12 +70,18 @@ export abstract class DebtLoanRepository {
    * by `createdAt` ASC then `id` ASC for determinism). Used by the
    * amount-based FIFO settle (`SettleAmountByReferenceUseCase`), which
    * distributes a chosen amount across these rows from oldest to newest.
+   *
+   * When `manager` (a transactional EntityManager) is passed the SELECT runs
+   * `FOR UPDATE` (pessimistic_write), locking the matched rows for that
+   * transaction so concurrent settles on the same group serialize instead of
+   * racing on a stale `remainingAmount`.
    */
   abstract findPendingByReferenceCurrencyType(
     userId: string,
     reference: string,
     currency: Currency,
     type: DebtLoanType,
+    manager?: EntityManager,
   ): Promise<DebtLoan[]>;
 
   abstract save(debt: DebtLoan, manager?: EntityManager): Promise<DebtLoan>;

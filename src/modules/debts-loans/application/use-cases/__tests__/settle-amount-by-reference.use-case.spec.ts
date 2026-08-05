@@ -85,10 +85,19 @@ describe('SettleAmountByReferenceUseCase', () => {
     ).rejects.toMatchObject({
       code: 'DEBT_LOAN_NO_PENDING_FOR_REFERENCE',
     } satisfies Partial<DomainException>);
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    // The read (and its row lock) now runs INSIDE the transaction, so the
+    // no-pending throw fires from within the tx callback.
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(repo.findPendingByReferenceCurrencyType).toHaveBeenCalledWith(
+      USER,
+      'Nobody',
+      Currency.PEN,
+      DebtLoanType.DEBT,
+      FAKE_MGR,
+    );
   });
 
-  it('forwards (reference, currency, type) to the repo FIFO lookup', async () => {
+  it('forwards (reference, currency, type) + the tx manager to the locked repo FIFO lookup', async () => {
     repo.findPendingByReferenceCurrencyType.mockResolvedValue([
       buildDebtLoan({ userId: USER, type: DebtLoanType.LOAN, currency: Currency.USD }),
     ]);
@@ -100,11 +109,14 @@ describe('SettleAmountByReferenceUseCase', () => {
       amount: 10,
     });
 
+    // Passing FAKE_MGR is what makes the repo emit SELECT ... FOR UPDATE
+    // scoped to this transaction (concurrency guard).
     expect(repo.findPendingByReferenceCurrencyType).toHaveBeenCalledWith(
       USER,
       'Juan',
       Currency.USD,
       DebtLoanType.LOAN,
+      FAKE_MGR,
     );
   });
 
@@ -353,7 +365,7 @@ describe('SettleAmountByReferenceUseCase', () => {
     expect(pool.applyDelta).toHaveBeenCalledWith(USER, Currency.PEN, -0.35, FAKE_MGR);
   });
 
-  it('forwards the transactional EntityManager to every write', async () => {
+  it('forwards the transactional EntityManager to the locked read AND every write', async () => {
     const d1 = buildDebtLoan({ id: 'd1', userId: USER, remainingAmount: 100 });
     repo.findPendingByReferenceCurrencyType.mockResolvedValue([d1]);
 
@@ -365,8 +377,18 @@ describe('SettleAmountByReferenceUseCase', () => {
       realPayment: true,
     });
 
+    // The locking read joins the same tx as the writes — all four money-path
+    // operations (read, row save, payment insert, pool delta) share FAKE_MGR.
+    expect(repo.findPendingByReferenceCurrencyType).toHaveBeenCalledWith(
+      USER,
+      'Juan',
+      Currency.PEN,
+      DebtLoanType.DEBT,
+      FAKE_MGR,
+    );
     expect(repo.save).toHaveBeenCalledWith(expect.anything(), FAKE_MGR);
     expect(paymentRepo.create).toHaveBeenCalledWith(expect.anything(), FAKE_MGR);
+    expect(pool.applyDelta).toHaveBeenCalledWith(USER, Currency.PEN, -100, FAKE_MGR);
   });
 
   it('defensively rejects cross-user rows that leak through the repo', async () => {
@@ -384,7 +406,53 @@ describe('SettleAmountByReferenceUseCase', () => {
     ).rejects.toMatchObject({
       code: 'DEBT_LOAN_BELONGS_TO_OTHER_USER',
     } satisfies Partial<DomainException>);
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    // Guard runs inside the tx (after the locked read), so it never settles
+    // and never touches the pool.
+    expect(pool.applyDelta).not.toHaveBeenCalled();
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('defensively rejects a row whose type does not match the requested group', async () => {
+    // Defense-in-depth: if the repo filter ever regressed and returned a LOAN
+    // row for a DEBT settle, the pool delta would be silently wrong-signed.
+    // The per-row guard must throw before any settlement is applied.
+    repo.findPendingByReferenceCurrencyType.mockResolvedValue([
+      buildDebtLoan({ userId: USER, type: DebtLoanType.LOAN, currency: Currency.PEN }),
+    ]);
+
+    await expect(
+      useCase.execute(USER, {
+        reference: 'Juan',
+        currency: Currency.PEN,
+        type: DebtLoanType.DEBT,
+        amount: 100,
+        realPayment: true,
+      }),
+    ).rejects.toMatchObject({
+      code: 'DEBT_LOAN_NO_PENDING_FOR_REFERENCE',
+    } satisfies Partial<DomainException>);
+    expect(pool.applyDelta).not.toHaveBeenCalled();
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('defensively rejects a row whose currency does not match the requested group', async () => {
+    repo.findPendingByReferenceCurrencyType.mockResolvedValue([
+      buildDebtLoan({ userId: USER, type: DebtLoanType.DEBT, currency: Currency.USD }),
+    ]);
+
+    await expect(
+      useCase.execute(USER, {
+        reference: 'Juan',
+        currency: Currency.PEN,
+        type: DebtLoanType.DEBT,
+        amount: 100,
+        realPayment: true,
+      }),
+    ).rejects.toMatchObject({
+      code: 'DEBT_LOAN_NO_PENDING_FOR_REFERENCE',
+    } satisfies Partial<DomainException>);
+    expect(pool.applyDelta).not.toHaveBeenCalled();
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('logs a summary event with the settle outcome', async () => {
