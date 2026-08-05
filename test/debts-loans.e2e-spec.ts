@@ -20,12 +20,15 @@ import { CurrencyPoolService } from '../src/modules/currency-pools/application/c
 import { BulkSettleByReferenceUseCase } from '../src/modules/debts-loans/application/use-cases/bulk-settle-by-reference.use-case';
 import { CreateDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/create-debt-loan.use-case';
 import { DeleteDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/delete-debt-loan.use-case';
+import { DeleteDebtLoanPaymentUseCase } from '../src/modules/debts-loans/application/use-cases/delete-debt-loan-payment.use-case';
 import { GetDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/get-debt-loan.use-case';
 import { GetDebtsSummaryUseCase } from '../src/modules/debts-loans/application/use-cases/get-debts-summary.use-case';
 import { ListDebtLoanPaymentsUseCase } from '../src/modules/debts-loans/application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../src/modules/debts-loans/application/use-cases/list-debts-loans.use-case';
+import { SettleAmountByReferenceUseCase } from '../src/modules/debts-loans/application/use-cases/settle-amount-by-reference.use-case';
 import { SettleDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../src/modules/debts-loans/application/use-cases/update-debt-loan.use-case';
+import { UpdateDebtLoanPaymentUseCase } from '../src/modules/debts-loans/application/use-cases/update-debt-loan-payment.use-case';
 import { buildDebtLoan } from '../src/modules/debts-loans/domain/__tests__/debt-loan.factory';
 import { DebtLoanRepository } from '../src/modules/debts-loans/domain/debt-loan.repository';
 import { DebtLoanPaymentRepository } from '../src/modules/debts-loans/domain/debt-loan-payment.repository';
@@ -49,6 +52,7 @@ describe('DebtsLoansController (e2e)', () => {
     findById: jest.fn(),
     aggregateByReference: jest.fn(),
     findPendingByNormalizedReference: jest.fn(),
+    findPendingByReferenceCurrencyType: jest.fn(),
     save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
     softDelete: jest.fn(),
     findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
@@ -94,7 +98,10 @@ describe('DebtsLoansController (e2e)', () => {
         DeleteDebtLoanUseCase,
         SettleDebtLoanUseCase,
         BulkSettleByReferenceUseCase,
+        SettleAmountByReferenceUseCase,
         ListDebtLoanPaymentsUseCase,
+        UpdateDebtLoanPaymentUseCase,
+        DeleteDebtLoanPaymentUseCase,
         { provide: DebtLoanRepository, useValue: mockRepo },
         { provide: DebtLoanPaymentRepository, useValue: mockPaymentRepo },
         { provide: CurrencyPoolService, useValue: mockPool },
@@ -110,6 +117,9 @@ describe('DebtsLoansController (e2e)', () => {
           DeleteDebtLoanUseCase.name,
           SettleDebtLoanUseCase.name,
           BulkSettleByReferenceUseCase.name,
+          SettleAmountByReferenceUseCase.name,
+          UpdateDebtLoanPaymentUseCase.name,
+          DeleteDebtLoanPaymentUseCase.name,
         ]),
       ],
     }).compile();
@@ -401,6 +411,126 @@ describe('DebtsLoansController (e2e)', () => {
 
       // Net: -60 (debt) + 20 (loan) = -40.
       expect(mockPool.applyDelta).toHaveBeenCalledWith(USER_ID, 'PEN', -40, fakeManager);
+    });
+  });
+
+  describe('POST /api/v1/debts/settle-amount-by-reference', () => {
+    it('FIFO caps at total: amount > sum settles all rows, no error', async () => {
+      const d1 = buildDebtLoan({
+        id: 'aaaaaaaa-0000-4000-9000-000000000001',
+        userId: USER_ID,
+        type: DebtLoanType.DEBT,
+        currency: Currency.PEN,
+        remainingAmount: 100,
+      });
+      const d2 = buildDebtLoan({
+        id: 'aaaaaaaa-0000-4000-9000-000000000002',
+        userId: USER_ID,
+        type: DebtLoanType.DEBT,
+        currency: Currency.PEN,
+        remainingAmount: 60,
+      });
+      mockRepo.findPendingByReferenceCurrencyType.mockResolvedValue([d1, d2]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'DEBT', amount: 999 })
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data.settledCount).toBe(2);
+          expect(body.data.fullySettledCount).toBe(2);
+          expect(body.data.totalSettledAmount).toBe(160);
+          expect(body.data.partiallySettledId).toBeNull();
+          expect(body.data.currency).toBe('PEN');
+          expect(body.data.type).toBe('DEBT');
+        });
+
+      expect(mockRepo.findPendingByReferenceCurrencyType).toHaveBeenCalledWith(
+        USER_ID,
+        'Juan',
+        'PEN',
+        'DEBT',
+      );
+      // Informal by default (no realPayment flag) → pool untouched.
+      expect(mockPool.applyDelta).not.toHaveBeenCalled();
+    });
+
+    it('real-payment LOAN: FIFO partial on last row credits the pool by total settled', async () => {
+      const l1 = buildDebtLoan({
+        id: 'bbbbbbbb-0000-4000-9000-000000000001',
+        userId: USER_ID,
+        type: DebtLoanType.LOAN,
+        currency: Currency.PEN,
+        remainingAmount: 100,
+      });
+      const l2 = buildDebtLoan({
+        id: 'bbbbbbbb-0000-4000-9000-000000000002',
+        userId: USER_ID,
+        type: DebtLoanType.LOAN,
+        currency: Currency.PEN,
+        remainingAmount: 100,
+      });
+      mockRepo.findPendingByReferenceCurrencyType.mockResolvedValue([l1, l2]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'LOAN', amount: 130, realPayment: true })
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data.settledCount).toBe(2);
+          expect(body.data.fullySettledCount).toBe(1);
+          expect(body.data.partiallySettledId).toBe('bbbbbbbb-0000-4000-9000-000000000002');
+          expect(body.data.totalSettledAmount).toBe(130);
+        });
+
+      // LOAN settle credits the pool: +130.
+      expect(mockPool.applyDelta).toHaveBeenCalledWith(USER_ID, 'PEN', 130, fakeManager);
+    });
+
+    it('returns DBT_011 when there are no pending rows for (reference, currency, type)', async () => {
+      mockRepo.findPendingByReferenceCurrencyType.mockResolvedValue([]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Nobody', currency: 'PEN', type: 'DEBT', amount: 50 })
+        .expect(404)
+        .expect(({ body }) => {
+          expect(body.error.code).toBe('DBT_011');
+        });
+
+      expect(mockPool.applyDelta).not.toHaveBeenCalled();
+    });
+
+    it('rejects amount <= 0 with 400 (class-validator before the use case)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'DEBT', amount: 0 })
+        .expect(400);
+    });
+
+    it('scopes to the authenticated user: cross-user rows leaking through the repo are rejected', async () => {
+      mockRepo.findPendingByReferenceCurrencyType.mockResolvedValue([
+        buildDebtLoan({
+          id: 'cccccccc-0000-4000-9000-000000000001',
+          userId: 'another-user',
+          type: DebtLoanType.DEBT,
+          currency: Currency.PEN,
+          remainingAmount: 100,
+        }),
+      ]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'DEBT', amount: 50 })
+        .expect(403)
+        .expect(({ body }) => {
+          expect(body.error.code).toBe('DBT_002');
+        });
     });
   });
 });
