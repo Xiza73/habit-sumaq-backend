@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsOptional, Length, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  Length,
+  Max,
+  Min,
+} from 'class-validator';
 
 import { Currency } from '@common/enums/currency.enum';
 
@@ -59,9 +68,15 @@ export class SettleAmountByReferenceDto {
       'Monto total a repartir FIFO sobre las rows pendientes. Debe ser > 0. ' +
       'Si excede la suma de saldos pendientes, se liquida todo sin error (el excedente se ignora).',
     example: 170,
+    minimum: 0.01,
+    maximum: 99999999.99,
   })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  // Ceiling matches the `numeric(14,2)` column backing remainingAmount/pool
+  // balances — a request above it can never settle a real row and would only
+  // risk overflowing downstream money math, so reject it at the edge.
+  @Max(99999999.99)
   amount: number;
 
   @ApiPropertyOptional({
