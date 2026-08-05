@@ -80,6 +80,7 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `DBT_008` | 404  | Payment no encontrado                  | PATCH/DELETE `/debts/payments/:id` con UUID inexistente |
 | `DBT_009` | 422  | Update de payment sin campos a modificar | PATCH `/debts/payments/:id` sin `amount` ni `note` |
 | `DBT_010` | 422  | El saldo recomputado excedería el monto del debt/loan | PATCH/DELETE payment que dejaría `remainingAmount > debt.amount` |
+| `DBT_011` | 404  | No hay obligaciones pendientes para el grupo `(reference, currency, type)` | POST `/debts/settle-amount-by-reference` sin rows PENDING que matcheen |
 
 ### Budget Movements (v1.0.0)
 
