@@ -1726,9 +1726,19 @@ más reciente (no borrado) de la chore y reconstruye la chore al estado previo a
      `nextDueDate = ese doneAt + interval`.
    - Si no quedan logs: `lastDoneDate = null` y `nextDueDate = startDate`.
 
-El soft-delete del log y el guardado de la chore ocurren en una **única transacción**. Sólo se puede
-revertir el **último** evento — no hay revert de logs arbitrarios. Los `skip` (que no crean log) no se
-ven afectados. Revertir dos veces deshace dos "hechos".
+Toda la secuencia leer-decidir-escribir (re-lectura de la chore con lock de fila, búsqueda del último
+log, soft-delete y guardado) ocurre en una **única transacción** con un lock `pessimistic_write` sobre
+la row de la chore, de modo que dos reverts concurrentes o duplicados (doble-tap, reintento) se
+serializan: el segundo espera al commit del primero y recién ahí deshace el "hecho" siguiente. Sólo se
+puede revertir el **último** evento — no hay revert de logs arbitrarios. Revertir dos veces deshace dos
+"hechos".
+
+> **Interacción con `skip`.** El revert **recalcula por completo** `nextDueDate` a partir de la última
+> completación que queda (o de `startDate` si no queda ninguna) — el estado revertido se deriva
+> puramente del historial de "hechos". Como los `skip` no crean log, **un `skip` hecho DESPUÉS del
+> último `done` pierde su efecto sobre `nextDueDate`** al revertir: el avance del skip se descarta. Es
+> decir, `markDone(D1) → skip() → revert-last-done` deja la chore en el estado derivado de `D1` (o de
+> `startDate` si `D1` era la única completación), NO en el `nextDueDate` que había dejado el skip.
 
 - **Body:** ninguno.
 - **Response:** `200` — `ChoreResponseDto` (la chore actualizada).
