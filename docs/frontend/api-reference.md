@@ -1714,6 +1714,27 @@ Marca la chore como hecha:
 - **Response:** `201` — `{ chore: ChoreResponseDto, log: ChoreLogResponseDto }`
 - `404 CHRE_002` si no existe o pertenece a otro usuario.
 
+### `POST /chores/:id/revert-last-done`
+
+Deshace la **última** marca de "hecho" (undo de un mark-done equivocado). Soft-deletea el `ChoreLog`
+más reciente (no borrado) de la chore y reconstruye la chore al estado previo a ese "hecho":
+
+1. Ubica el `ChoreLog` más reciente no borrado (orden `doneAt DESC, createdAt DESC`).
+2. Lo soft-deletea (`deletedAt = now()`), por lo que deja de aparecer en `GET /chores/:id/logs`.
+3. Recalcula la chore:
+   - Si queda un log anterior: `lastDoneDate = doneAt del log anterior` y
+     `nextDueDate = ese doneAt + interval`.
+   - Si no quedan logs: `lastDoneDate = null` y `nextDueDate = startDate`.
+
+El soft-delete del log y el guardado de la chore ocurren en una **única transacción**. Sólo se puede
+revertir el **último** evento — no hay revert de logs arbitrarios. Los `skip` (que no crean log) no se
+ven afectados. Revertir dos veces deshace dos "hechos".
+
+- **Body:** ninguno.
+- **Response:** `200` — `ChoreResponseDto` (la chore actualizada).
+- `404 CHRE_002` si no existe o pertenece a otro usuario.
+- `409 CHRE_003` si la chore no tiene ningún log para revertir.
+
 ### `POST /chores/:id/skip`
 
 Avanza `nextDueDate += interval` **sin** crear log y **sin** modificar `lastDoneDate`. Útil cuando
