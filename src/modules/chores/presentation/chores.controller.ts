@@ -37,6 +37,7 @@ import { GetChoreUseCase } from '../application/use-cases/get-chore.use-case';
 import { ListChoreLogsUseCase } from '../application/use-cases/list-chore-logs.use-case';
 import { ListChoresUseCase } from '../application/use-cases/list-chores.use-case';
 import { MarkChoreDoneUseCase } from '../application/use-cases/mark-chore-done.use-case';
+import { RevertLastChoreDoneUseCase } from '../application/use-cases/revert-last-chore-done.use-case';
 import { SkipChoreCycleUseCase } from '../application/use-cases/skip-chore-cycle.use-case';
 import { UpdateChoreUseCase } from '../application/use-cases/update-chore.use-case';
 import { todayInTimezone } from '../infrastructure/timezone/today-in-timezone';
@@ -58,6 +59,7 @@ export class ChoresController {
     private readonly createChore: CreateChoreUseCase,
     private readonly updateChore: UpdateChoreUseCase,
     private readonly markChoreDone: MarkChoreDoneUseCase,
+    private readonly revertLastChoreDone: RevertLastChoreDoneUseCase,
     private readonly skipChoreCycle: SkipChoreCycleUseCase,
     private readonly archiveChore: ArchiveChoreUseCase,
     private readonly deleteChore: DeleteChoreUseCase,
@@ -209,6 +211,32 @@ export class ChoresController {
         log: ChoreLogResponseDto.fromDomain(log),
       },
       'Tarea marcada como hecha',
+    );
+  }
+
+  @Post(':id/revert-last-done')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Revertir la última marca de "hecho" de una tarea',
+    description:
+      'Deshace el último "hecho": soft-deletea el ChoreLog más reciente (deja de aparecer en ' +
+      'GET /chores/:id/logs) y reconstruye la chore al estado previo. Si queda un log anterior, ' +
+      'lastDoneDate/nextDueDate se recalculan desde ese log; si no quedan logs, lastDoneDate ' +
+      'vuelve a null y nextDueDate al startDate. Sólo el último evento es revertible.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID de la tarea' })
+  @ApiResponse({ status: 200, description: 'Última marca revertida', type: ChoreResponseDto })
+  @ApiResponse({ status: 404, description: 'Tarea no encontrada' })
+  @ApiResponse({ status: 409, description: 'La tarea no tiene eventos para revertir' })
+  async revertLastDone(
+    @CurrentUser() payload: JwtPayload,
+    @ClientTimezone() timezone: string,
+    @Param('id') id: string,
+  ): Promise<ApiResponseDto<ChoreResponseDto>> {
+    const chore = await this.revertLastChoreDone.execute(id, payload.sub);
+    return ApiResponseDto.ok(
+      ChoreResponseDto.fromDomain(chore, todayInTimezone(timezone)),
+      'Última marca revertida exitosamente',
     );
   }
 

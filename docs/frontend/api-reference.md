@@ -1714,6 +1714,37 @@ Marca la chore como hecha:
 - **Response:** `201` — `{ chore: ChoreResponseDto, log: ChoreLogResponseDto }`
 - `404 CHRE_002` si no existe o pertenece a otro usuario.
 
+### `POST /chores/:id/revert-last-done`
+
+Deshace la **última** marca de "hecho" (undo de un mark-done equivocado). Soft-deletea el `ChoreLog`
+más reciente (no borrado) de la chore y reconstruye la chore al estado previo a ese "hecho":
+
+1. Ubica el `ChoreLog` más reciente no borrado (orden `doneAt DESC, createdAt DESC`).
+2. Lo soft-deletea (`deletedAt = now()`), por lo que deja de aparecer en `GET /chores/:id/logs`.
+3. Recalcula la chore:
+   - Si queda un log anterior: `lastDoneDate = doneAt del log anterior` y
+     `nextDueDate = ese doneAt + interval`.
+   - Si no quedan logs: `lastDoneDate = null` y `nextDueDate = startDate`.
+
+Toda la secuencia leer-decidir-escribir (re-lectura de la chore con lock de fila, búsqueda del último
+log, soft-delete y guardado) ocurre en una **única transacción** con un lock `pessimistic_write` sobre
+la row de la chore, de modo que dos reverts concurrentes o duplicados (doble-tap, reintento) se
+serializan: el segundo espera al commit del primero y recién ahí deshace el "hecho" siguiente. Sólo se
+puede revertir el **último** evento — no hay revert de logs arbitrarios. Revertir dos veces deshace dos
+"hechos".
+
+> **Interacción con `skip`.** El revert **recalcula por completo** `nextDueDate` a partir de la última
+> completación que queda (o de `startDate` si no queda ninguna) — el estado revertido se deriva
+> puramente del historial de "hechos". Como los `skip` no crean log, **un `skip` hecho DESPUÉS del
+> último `done` pierde su efecto sobre `nextDueDate`** al revertir: el avance del skip se descarta. Es
+> decir, `markDone(D1) → skip() → revert-last-done` deja la chore en el estado derivado de `D1` (o de
+> `startDate` si `D1` era la única completación), NO en el `nextDueDate` que había dejado el skip.
+
+- **Body:** ninguno.
+- **Response:** `200` — `ChoreResponseDto` (la chore actualizada).
+- `404 CHRE_002` si no existe o pertenece a otro usuario.
+- `409 CHRE_003` si la chore no tiene ningún log para revertir.
+
 ### `POST /chores/:id/skip`
 
 Avanza `nextDueDate += interval` **sin** crear log y **sin** modificar `lastDoneDate`. Útil cuando

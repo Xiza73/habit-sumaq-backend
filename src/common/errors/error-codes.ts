@@ -54,6 +54,7 @@ export const ERROR_CODES = {
   // Chores (recurring household tasks)
   CHORE_HAS_LOGS: 'CHRE_001',
   CHORE_NOT_FOUND: 'CHRE_002',
+  CHORE_NO_LOGS_TO_REVERT: 'CHRE_003',
   // Budgets (monthly discretionary spending)
   BUDGET_NOT_FOUND: 'BDGT_001',
   BUDGET_ALREADY_EXISTS: 'BDGT_002',

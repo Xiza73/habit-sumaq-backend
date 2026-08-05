@@ -91,6 +91,7 @@ function buildUseCase(
   const choresRepo: jest.Mocked<ChoreRepository> = {
     findByUserId: jest.fn().mockResolvedValue(chores),
     findById: jest.fn(),
+    findByIdForUpdate: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };

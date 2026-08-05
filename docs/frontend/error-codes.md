@@ -157,6 +157,7 @@ en `POST /monthly-services`) — no hay endpoints de agregar/editar/quitar uno p
 | ---------- | ---- | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `CHRE_001` | 409  | La tarea tiene eventos (logs) registrados    | DELETE /chores/:id cuando ya existen logs. Archivala en su lugar con PATCH /:id/archive.     |
 | `CHRE_002` | 404  | Tarea no encontrada                          | GET/PATCH/POST .../done .../skip DELETE con UUID inexistente o perteneciente a otro usuario. |
+| `CHRE_003` | 409  | La tarea no tiene eventos para revertir      | POST /chores/:id/revert-last-done cuando la chore no tiene ningún log (no borrado) que deshacer. |
 
 ### Budgets (Presupuestos mensuales)
 

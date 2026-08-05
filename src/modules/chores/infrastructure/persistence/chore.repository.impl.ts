@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { type EntityManager, Repository } from 'typeorm';
 
 import { Chore } from '../../domain/chore.entity';
 import { ChoreRepository } from '../../domain/chore.repository';
@@ -33,8 +33,24 @@ export class ChoreRepositoryImpl extends ChoreRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async save(chore: Chore): Promise<Chore> {
-    const entity = this.repo.create({
+  async findByIdForUpdate(id: string, manager: EntityManager): Promise<Chore | null> {
+    // `setLock('pessimistic_write')` emits `SELECT ... FOR UPDATE`, holding the
+    // chore row for the caller's transaction so concurrent reverts serialize on
+    // it. Runs through `manager` so the lock joins (and releases with) that tx.
+    // QueryBuilder auto-applies the @DeleteDateColumn filter, so soft-deleted
+    // chores return null (→ CHORE_NOT_FOUND), same as `findById`.
+    const row = await manager
+      .getRepository(ChoreOrmEntity)
+      .createQueryBuilder('chore')
+      .setLock('pessimistic_write')
+      .where('chore.id = :id', { id })
+      .getOne();
+    return row ? this.toDomain(row) : null;
+  }
+
+  async save(chore: Chore, manager?: EntityManager): Promise<Chore> {
+    const m = manager ?? this.repo.manager;
+    const saved = await m.save(ChoreOrmEntity, {
       id: chore.id,
       userId: chore.userId,
       name: chore.name,
@@ -50,7 +66,6 @@ export class ChoreRepositoryImpl extends ChoreRepository {
       updatedAt: chore.updatedAt,
       deletedAt: chore.deletedAt,
     });
-    const saved = await this.repo.save(entity);
     return this.toDomain(saved);
   }
 
