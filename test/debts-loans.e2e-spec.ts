@@ -451,6 +451,7 @@ describe('DebtsLoansController (e2e)', () => {
         'Juan',
         'PEN',
         'DEBT',
+        fakeManager,
       );
       // Informal by default (no realPayment flag) → pool untouched.
       expect(mockPool.applyDelta).not.toHaveBeenCalled();
@@ -509,6 +510,46 @@ describe('DebtsLoansController (e2e)', () => {
         .post('/api/v1/debts/settle-amount-by-reference')
         .set('Authorization', `Bearer ${token}`)
         .send({ reference: 'Juan', currency: 'PEN', type: 'DEBT', amount: 0 })
+        .expect(400);
+    });
+
+    it('rejects amount above the numeric(14,2) ceiling with 400 (@Max)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'DEBT', amount: 100000000 })
+        .expect(400);
+    });
+
+    it('rejects amount with more than 2 decimals with 400 (maxDecimalPlaces)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'DEBT', amount: 10.123 })
+        .expect(400);
+    });
+
+    it('rejects a currency outside the enum with 400 (@IsEnum)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'XYZ', type: 'DEBT', amount: 50 })
+        .expect(400);
+    });
+
+    it('rejects a type outside the enum with 400 (@IsEnum)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: 'Juan', currency: 'PEN', type: 'SAVINGS', amount: 50 })
+        .expect(400);
+    });
+
+    it('rejects an empty-string reference with 400 (@IsNotEmpty)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/debts/settle-amount-by-reference')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reference: '', currency: 'PEN', type: 'DEBT', amount: 50 })
         .expect(400);
     });
 
