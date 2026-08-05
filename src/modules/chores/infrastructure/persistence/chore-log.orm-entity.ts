@@ -1,6 +1,7 @@
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   Index,
   ManyToOne,
@@ -29,4 +30,10 @@ export class ChoreLogOrmEntity {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
+
+  // Soft-delete marker. A log is soft-deleted when the user reverts the last
+  // "done" (POST /chores/:id/revert-last-done). TypeORM auto-excludes rows
+  // with a non-null `deletedAt` from finds/query builders unless `withDeleted`.
+  @DeleteDateColumn({ type: 'timestamptz' })
+  deletedAt: Date | null;
 }

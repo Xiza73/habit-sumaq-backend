@@ -23,6 +23,8 @@ import { DebtLoanPaymentResponseDto } from '../application/dto/debt-loan-payment
 import { DebtLoanResponseDto } from '../application/dto/debt-loan-response.dto';
 import { DebtsSummaryResponseDto } from '../application/dto/debts-summary-response.dto';
 import { GetDebtsQueryDto } from '../application/dto/get-debts-query.dto';
+import { SettleAmountByReferenceDto } from '../application/dto/settle-amount-by-reference.dto';
+import { SettleAmountByReferenceResultDto } from '../application/dto/settle-amount-by-reference-result.dto';
 import { SettleDebtLoanDto } from '../application/dto/settle-debt-loan.dto';
 import { UpdateDebtLoanDto } from '../application/dto/update-debt-loan.dto';
 import { UpdateDebtLoanPaymentDto } from '../application/dto/update-debt-loan-payment.dto';
@@ -34,6 +36,7 @@ import { GetDebtLoanUseCase } from '../application/use-cases/get-debt-loan.use-c
 import { GetDebtsSummaryUseCase } from '../application/use-cases/get-debts-summary.use-case';
 import { ListDebtLoanPaymentsUseCase } from '../application/use-cases/list-debt-loan-payments.use-case';
 import { ListDebtsLoansUseCase } from '../application/use-cases/list-debts-loans.use-case';
+import { SettleAmountByReferenceUseCase } from '../application/use-cases/settle-amount-by-reference.use-case';
 import { SettleDebtLoanUseCase } from '../application/use-cases/settle-debt-loan.use-case';
 import { UpdateDebtLoanUseCase } from '../application/use-cases/update-debt-loan.use-case';
 import { UpdateDebtLoanPaymentUseCase } from '../application/use-cases/update-debt-loan-payment.use-case';
@@ -53,6 +56,7 @@ export class DebtsLoansController {
     private readonly deleteUseCase: DeleteDebtLoanUseCase,
     private readonly settleUseCase: SettleDebtLoanUseCase,
     private readonly bulkSettleUseCase: BulkSettleByReferenceUseCase,
+    private readonly settleAmountByReferenceUseCase: SettleAmountByReferenceUseCase,
     private readonly listPaymentsUseCase: ListDebtLoanPaymentsUseCase,
     private readonly updatePaymentUseCase: UpdateDebtLoanPaymentUseCase,
     private readonly deletePaymentUseCase: DeleteDebtLoanPaymentUseCase,
@@ -108,6 +112,29 @@ export class DebtsLoansController {
   ): Promise<ApiResponseDto<BulkSettleResultDto>> {
     const result = await this.bulkSettleUseCase.execute(user.sub, body);
     return ApiResponseDto.ok(result, 'Bulk settle aplicado');
+  }
+
+  @Post('settle-amount-by-reference')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Liquidar un MONTO repartido FIFO sobre las deudas de una persona (una dirección)',
+    description:
+      'Reparte `amount` oldest-first sobre las rows PENDING de `(reference, currency, type)`. ' +
+      'La más vieja se liquida primero; la última tocada puede quedar parcial. Si `amount` ' +
+      'supera la suma de saldos, se liquidan todas sin error (cap). `realPayment: true` mueve ' +
+      'el pool (DEBT debita, LOAN credita); omitido/`false` es cierre informal.',
+  })
+  @ApiResponse({ status: 200, type: SettleAmountByReferenceResultDto })
+  @ApiResponse({
+    status: 404,
+    description: 'DBT_011: no hay pendientes para (reference, currency, type)',
+  })
+  async settleAmountByReference(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: SettleAmountByReferenceDto,
+  ): Promise<ApiResponseDto<SettleAmountByReferenceResultDto>> {
+    const result = await this.settleAmountByReferenceUseCase.execute(user.sub, body);
+    return ApiResponseDto.ok(result, 'Settle por monto aplicado');
   }
 
   // Declared BEFORE `@Patch(':id')` / `@Delete(':id')` so Nest matches

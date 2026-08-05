@@ -20,6 +20,7 @@ describe('SkipChoreCycleUseCase', () => {
     repo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByIdForUpdate: jest.fn(),
       save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
       softDelete: jest.fn(),
     };

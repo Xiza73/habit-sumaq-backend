@@ -8,6 +8,7 @@ import { GetChoreUseCase } from '../application/use-cases/get-chore.use-case';
 import { ListChoreLogsUseCase } from '../application/use-cases/list-chore-logs.use-case';
 import { ListChoresUseCase } from '../application/use-cases/list-chores.use-case';
 import { MarkChoreDoneUseCase } from '../application/use-cases/mark-chore-done.use-case';
+import { RevertLastChoreDoneUseCase } from '../application/use-cases/revert-last-chore-done.use-case';
 import { SkipChoreCycleUseCase } from '../application/use-cases/skip-chore-cycle.use-case';
 import { UpdateChoreUseCase } from '../application/use-cases/update-chore.use-case';
 import { ChoreRepository } from '../domain/chore.repository';
@@ -31,6 +32,7 @@ import { ChoresController } from './chores.controller';
     CreateChoreUseCase,
     UpdateChoreUseCase,
     MarkChoreDoneUseCase,
+    RevertLastChoreDoneUseCase,
     SkipChoreCycleUseCase,
     ArchiveChoreUseCase,
     DeleteChoreUseCase,

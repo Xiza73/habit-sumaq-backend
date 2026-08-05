@@ -23,6 +23,7 @@ describe('MarkChoreDoneUseCase', () => {
     choreRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByIdForUpdate: jest.fn(),
       save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
       softDelete: jest.fn(),
     };
@@ -30,7 +31,9 @@ describe('MarkChoreDoneUseCase', () => {
     logRepo = {
       findByChoreId: jest.fn(),
       countByChoreId: jest.fn(),
+      findLatestByChoreId: jest.fn(),
       save: jest.fn().mockImplementation((l) => Promise.resolve(l)),
+      softDelete: jest.fn(),
     };
 
     mockLogger = buildMockPinoLogger();
