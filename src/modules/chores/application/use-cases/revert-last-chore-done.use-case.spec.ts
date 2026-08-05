@@ -26,6 +26,7 @@ describe('RevertLastChoreDoneUseCase', () => {
     choreRepo = {
       findByUserId: jest.fn(),
       findById: jest.fn(),
+      findByIdForUpdate: jest.fn(),
       save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
       softDelete: jest.fn(),
     };
@@ -53,6 +54,30 @@ describe('RevertLastChoreDoneUseCase', () => {
     );
   });
 
+  it('re-fetches the chore inside the tx WITH a row lock and reads the latest log via the tx manager', async () => {
+    const chore = buildChore({ userId });
+    const latest = buildChoreLog({ id: 'log-x', choreId: chore.id, doneAt: '2026-04-15' });
+
+    choreRepo.findByIdForUpdate.mockResolvedValue(chore);
+    logRepo.findLatestByChoreId.mockResolvedValueOnce(latest).mockResolvedValueOnce(null);
+
+    await useCase.execute(chore.id, userId);
+
+    // The whole read-decide-write runs inside a single transaction; the chore
+    // is re-fetched THROUGH the tx manager with a pessimistic write lock so
+    // concurrent reverts serialize on this row (mirrors the debts-loans
+    // "forwards the transactional EntityManager" guard).
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(choreRepo.findByIdForUpdate).toHaveBeenCalledWith(chore.id, FAKE_MGR);
+    // The plain (unlocked) findById MUST NOT be used — that was the stale
+    // pre-transaction snapshot that could clobber a concurrent write.
+    expect(choreRepo.findById).not.toHaveBeenCalled();
+    // Both latest-log lookups run under the same tx manager.
+    expect(logRepo.findLatestByChoreId).toHaveBeenNthCalledWith(1, chore.id, FAKE_MGR);
+    expect(logRepo.findLatestByChoreId).toHaveBeenNthCalledWith(2, chore.id, FAKE_MGR);
+    expect(choreRepo.save).toHaveBeenCalledWith(chore, FAKE_MGR);
+  });
+
   it('reconstructs lastDoneDate and nextDueDate from the previous log', async () => {
     const chore = buildChore({
       userId,
@@ -65,9 +90,9 @@ describe('RevertLastChoreDoneUseCase', () => {
     const latest = buildChoreLog({ id: 'log-latest', choreId: chore.id, doneAt: '2026-04-15' });
     const previous = buildChoreLog({ id: 'log-prev', choreId: chore.id, doneAt: '2026-04-01' });
 
-    choreRepo.findById.mockResolvedValue(chore);
-    // First lookup (outside tx) returns the log to revert; the lookup inside
-    // the tx (after the soft-delete) returns the now-latest previous log.
+    choreRepo.findByIdForUpdate.mockResolvedValue(chore);
+    // First lookup (inside tx) returns the log to revert; the lookup after the
+    // soft-delete returns the now-latest previous log.
     logRepo.findLatestByChoreId.mockResolvedValueOnce(latest).mockResolvedValueOnce(previous);
 
     const result = await useCase.execute(chore.id, userId);
@@ -91,7 +116,7 @@ describe('RevertLastChoreDoneUseCase', () => {
     });
     const latest = buildChoreLog({ id: 'log-only', choreId: chore.id, doneAt: '2026-04-15' });
 
-    choreRepo.findById.mockResolvedValue(chore);
+    choreRepo.findByIdForUpdate.mockResolvedValue(chore);
     logRepo.findLatestByChoreId.mockResolvedValueOnce(latest).mockResolvedValueOnce(null);
 
     const result = await useCase.execute(chore.id, userId);
@@ -114,7 +139,7 @@ describe('RevertLastChoreDoneUseCase', () => {
     const logA = buildChoreLog({ id: 'log-a', choreId: chore.id, doneAt: '2026-04-01' });
     const logB = buildChoreLog({ id: 'log-b', choreId: chore.id, doneAt: '2026-04-15' });
 
-    choreRepo.findById.mockResolvedValue(chore);
+    choreRepo.findByIdForUpdate.mockResolvedValue(chore);
 
     // Revert 1: latest=B, previous=A → back to the 2026-04-01 completion.
     logRepo.findLatestByChoreId.mockResolvedValueOnce(logB).mockResolvedValueOnce(logA);
@@ -134,38 +159,43 @@ describe('RevertLastChoreDoneUseCase', () => {
 
   it('throws CHORE_NO_LOGS_TO_REVERT when the chore has no logs', async () => {
     const chore = buildChore({ userId });
-    choreRepo.findById.mockResolvedValue(chore);
+    choreRepo.findByIdForUpdate.mockResolvedValue(chore);
     logRepo.findLatestByChoreId.mockResolvedValueOnce(null);
 
     await expect(useCase.execute(chore.id, userId)).rejects.toMatchObject({
       code: 'CHORE_NO_LOGS_TO_REVERT',
     } satisfies Partial<DomainException>);
 
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    // The no-logs guard now fires INSIDE the transaction (so the throw rolls
+    // it back), after the locked re-fetch — the read is no longer outside.
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(logRepo.softDelete).not.toHaveBeenCalled();
     expect(choreRepo.save).not.toHaveBeenCalled();
   });
 
   it('throws CHORE_NOT_FOUND when the id is unknown', async () => {
-    choreRepo.findById.mockResolvedValue(null);
+    choreRepo.findByIdForUpdate.mockResolvedValue(null);
 
     await expect(useCase.execute('x', userId)).rejects.toMatchObject({
       code: 'CHORE_NOT_FOUND',
     } satisfies Partial<DomainException>);
     expect(logRepo.findLatestByChoreId).not.toHaveBeenCalled();
+    expect(logRepo.softDelete).not.toHaveBeenCalled();
+    expect(choreRepo.save).not.toHaveBeenCalled();
   });
 
   it('hides chores owned by another user behind CHORE_NOT_FOUND', async () => {
-    choreRepo.findById.mockResolvedValue(buildChore({ userId: 'other' }));
+    choreRepo.findByIdForUpdate.mockResolvedValue(buildChore({ userId: 'other' }));
 
     await expect(useCase.execute('x', userId)).rejects.toThrow('Tarea no encontrada');
     expect(logRepo.findLatestByChoreId).not.toHaveBeenCalled();
+    expect(choreRepo.save).not.toHaveBeenCalled();
   });
 
   it('logs the revert event with chore + reverted log identifiers', async () => {
     const chore = buildChore({ userId });
     const latest = buildChoreLog({ id: 'log-x', choreId: chore.id, doneAt: '2026-04-15' });
-    choreRepo.findById.mockResolvedValue(chore);
+    choreRepo.findByIdForUpdate.mockResolvedValue(chore);
     logRepo.findLatestByChoreId.mockResolvedValueOnce(latest).mockResolvedValueOnce(null);
 
     await useCase.execute(chore.id, userId);

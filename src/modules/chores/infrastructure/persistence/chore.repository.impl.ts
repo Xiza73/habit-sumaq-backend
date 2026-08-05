@@ -33,6 +33,21 @@ export class ChoreRepositoryImpl extends ChoreRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByIdForUpdate(id: string, manager: EntityManager): Promise<Chore | null> {
+    // `setLock('pessimistic_write')` emits `SELECT ... FOR UPDATE`, holding the
+    // chore row for the caller's transaction so concurrent reverts serialize on
+    // it. Runs through `manager` so the lock joins (and releases with) that tx.
+    // QueryBuilder auto-applies the @DeleteDateColumn filter, so soft-deleted
+    // chores return null (→ CHORE_NOT_FOUND), same as `findById`.
+    const row = await manager
+      .getRepository(ChoreOrmEntity)
+      .createQueryBuilder('chore')
+      .setLock('pessimistic_write')
+      .where('chore.id = :id', { id })
+      .getOne();
+    return row ? this.toDomain(row) : null;
+  }
+
   async save(chore: Chore, manager?: EntityManager): Promise<Chore> {
     const m = manager ?? this.repo.manager;
     const saved = await m.save(ChoreOrmEntity, {

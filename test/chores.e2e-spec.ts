@@ -46,6 +46,7 @@ describe('ChoresController (e2e)', () => {
   const mockChoreRepo: jest.Mocked<ChoreRepository> = {
     findByUserId: jest.fn(),
     findById: jest.fn(),
+    findByIdForUpdate: jest.fn(),
     save: jest.fn(),
     softDelete: jest.fn(),
   };
@@ -495,7 +496,7 @@ describe('ChoresController (e2e)', () => {
       const latest = buildChoreLog({ id: 'log-latest', choreId: CHORE_ID, doneAt: '2026-04-15' });
       const previous = buildChoreLog({ id: 'log-prev', choreId: CHORE_ID, doneAt: '2026-04-01' });
 
-      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockChoreRepo.findByIdForUpdate.mockResolvedValue(chore);
       mockChoreRepo.save.mockImplementation((c) => Promise.resolve(c));
       mockLogRepo.findLatestByChoreId.mockResolvedValueOnce(latest).mockResolvedValueOnce(previous);
       mockLogRepo.softDelete.mockResolvedValue(undefined);
@@ -524,7 +525,7 @@ describe('ChoresController (e2e)', () => {
       });
       const only = buildChoreLog({ id: 'log-only', choreId: CHORE_ID, doneAt: '2026-04-15' });
 
-      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockChoreRepo.findByIdForUpdate.mockResolvedValue(chore);
       mockChoreRepo.save.mockImplementation((c) => Promise.resolve(c));
       mockLogRepo.findLatestByChoreId.mockResolvedValueOnce(only).mockResolvedValueOnce(null);
       mockLogRepo.softDelete.mockResolvedValue(undefined);
@@ -542,7 +543,7 @@ describe('ChoresController (e2e)', () => {
 
     it('returns 409 CHRE_003 when the chore has no logs to revert', async () => {
       const chore = buildChore({ id: CHORE_ID, userId: USER_ID });
-      mockChoreRepo.findById.mockResolvedValue(chore);
+      mockChoreRepo.findByIdForUpdate.mockResolvedValue(chore);
       mockLogRepo.findLatestByChoreId.mockResolvedValueOnce(null);
 
       await request(app.getHttpServer())
@@ -559,7 +560,9 @@ describe('ChoresController (e2e)', () => {
     });
 
     it('returns 404 CHRE_002 when the chore belongs to another user', async () => {
-      mockChoreRepo.findById.mockResolvedValue(buildChore({ id: CHORE_ID, userId: 'other-user' }));
+      mockChoreRepo.findByIdForUpdate.mockResolvedValue(
+        buildChore({ id: CHORE_ID, userId: 'other-user' }),
+      );
 
       return request(app.getHttpServer())
         .post(`/api/v1/chores/${CHORE_ID}/revert-last-done`)
@@ -576,6 +579,8 @@ describe('ChoresController (e2e)', () => {
       const latest = buildChoreLog({ id: 'log-latest', choreId: CHORE_ID, doneAt: '2026-04-15' });
       const remaining = buildChoreLog({ id: 'log-prev', choreId: CHORE_ID, doneAt: '2026-04-01' });
 
+      mockChoreRepo.findByIdForUpdate.mockResolvedValue(chore);
+      // The follow-up GET /logs checks ownership via the (unlocked) findById.
       mockChoreRepo.findById.mockResolvedValue(chore);
       mockChoreRepo.save.mockImplementation((c) => Promise.resolve(c));
       mockLogRepo.findLatestByChoreId
