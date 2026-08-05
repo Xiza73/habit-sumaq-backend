@@ -631,6 +631,45 @@ Devuelve el resumen del bulk. Si no había nada que liquidar, `settledCount: 0` 
 | `currency`           | `Currency \| null`                  | Null si fue informal-close cross-currency.             |
 | `settledIds`         | UUID[]                              | IDs de las rows afectadas.                             |
 
+### `POST /debts/settle-amount-by-reference`
+
+Liquida un **monto** repartido _oldest-first_ (FIFO) sobre las rows PENDING de **una persona**,
+en **una sola dirección** (`type`) y **una sola moneda** (`currency`) — la "Mochila". El monto se
+consume desde la deuda más vieja hacia la más nueva: cada una se liquida por
+`min(remainingAmount, montoRestante)`. La última tocada puede quedar **parcialmente** liquidada
+(sigue PENDING con saldo). Si `amount` supera la suma de saldos pendientes, se liquidan **todas**
+sin error (cap — el excedente se ignora). Toda la aritmética se hace en centavos enteros.
+
+> A diferencia de `/debts/:id/settle` y `/debts/settle-by-reference` (donde la **presencia** de
+> `currency` togglea real-vs-informal), acá `currency` es **obligatoria** porque identifica el grupo
+> `(reference, currency)`. El toggle de modo pasa por el flag `realPayment`.
+
+| Campo         | Tipo                      | Requerido | Notas                                                                 |
+| ------------- | ------------------------- | --------- | --------------------------------------------------------------------- |
+| `reference`   | string                    | sí        | La persona. Match case + accent insensitive. Máx 255 chars.           |
+| `currency`    | `'PEN' \| 'USD' \| 'EUR'` | sí        | Identifica el grupo `(reference, currency)` a liquidar.               |
+| `type`        | `'DEBT' \| 'LOAN'`        | sí        | Dirección a liquidar. `DEBT` = lo que debés; `LOAN` = lo que te deben. |
+| `amount`      | number                    | sí        | > 0, 2 decimales. Se reparte FIFO. Si excede el total, cap sin error. |
+| `realPayment` | boolean                   | no        | `true` → mueve el pool (DEBT debita, LOAN credita). Omitido/`false` → cierre informal (no toca pool). Default `false`. |
+
+| Error code | HTTP | Cuándo                                                          |
+| ---------- | ---- | -------------------------------------------------------------- |
+| `DBT_011`  | 404  | No hay rows PENDING para ese `(reference, currency, type)`.     |
+
+**Respuesta:** `200 OK`, `data: SettleAmountByReferenceResultDto`:
+
+| Campo                 | Tipo                | Notas                                                                 |
+| --------------------- | ------------------- | --------------------------------------------------------------------- |
+| `settledCount`        | number              | Rows tocadas (total o parcialmente) en este settle.                   |
+| `totalSettledAmount`  | number              | Monto efectivamente liquidado (= `amount`, salvo cap = suma de saldos). |
+| `fullySettledCount`   | number              | Cuántas de las tocadas quedaron completamente liquidadas (SETTLED).   |
+| `partiallySettledId`  | `UUID \| null`      | Id de la última row parcial (sigue PENDING), o `null` si no hubo parcial. |
+| `currency`            | `Currency`          | Moneda del grupo liquidado.                                           |
+| `type`                | `'DEBT' \| 'LOAN'`  | Dirección liquidada.                                                  |
+
+> **Nota de migración:** `POST /debts/settle-by-reference` (liquidar TODO de una reference) sigue
+> vigente. Una vez que el frontend migre a este endpoint por monto, aquel podría volverse removible.
+
 ### `GET /debts/:id/payments`
 
 Lista el historial de pagos (settles) aplicados a una deuda/préstamo, más reciente primero.

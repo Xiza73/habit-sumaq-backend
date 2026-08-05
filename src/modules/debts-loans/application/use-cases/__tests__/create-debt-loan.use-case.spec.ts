@@ -28,6 +28,7 @@ describe('CreateDebtLoanUseCase', () => {
       findById: jest.fn(),
       aggregateByReference: jest.fn(),
       findPendingByNormalizedReference: jest.fn(),
+      findPendingByReferenceCurrencyType: jest.fn(),
       save: jest.fn().mockImplementation((debt) => Promise.resolve(debt)),
       softDelete: jest.fn(),
       findBySourcePaymentIds: jest.fn().mockResolvedValue([]),

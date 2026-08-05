@@ -59,6 +59,7 @@ describe('GetFinancesDashboardUseCase', () => {
       findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
       aggregateByReference: jest.fn().mockResolvedValue([]),
       findPendingByNormalizedReference: jest.fn(),
+      findPendingByReferenceCurrencyType: jest.fn(),
     };
 
     settingsRepo = {

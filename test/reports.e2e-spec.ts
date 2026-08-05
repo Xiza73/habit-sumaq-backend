@@ -82,6 +82,7 @@ describe('ReportsController (e2e)', () => {
     findBySourcePaymentIds: jest.fn().mockResolvedValue([]),
     aggregateByReference: jest.fn(),
     findPendingByNormalizedReference: jest.fn(),
+    findPendingByReferenceCurrencyType: jest.fn(),
   };
 
   const mockHabitRepo: jest.Mocked<HabitRepository> = {
