@@ -24,7 +24,9 @@ describe('DeleteChoreUseCase', () => {
     logRepo = {
       findByChoreId: jest.fn(),
       countByChoreId: jest.fn(),
+      findLatestByChoreId: jest.fn(),
       save: jest.fn(),
+      softDelete: jest.fn(),
     };
 
     useCase = new DeleteChoreUseCase(choreRepo, logRepo);

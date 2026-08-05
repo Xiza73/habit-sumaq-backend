@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { type EntityManager, Repository } from 'typeorm';
 
 import { ChoreLog } from '../../domain/chore-log.entity';
 import { ChoreLogRepository } from '../../domain/chore-log.repository';
@@ -38,6 +38,20 @@ export class ChoreLogRepositoryImpl extends ChoreLogRepository {
     return this.repo.count({ where: { choreId } });
   }
 
+  async findLatestByChoreId(choreId: string, manager?: EntityManager): Promise<ChoreLog | null> {
+    // Query through the manager when inside a transaction so a row soft-deleted
+    // earlier in the same tx is already excluded from this lookup.
+    const repo = manager ? manager.getRepository(ChoreLogOrmEntity) : this.repo;
+    const row = await repo
+      .createQueryBuilder('log')
+      .where('log.choreId = :choreId', { choreId })
+      .orderBy('log.doneAt', 'DESC')
+      .addOrderBy('log.createdAt', 'DESC')
+      .getOne();
+
+    return row ? this.toDomain(row) : null;
+  }
+
   async save(log: ChoreLog): Promise<ChoreLog> {
     const entity = this.repo.create({
       id: log.id,
@@ -48,6 +62,11 @@ export class ChoreLogRepositoryImpl extends ChoreLogRepository {
     });
     const saved = await this.repo.save(entity);
     return this.toDomain(saved);
+  }
+
+  async softDelete(id: string, manager?: EntityManager): Promise<void> {
+    const m = manager ?? this.repo.manager;
+    await m.softDelete(ChoreLogOrmEntity, id);
   }
 
   private toDomain(entity: ChoreLogOrmEntity): ChoreLog {
