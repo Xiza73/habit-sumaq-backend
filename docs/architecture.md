@@ -490,6 +490,62 @@ Comparar el `data.commit` con `git log -1 --format=%H master` local.
 
 ---
 
+## Concurrencia en el money path (regla dura)
+
+Esta regla existe porque el mismo bug apareció ya tres veces en módulos
+distintos: settle por monto, revert de chore, y los cuatro use-cases de
+`debts-loans` que tocan el pool. Es el patrón de **lost update**.
+
+**La regla**: si un use-case hace un *read-modify-write* sobre un saldo
+(`remainingAmount`, `balance` de un pool, cualquier contador acumulado), la
+lectura de ese row y **todos los guards que dependen de él** van DENTRO de la
+transacción, con `pessimistic_write` (`SELECT ... FOR UPDATE`).
+
+```ts
+// MAL — la lectura y el guard corren sobre datos que pueden estar viejos
+// para cuando se escribe. Dos requests concurrentes leen el mismo saldo,
+// los dos pasan el guard, y el pool recibe el delta dos veces.
+const debt = await this.repo.findById(id);
+if (dto.amount > debt.remainingAmount) throw ...;
+await this.dataSource.transaction(async (manager) => { ...write... });
+
+// BIEN — el row queda lockeado hasta el commit; el segundo request espera,
+// re-lee el saldo ya actualizado, y su guard corta como corresponde.
+await this.dataSource.transaction(async (manager) => {
+  const debt = await this.repo.findById(id, manager);   // FOR UPDATE
+  if (dto.amount > debt.remainingAmount) throw ...;
+  ...write...
+});
+```
+
+Puntos finos:
+
+- **Un guard fuera de la tx no es un guard.** Validar contra una lectura sin
+  lock sólo dice "esto era válido hace un rato".
+- **Los métodos del repo toman el lock sólo si reciben `manager`.** TypeORM
+  tira `PessimisticLockTransactionRequiredError` si se pide un lock fuera de
+  una transacción, así que los callers de sólo-lectura (get, list) siguen
+  llamando sin manager y hacen un SELECT normal.
+- **Orden de lock consistente.** Si un use-case lockea dos tablas, todos los
+  que lockeen ese mismo par lo hacen en el mismo orden. En `debts-loans` es
+  siempre *payment → debt*. Órdenes distintos entre dos transacciones =
+  deadlock.
+- **`ORDER BY` determinístico en los SELECT lockeados de varios rows.**
+  Postgres toma los locks en orden de scan; sin `ORDER BY` explícito, dos
+  operaciones sobre sets que se solapan pueden agarrarse los rows cruzados y
+  deadlockear.
+- **La validación de shape del DTO queda afuera.** No depende del estado de
+  la DB, así que no vale abrir una transacción ni tomar locks para fallar por
+  forma.
+
+Los tests unitarios verifican esto mockeando `dataSource.transaction` para
+que invoque el callback con un `EntityManager` falso, y aseverando que la
+lectura lo recibió — ver el bloque `concurrency (lost update)` en los specs
+de `debts-loans`. Que el lock **efectivamente serialice** es lo que sólo se
+puede probar contra un Postgres real.
+
+---
+
 ## Autenticación
 
 Flujo completo:

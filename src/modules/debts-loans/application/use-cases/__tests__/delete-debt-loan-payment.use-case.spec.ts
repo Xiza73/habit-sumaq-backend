@@ -259,4 +259,34 @@ describe('DeleteDebtLoanPaymentUseCase', () => {
       await expect(useCase.execute(payment.id, USER)).rejects.toThrow('db down');
     });
   });
+
+  describe('concurrency (lost update)', () => {
+    it('reads payment and debt INSIDE the transaction, passing the tx manager so both reads are locked', async () => {
+      const debt = buildDebtLoan({ userId: USER, amount: 100, remainingAmount: 60 });
+      const payment = buildPayment({ debtLoanId: debt.id, amount: 40, currency: Currency.PEN });
+      paymentRepo.findById.mockResolvedValue(payment);
+      debtRepo.findById.mockResolvedValue(debt);
+
+      await useCase.execute(payment.id, USER);
+
+      // Without the locks, two concurrent deletes of the same payment both
+      // read it as present and each credits payment.amount back to the pool.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(paymentRepo.findById).toHaveBeenCalledWith(payment.id, FAKE_MGR);
+      expect(debtRepo.findById).toHaveBeenCalledWith(debt.id, FAKE_MGR);
+    });
+
+    it('runs the payment-not-found guard from inside the transaction', async () => {
+      // Exactly what a concurrent delete that committed first looks like: the
+      // locked re-read finds nothing.
+      paymentRepo.findById.mockResolvedValue(null);
+
+      await expect(useCase.execute('gone', USER)).rejects.toMatchObject({
+        code: 'DEBT_LOAN_PAYMENT_NOT_FOUND',
+      } satisfies Partial<DomainException>);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(pool.applyDelta).not.toHaveBeenCalled();
+    });
+  });
 });
