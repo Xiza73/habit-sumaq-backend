@@ -51,6 +51,17 @@ import type { UpdateDebtLoanPaymentDto } from '../dto/update-debt-loan-payment.d
  *  - Atomicidad: TODO va dentro de `dataSource.transaction()` — update
  *    del payment + update del parent + delta del pool. Mismo patrón
  *    crítico que `SettleDebtLoanUseCase`.
+ *
+ *  - Concurrencia (lost update): las lecturas del payment y del parent, y
+ *    toda la aritmética que depende de ellas, corren DENTRO de la tx con
+ *    `pessimistic_write` en ambas. La cuenta es un read-modify-write sobre
+ *    `debt.remainingAmount` cuyo delta mueve el pool; leyendo afuera, dos
+ *    edits concurrentes parten del mismo `remainingAmount` y el segundo
+ *    pisa al primero dejando el pool desalineado con el historial.
+ *    **Orden de lock: payment primero, debt después** — idéntico en
+ *    `DeleteDebtLoanPaymentUseCase`, para que no puedan deadlockearse.
+ *    La validación de shape del DTO (no-fields) queda AFUERA: no depende
+ *    del estado de la DB, así que no vale abrir tx ni tomar locks.
  */
 @Injectable()
 export class UpdateDebtLoanPaymentUseCase {
@@ -75,55 +86,56 @@ export class UpdateDebtLoanPaymentUseCase {
       );
     }
 
-    const payment = await this.paymentRepo.findById(paymentId);
-    if (!payment) {
-      throw new DomainException('DEBT_LOAN_PAYMENT_NOT_FOUND', 'Pago no encontrado');
-    }
-
-    const debt = await this.debtRepo.findById(payment.debtLoanId);
-    if (!debt || debt.isDeleted()) {
-      throw new DomainException('DEBT_LOAN_NOT_FOUND', 'Deuda/préstamo no encontrado');
-    }
-    if (debt.userId !== userId) {
-      throw new DomainException(
-        'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a esta deuda/préstamo',
-      );
-    }
-
-    const oldAmount = payment.amount;
-    const newAmount = dto.amount ?? oldAmount;
-    const amountChanged = dto.amount !== undefined && newAmount !== oldAmount;
-
-    if (amountChanged) {
-      const delta = round2(newAmount - oldAmount);
-      const newRemaining = round2(debt.remainingAmount - delta);
-
-      if (newRemaining < 0) {
-        throw new DomainException(
-          'DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING',
-          'El nuevo monto excede el saldo pendiente',
-        );
+    const outcome = await this.dataSource.transaction(async (manager) => {
+      // Locked reads, payment before debt — see the concurrency note above.
+      const payment = await this.paymentRepo.findById(paymentId, manager);
+      if (!payment) {
+        throw new DomainException('DEBT_LOAN_PAYMENT_NOT_FOUND', 'Pago no encontrado');
       }
-      if (newRemaining > debt.amount) {
-        // Sanity: implicaría que el pago neto es negativo. Solo puede
-        // pasar si los datos ya estaban inconsistentes (oldAmount >
-        // debt.amount + remaining), o si el DTO bajó tanto el amount
-        // que la suma total de payments quedó "negativa".
+
+      const debt = await this.debtRepo.findById(payment.debtLoanId, manager);
+      if (!debt || debt.isDeleted()) {
+        throw new DomainException('DEBT_LOAN_NOT_FOUND', 'Deuda/préstamo no encontrado');
+      }
+      if (debt.userId !== userId) {
         throw new DomainException(
-          'DEBT_LOAN_PAYMENT_EXCEEDS_DEBT_AMOUNT',
-          'El nuevo saldo pendiente excedería el monto original de la deuda/préstamo',
+          'DEBT_LOAN_BELONGS_TO_OTHER_USER',
+          'No tenés acceso a esta deuda/préstamo',
         );
       }
 
-      debt.remainingAmount = newRemaining;
-      debt.status = newRemaining <= 0 ? DebtLoanStatus.SETTLED : DebtLoanStatus.PENDING;
-      debt.updatedAt = new Date();
-    }
+      const oldAmount = payment.amount;
+      const newAmount = dto.amount ?? oldAmount;
+      const amountChanged = dto.amount !== undefined && newAmount !== oldAmount;
 
-    const isRealPayment = payment.currency !== null;
+      if (amountChanged) {
+        const delta = round2(newAmount - oldAmount);
+        const newRemaining = round2(debt.remainingAmount - delta);
 
-    const saved = await this.dataSource.transaction(async (manager) => {
+        if (newRemaining < 0) {
+          throw new DomainException(
+            'DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING',
+            'El nuevo monto excede el saldo pendiente',
+          );
+        }
+        if (newRemaining > debt.amount) {
+          // Sanity: implicaría que el pago neto es negativo. Solo puede
+          // pasar si los datos ya estaban inconsistentes (oldAmount >
+          // debt.amount + remaining), o si el DTO bajó tanto el amount
+          // que la suma total de payments quedó "negativa".
+          throw new DomainException(
+            'DEBT_LOAN_PAYMENT_EXCEEDS_DEBT_AMOUNT',
+            'El nuevo saldo pendiente excedería el monto original de la deuda/préstamo',
+          );
+        }
+
+        debt.remainingAmount = newRemaining;
+        debt.status = newRemaining <= 0 ? DebtLoanStatus.SETTLED : DebtLoanStatus.PENDING;
+        debt.updatedAt = new Date();
+      }
+
+      const isRealPayment = payment.currency !== null;
+
       payment.applyEdit({ amount: dto.amount, note: dto.note });
       const persisted = await this.paymentRepo.update(payment, manager);
 
@@ -141,8 +153,16 @@ export class UpdateDebtLoanPaymentUseCase {
         }
       }
 
-      return persisted;
+      return {
+        persisted,
+        isRealPayment,
+        oldAmount,
+        remaining: debt.remainingAmount,
+        status: debt.status,
+      };
     });
+
+    const saved = outcome.persisted;
 
     this.logger.info(
       {
@@ -150,11 +170,11 @@ export class UpdateDebtLoanPaymentUseCase {
         paymentId: saved.id,
         debtLoanId: saved.debtLoanId,
         userId,
-        mode: isRealPayment ? 'real-payment' : 'informal',
-        oldAmount,
+        mode: outcome.isRealPayment ? 'real-payment' : 'informal',
+        oldAmount: outcome.oldAmount,
         newAmount: saved.amount,
-        remaining: debt.remainingAmount,
-        status: debt.status,
+        remaining: outcome.remaining,
+        status: outcome.status,
       },
       'debt_loan.payment_updated',
     );

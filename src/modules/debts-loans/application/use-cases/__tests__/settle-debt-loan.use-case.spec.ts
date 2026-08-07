@@ -254,4 +254,48 @@ describe('SettleDebtLoanUseCase', () => {
       );
     });
   });
+
+  describe('concurrency (lost update)', () => {
+    it('reads the debt row INSIDE the transaction, passing the tx manager so the read is locked', async () => {
+      const debt = buildDebtLoan({
+        userId: USER,
+        amount: 100,
+        remainingAmount: 100,
+        currency: Currency.PEN,
+      });
+      repo.findById.mockResolvedValue(debt);
+
+      await useCase.execute(debt.id, USER, { settledAmount: 40, currency: Currency.PEN });
+
+      // Reading outside the tx (or inside it without the manager) means two
+      // concurrent settles can both observe remainingAmount = 100, both pass
+      // the exceeds-remaining guard, and both apply their pool delta.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(repo.findById).toHaveBeenCalledWith(debt.id, FAKE_MGR);
+    });
+
+    it('runs the not-found guard from inside the transaction', async () => {
+      repo.findById.mockResolvedValue(null);
+
+      await expect(useCase.execute('gone', USER, { settledAmount: 1 })).rejects.toMatchObject({
+        code: 'DEBT_LOAN_NOT_FOUND',
+      } satisfies Partial<DomainException>);
+
+      // The guard must be evaluated against the LOCKED row, not a stale
+      // pre-transaction read — so the tx has to be open by the time it fires.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs the exceeds-remaining guard from inside the transaction', async () => {
+      repo.findById.mockResolvedValue(
+        buildDebtLoan({ userId: USER, amount: 100, remainingAmount: 30 }),
+      );
+
+      await expect(useCase.execute('x', USER, { settledAmount: 50 })).rejects.toMatchObject({
+        code: 'DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING',
+      } satisfies Partial<DomainException>);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+  });
 });

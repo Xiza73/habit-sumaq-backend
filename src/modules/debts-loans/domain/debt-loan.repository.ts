@@ -43,7 +43,17 @@ export interface DebtsSummaryRow {
 export abstract class DebtLoanRepository {
   abstract findByUserId(userId: string, statusFilter: DebtLoanStatusFilter): Promise<DebtLoan[]>;
 
-  abstract findById(id: string): Promise<DebtLoan | null>;
+  /**
+   * Fetch a single row by id (soft-deleted rows excluded).
+   *
+   * When `manager` (a transactional EntityManager) is passed the SELECT runs
+   * `FOR UPDATE` (pessimistic_write), holding the row for that transaction.
+   * Every caller that read-modify-writes `remainingAmount` — and therefore
+   * derives a currency-pool delta from it — MUST read through a manager, or
+   * two concurrent writers observe the same balance and double-apply their
+   * deltas (lost update).
+   */
+  abstract findById(id: string, manager?: EntityManager): Promise<DebtLoan | null>;
 
   /**
    * Aggregate by `(LOWER(unaccent(reference)), currency)` — same
@@ -57,11 +67,16 @@ export abstract class DebtLoanRepository {
   /**
    * Find all PENDING rows for a normalized reference (and optional
    * currency filter). Used by the bulk-settle-by-reference use case.
+   *
+   * When `manager` is passed the SELECT runs `FOR UPDATE`, locking the whole
+   * matched set for that transaction — same guard, and same reason, as
+   * `findPendingByReferenceCurrencyType`.
    */
   abstract findPendingByNormalizedReference(
     userId: string,
     reference: string,
     currency?: Currency,
+    manager?: EntityManager,
   ): Promise<DebtLoan[]>;
 
   /**
