@@ -204,14 +204,13 @@ describe('debts-loans money path under real concurrency', () => {
   });
 
   describe('UpdateDebtLoanPaymentUseCase', () => {
-    it('applies only one of two overlapping amount edits', async () => {
+    it('applies the pool delta once when the same amount edit is submitted twice at once', async () => {
       const debt = await seedDebt({ amount: 100, remainingAmount: 60 });
       const payment = await seedPayment(debt.id, 40, Currency.PEN);
       await seedPoolBalance(USER, Currency.PEN, -40);
       const { updatePayment } = buildUseCases();
 
-      // Both raise the payment 40 → 90. Serialised, the second reads a debt
-      // whose remainingAmount is already 10 and rejects the same raise.
+      // Both raise the payment 40 → 90.
       const { fulfilled, rejected } = partitionSettled(
         await Promise.allSettled([
           updatePayment.execute(payment.id, USER, { amount: 90 }),
@@ -219,12 +218,47 @@ describe('debts-loans money path under real concurrency', () => {
         ]),
       );
 
-      expect(fulfilled).toHaveLength(1);
-      expect(rejected).toHaveLength(1);
+      // BOTH succeed, and that is correct: "set the amount to 90" is
+      // idempotent. Serialised by the lock, the loser re-reads a payment that
+      // already holds 90, computes amountChanged = false, and does nothing —
+      // no second delta, no error to surface to a user who did nothing wrong.
+      //
+      // Unlocked, both would read oldAmount = 40, each compute a +50 raise,
+      // and debit the pool twice. The assertion that matters is the balance,
+      // not the count of rejections.
+      expect(rejected).toHaveLength(0);
+      expect(fulfilled).toHaveLength(2);
 
       expect((await readDebt(debt.id)).remainingAmount).toBe(10);
       // One raise of +50 on a DEBT = a further 50 debited, never 100.
       expect(await readPoolBalance(USER, Currency.PEN)).toBe(-90);
+      expect(await countPayments(debt.id)).toBe(1);
+    });
+
+    it('rejects the second of two edits that only fit one at a time', async () => {
+      const debt = await seedDebt({ amount: 100, remainingAmount: 60 });
+      const payment = await seedPayment(debt.id, 40, Currency.PEN);
+      await seedPoolBalance(USER, Currency.PEN, -40);
+      const { updatePayment } = buildUseCases();
+
+      // Different targets, so neither can no-op into the other. 40 → 100
+      // consumes the whole remaining balance; 40 → 95 then cannot fit,
+      // because the loser re-reads remainingAmount = 0.
+      const { fulfilled, rejected } = partitionSettled(
+        await Promise.allSettled([
+          updatePayment.execute(payment.id, USER, { amount: 100 }),
+          updatePayment.execute(payment.id, USER, { amount: 95 }),
+        ]),
+      );
+
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+
+      const after = await readDebt(debt.id);
+      // Whichever won, the invariant holds: remaining = amount - Σ payments.
+      const [survivor] = fulfilled;
+      expect(after.remainingAmount).toBe(100 - survivor.amount);
+      expect(await readPoolBalance(USER, Currency.PEN)).toBe(-survivor.amount);
     });
   });
 
