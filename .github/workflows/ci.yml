@@ -9,8 +9,11 @@ name: CI
 # against a real Postgres are a separate, later job.
 
 on:
+  # No branch filter on `pull_request` on purpose. A stacked PR targets its
+  # parent branch, not `dev`, and a `[dev, master]` filter silently skips it —
+  # you get a PR page with no checks at all, which reads as "nothing to run"
+  # rather than "nothing ran". Every PR is verified, whatever it targets.
   pull_request:
-    branches: [dev, master]
   push:
     branches: [dev, master]
 
