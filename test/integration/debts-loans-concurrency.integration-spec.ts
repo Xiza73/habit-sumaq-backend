@@ -235,15 +235,22 @@ describe('debts-loans money path under real concurrency', () => {
       expect(await countPayments(debt.id)).toBe(1);
     });
 
-    it('rejects the second of two edits that only fit one at a time', async () => {
+    it('holds remaining = amount − Σ payments when two different edits overlap', async () => {
       const debt = await seedDebt({ amount: 100, remainingAmount: 60 });
       const payment = await seedPayment(debt.id, 40, Currency.PEN);
       await seedPoolBalance(USER, Currency.PEN, -40);
       const { updatePayment } = buildUseCases();
 
-      // Different targets, so neither can no-op into the other. 40 → 100
-      // consumes the whole remaining balance; 40 → 95 then cannot fit,
-      // because the loser re-reads remainingAmount = 0.
+      // 40 → 100 and 40 → 95. Both are legitimate: whichever runs second is
+      // simply "adjust the amount again" against the state the first left, so
+      // this is NOT about one of them being rejected. What it is about is the
+      // invariant surviving.
+      //
+      // Unlocked, both read oldAmount = 40 and remaining = 60, each computes
+      // its raise from that stale pair, and the pool lands on −155 while the
+      // payment row holds one amount or the other — balance and history no
+      // longer describe the same reality. Locked, the second edit is computed
+      // against what the first actually wrote, and everything reconciles.
       const { fulfilled, rejected } = partitionSettled(
         await Promise.allSettled([
           updatePayment.execute(payment.id, USER, { amount: 100 }),
@@ -251,14 +258,22 @@ describe('debts-loans money path under real concurrency', () => {
         ]),
       );
 
-      expect(fulfilled).toHaveLength(1);
-      expect(rejected).toHaveLength(1);
+      expect(rejected).toHaveLength(0);
+      expect(fulfilled).toHaveLength(2);
 
       const after = await readDebt(debt.id);
-      // Whichever won, the invariant holds: remaining = amount - Σ payments.
-      const [survivor] = fulfilled;
-      expect(after.remainingAmount).toBe(100 - survivor.amount);
-      expect(await readPoolBalance(USER, Currency.PEN)).toBe(-survivor.amount);
+      const finalAmount = Number(
+        (
+          await TestDataSource.getRepository(DebtLoanPaymentOrmEntity).findOneByOrFail({
+            id: payment.id,
+          })
+        ).amount,
+      );
+
+      // The two invariants the lock exists to protect, whichever edit landed last.
+      expect(after.remainingAmount).toBe(100 - finalAmount);
+      expect(await readPoolBalance(USER, Currency.PEN)).toBe(-finalAmount);
+      expect(await countPayments(debt.id)).toBe(1);
     });
   });
 
