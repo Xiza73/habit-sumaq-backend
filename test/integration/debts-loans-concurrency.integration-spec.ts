@@ -13,6 +13,7 @@ import {
   initTestDatabase,
   partitionSettled,
   readPoolBalance,
+  seedPoolBalance,
   truncateTables,
 } from './harness';
 
@@ -178,8 +179,8 @@ describe('debts-loans money path under real concurrency', () => {
       const debt = await seedDebt({ amount: 100, remainingAmount: 60 });
       const payment = await seedPayment(debt.id, 40, Currency.PEN);
       // Mirror the state a real settle would have left: pool already debited.
-      const { poolService, deletePayment } = buildUseCases();
-      await poolService.applyDelta(USER, Currency.PEN, -40);
+      await seedPoolBalance(USER, Currency.PEN, -40);
+      const { deletePayment } = buildUseCases();
       expect(await readPoolBalance(USER, Currency.PEN)).toBe(-40);
 
       const { fulfilled, rejected } = partitionSettled(
@@ -206,8 +207,8 @@ describe('debts-loans money path under real concurrency', () => {
     it('applies only one of two overlapping amount edits', async () => {
       const debt = await seedDebt({ amount: 100, remainingAmount: 60 });
       const payment = await seedPayment(debt.id, 40, Currency.PEN);
-      const { poolService, updatePayment } = buildUseCases();
-      await poolService.applyDelta(USER, Currency.PEN, -40);
+      await seedPoolBalance(USER, Currency.PEN, -40);
+      const { updatePayment } = buildUseCases();
 
       // Both raise the payment 40 → 90. Serialised, the second reads a debt
       // whose remainingAmount is already 10 and rejects the same raise.

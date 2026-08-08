@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
+
 import { type PinoLogger } from 'nestjs-pino';
 
 import { buildMockPinoLogger } from '../../src/common/__tests__/pino-logger.mock';
+import { type Currency } from '../../src/common/enums/currency.enum';
 import { CurrencyPoolService } from '../../src/modules/currency-pools/application/currency-pool.service';
 import { CurrencyPoolOrmEntity } from '../../src/modules/currency-pools/infrastructure/persistence/currency-pool.orm-entity';
 import { CurrencyPoolRepositoryImpl } from '../../src/modules/currency-pools/infrastructure/persistence/currency-pool.repository.impl';
@@ -98,6 +101,27 @@ export function buildUseCases() {
       logger,
     ),
   };
+}
+
+/**
+ * Write a pool balance directly.
+ *
+ * Deliberately NOT via `CurrencyPoolService.applyDelta`: that method always
+ * asks for `pessimistic_write`, so calling it outside a transaction throws
+ * `PessimisticLockTransactionRequiredError`. Seeding is setup, not the
+ * behaviour under test, so it writes the row straight.
+ */
+export async function seedPoolBalance(
+  userId: string,
+  currency: Currency,
+  balance: number,
+): Promise<void> {
+  await TestDataSource.getRepository(CurrencyPoolOrmEntity).save({
+    id: randomUUID(),
+    userId,
+    currency,
+    balance,
+  });
 }
 
 /** Read a pool balance straight from the DB, or 0 when the row was never created. */
