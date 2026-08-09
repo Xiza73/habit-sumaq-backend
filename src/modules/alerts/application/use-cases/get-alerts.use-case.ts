@@ -15,6 +15,7 @@ import { UserSettingsRepository } from '@modules/users/domain/user-settings.repo
 import { Alert } from '../../domain/alert.entity';
 import {
   budgetUnloggedId,
+  choreDueTodayId,
   choreOverdueId,
   habitsMiddayId,
   serviceDueTodayId,
@@ -26,6 +27,16 @@ import { UserAlertDismissalRepository } from '../../domain/user-alert-dismissal.
 import { hourInTimezone } from '../../infrastructure/timezone/hour-in-timezone';
 
 const MIDDAY_HOUR = 12;
+
+/**
+ * Earliest local hour the budget-unlogged nudge may fire.
+ *
+ * It asks "did you forget to log an expense?" — at 7am the honest answer is
+ * "no, I just haven't spent anything yet", so the alert was reading as noise
+ * every morning. 11 is late enough that a normal day has had a chance to
+ * produce a expense, and early enough to still be actionable.
+ */
+const BUDGET_UNLOGGED_EARLIEST_HOUR = 11;
 
 /**
  * Consecutive no-movement days (ending today) that trip the budget-unlogged
@@ -85,7 +96,7 @@ export class GetAlertsForUserUseCase {
     const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts] = await Promise.all([
       this.buildServiceAlerts(userId, currentPeriod, timezone, now),
       this.buildHabitsMiddayAlert(userId, today, currentHour, now),
-      this.buildBudgetAlerts(userId, year, month, today, timezone, now),
+      this.buildBudgetAlerts(userId, year, month, today, timezone, currentHour, now),
       this.buildChoreAlerts(userId, today),
     ]);
 
@@ -229,9 +240,11 @@ export class GetAlertsForUserUseCase {
    * not an overspend warning.
    *
    * We pull all budgets (no period filter on the repo) and discard
-   * non-current ones in-app; budgets are typically <12 rows per user. The
-   * per-day dismiss policy makes a morning false-positive harmless — the
-   * user can close it, and it re-evaluates tomorrow.
+   * non-current ones in-app; budgets are typically <12 rows per user.
+   *
+   * Gated to `BUDGET_UNLOGGED_EARLIEST_HOUR` in the user's TZ — same shape as
+   * the habits-midday gate, and for the same reason: a "did you forget?"
+   * question asked at breakfast is about a day that hasn't happened yet.
    */
   private async buildBudgetAlerts(
     userId: string,
@@ -239,8 +252,11 @@ export class GetAlertsForUserUseCase {
     month: number,
     today: string,
     timezone: string,
+    currentHour: number,
     now: Date,
   ): Promise<Alert[]> {
+    if (currentHour < BUDGET_UNLOGGED_EARLIEST_HOUR) return [];
+
     const budgets = await this.budgetsRepo.findByUserId(userId);
     const current = budgets.filter((b) => b.year === year && b.month === month && !b.isDeleted());
     if (current.length === 0) return [];
@@ -293,7 +309,15 @@ export class GetAlertsForUserUseCase {
   }
 
   /**
-   * Chore overdue — one alert per active chore whose `nextDueDate < today`.
+   * Chore triggers — two types, mutually exclusive per chore because
+   * `nextDueDate` is either before today or equal to it, never both:
+   *  - CHORE_OVERDUE: `nextDueDate < today`. Persistent, WARNING.
+   *  - CHORE_DUE_TODAY: `nextDueDate === today`. Per-day, INFO.
+   *
+   * Neither is hour-gated. Unlike the budget nudge, these are not asking the
+   * user to reflect on a day that hasn't happened — the chore is on for today
+   * from the moment today starts. And the alert only surfaces inside the bell
+   * popover, so "too early" isn't a thing: the user is the one opening it.
    */
   private async buildChoreAlerts(userId: string, today: string): Promise<Alert[]> {
     const chores = await this.choresRepo.findByUserId(userId, false);
@@ -310,6 +334,24 @@ export class GetAlertsForUserUseCase {
             // Earlier overdues read as older alerts — useful when the user
             // ignores them for a few days.
             startOfDateUTC(chore.nextDueDate),
+            {
+              choreId: chore.id,
+              choreName: chore.name,
+              nextDueDate: chore.nextDueDate,
+            },
+          ),
+        );
+        continue; // Overdue already covers this chore — don't also say "today".
+      }
+      if (chore.nextDueDate === today) {
+        alerts.push(
+          new Alert(
+            choreDueTodayId(chore.id, today),
+            AlertType.CHORE_DUE_TODAY,
+            AlertSeverity.INFO,
+            // Anchor: the start of today. A fresh day = a fresh ID and a fresh
+            // triggeredAt, so the bell badge counts it as new.
+            startOfDateUTC(today),
             {
               choreId: chore.id,
               choreName: chore.name,

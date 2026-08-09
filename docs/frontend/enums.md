@@ -318,8 +318,9 @@ tal cual al frontend.
 | `service-due-today`   | per-day    | Servicio mensual a pagar este mes, aún no marcado como pagado            |
 | `service-overdue`     | persistent | Servicio cuyo `nextDuePeriod` es anterior al mes actual                  |
 | `habits-midday`       | per-day    | ≥1 hábito DAILY sin completar Y hora local del usuario ≥ 12:00           |
-| `budget-unlogged`     | per-day    | Budget del mes con `remaining > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) |
+| `budget-unlogged`     | per-day    | Budget del mes con `remaining > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local del usuario ≥ 11:00 |
 | `chore-overdue`       | persistent | Chore activo cuyo `nextDueDate < today`                                  |
+| `chore-due-today`     | per-day    | Chore activo cuyo `nextDueDate == today`                                 |
 
 - **Per-day**: el usuario puede cerrarlas (`POST /alerts/:id/dismiss`) — vuelven a
   medianoche en su TZ.

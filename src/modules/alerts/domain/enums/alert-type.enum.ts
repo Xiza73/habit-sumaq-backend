@@ -1,5 +1,5 @@
 /**
- * The 5 alert triggers shipped in v1. Each maps to a stable string ID prefix
+ * The alert triggers. Each maps to a stable string ID prefix
  * (see `alert-id.ts`) and to a dismiss semantic (see `alert-dismiss-policy.ts`).
  *
  * Adding new types is additive — existing dismiss rows + lastAlertsSeenAt
@@ -17,9 +17,17 @@ export enum AlertType {
   /**
    * Active budget with money left (`amount - spent > 0`) that has gone 2+
    * consecutive days with no movements ending today — a "did you forget to
-   * log an expense?" nudge, since daily basics are logged every day.
+   * log an expense?" nudge, since daily basics are logged every day. Gated to
+   * the user's local hour >= 11: before that the day has barely started and
+   * the nudge asks about spending that had no chance to happen.
    */
   BUDGET_UNLOGGED = 'budget-unlogged',
   /** Chore whose `nextDueDate` is earlier than the user's current calendar day. */
   CHORE_OVERDUE = 'chore-overdue',
+  /**
+   * Chore whose `nextDueDate` IS the user's current calendar day — "this one
+   * is on for today". Mutually exclusive with CHORE_OVERDUE, which is the
+   * strictly-earlier case.
+   */
+  CHORE_DUE_TODAY = 'chore-due-today',
 }

@@ -59,3 +59,10 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # (T-PRE-2 of the accounts-to-modular-finance v1.0.0 refactor).
 # Contains potentially sensitive per-user JSON of accounts + transactions.
 /backups
+
+# CodeGraph — a local SQLite index of this codebase, rebuilt per machine.
+/.codegraph
+
+# Claude Code per-developer tool permissions. `.claude/settings.json` is the
+# shared, committed config; `settings.local.json` is machine-local by design.
+.claude/settings.local.json

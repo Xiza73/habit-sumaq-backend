@@ -23,6 +23,11 @@ const DISMISS_POLICY: Record<AlertType, DismissPolicy> = {
   [AlertType.HABITS_MIDDAY]: 'per-day',
   [AlertType.BUDGET_UNLOGGED]: 'per-day',
   [AlertType.CHORE_OVERDUE]: 'persistent',
+  // Per-day, unlike its overdue sibling: "I know, I'll do it later today" is a
+  // reasonable answer while the day is still running. If they don't, tomorrow
+  // it comes back as CHORE_OVERDUE — which is persistent, because by then
+  // there is no "later today" left to appeal to.
+  [AlertType.CHORE_DUE_TODAY]: 'per-day',
 };
 
 export function dismissPolicyFor(type: AlertType): DismissPolicy {

@@ -1,0 +1,122 @@
+name: CI
+
+# The verification gate this repo never had. Runs the same four checks the
+# "Auditoría obligatoria" section of CLAUDE.md asks for before a feature is
+# considered complete, so a PR cannot reach `dev` with them failing.
+#
+# Scope note: e2e here is the Supertest suite (`test/*.e2e-spec.ts`), which
+# runs entirely against mocked repositories — it needs no database. Tests
+# against a real Postgres are a separate, later job.
+
+on:
+  # No branch filter on `pull_request` on purpose. A stacked PR targets its
+  # parent branch, not `dev`, and a `[dev, master]` filter silently skips it —
+  # you get a PR page with no checks at all, which reads as "nothing to run"
+  # rather than "nothing ran". Every PR is verified, whatever it targets.
+  pull_request:
+  push:
+    branches: [dev, master]
+
+# A second push to the same PR makes the first run's result irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, types and tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Every check below runs even if an earlier one failed, so a red build
+      # reports all of its problems at once instead of one per push. The job
+      # still fails if any single step does.
+      #
+      # Binaries are invoked from node_modules/.bin rather than through
+      # `pnpm run`, matching how these gates are run locally: pnpm 11's
+      # verify-deps preflight is known to misfire on this project and would
+      # fail the step before the tool ever runs.
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: node_modules/.bin/eslint "{src,test}/**/*.ts"
+
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: node_modules/.bin/tsc --noEmit
+
+      - name: Unit tests
+        if: ${{ !cancelled() }}
+        run: node_modules/.bin/jest --ci
+
+      - name: E2E tests
+        if: ${{ !cancelled() }}
+        run: node_modules/.bin/jest --ci --config ./test/jest-e2e.json
+
+  integration:
+    name: Integration tests (real Postgres)
+    runs-on: ubuntu-latest
+
+    # A throwaway Postgres for the job. The suite runs the real migrations
+    # against it and truncates between cases, so it must never point at a
+    # database anyone cares about — `test/integration/data-source.ts` refuses
+    # to start unless the database name contains "test".
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: habit_sumaq_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        # Without the healthcheck the job races the container's startup and
+        # the first connection is refused.
+        options: >-
+          --health-cmd "pg_isready -U postgres -d habit_sumaq_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Integration tests
+        run: node_modules/.bin/jest --ci --config ./test/jest-integration.json --runInBand
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_NAME: habit_sumaq_test
+          TEST_DB_USER: postgres
+          TEST_DB_PASSWORD: secret
