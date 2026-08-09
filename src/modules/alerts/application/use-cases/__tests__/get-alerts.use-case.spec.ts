@@ -8,6 +8,7 @@ import { HabitLog } from '@modules/habits/domain/habit-log.entity';
 import { buildMonthlyService } from '@modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { buildUserSettings } from '@modules/users/domain/__tests__/user-settings.factory';
 
+import { isDismissable } from '../../../domain/alert-dismiss-policy';
 import { AlertType } from '../../../domain/enums/alert-type.enum';
 import { UserAlertDismissal } from '../../../domain/user-alert-dismissal.entity';
 import { GetAlertsForUserUseCase } from '../get-alerts.use-case';
@@ -325,6 +326,34 @@ describe('GetAlertsForUserUseCase', () => {
       const result = await useCase.execute(USER_ID, TZ, NOW);
       expect(result.alerts).toEqual([]);
     });
+
+    it('suppresses the nudge before 11:00 in the user TZ (the gate)', async () => {
+      // Same data as the emitting case, only earlier in the day. Firing at
+      // breakfast asks "did you forget to log?" before the user has had a
+      // chance to spend anything — the nudge only reads as useful once the
+      // day is genuinely under way.
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
+      });
+      // 2026-05-19 13:00 UTC = 08:00 Lima.
+      const preElevenAm = new Date('2026-05-19T13:00:00.000Z');
+      const result = await useCase.execute(USER_ID, TZ, preElevenAm);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('emits exactly at 11:00 local (the boundary is inclusive)', async () => {
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
+      });
+      // 2026-05-19 16:00 UTC = 11:00 Lima exactly.
+      const elevenAm = new Date('2026-05-19T16:00:00.000Z');
+      const result = await useCase.execute(USER_ID, TZ, elevenAm);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+    });
   });
 
   describe('chore-overdue trigger', () => {
@@ -341,6 +370,62 @@ describe('GetAlertsForUserUseCase', () => {
       const { useCase } = buildUseCase({ chores: [chore] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
       expect(result.alerts).toEqual([]);
+    });
+  });
+
+  describe('chore-due-today trigger', () => {
+    it('emits CHORE_DUE_TODAY for an active chore due exactly today', async () => {
+      // NOW = 2026-05-19 in Lima.
+      const chore = buildChore({ nextDueDate: '2026-05-19', name: 'Regar las plantas' });
+      const { useCase } = buildUseCase({ chores: [chore] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.CHORE_DUE_TODAY]);
+      expect(result.alerts[0].payload.choreName).toBe('Regar las plantas');
+      expect(result.alerts[0].payload.nextDueDate).toBe('2026-05-19');
+    });
+
+    it('is dismissable, unlike chore-overdue', () => {
+      // Per-day: "I know, I will do it later today" is a reasonable answer, and
+      // it comes back tomorrow as an overdue if they do not. Overdue stays
+      // persistent because there is no later left.
+      expect(isDismissable(AlertType.CHORE_DUE_TODAY)).toBe(true);
+      expect(isDismissable(AlertType.CHORE_OVERDUE)).toBe(false);
+    });
+
+    it('does NOT emit for a chore due tomorrow', async () => {
+      const chore = buildChore({ nextDueDate: '2026-05-20' });
+      const { useCase } = buildUseCase({ chores: [chore] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('skips an inactive chore due today', async () => {
+      const chore = buildChore({ nextDueDate: '2026-05-19', isActive: false });
+      const { useCase } = buildUseCase({ chores: [chore] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('emits at most one chore alert per chore — overdue and due-today are exclusive', async () => {
+      const overdue = buildChore({ nextDueDate: '2026-05-15' });
+      const dueToday = buildChore({ nextDueDate: '2026-05-19' });
+      const { useCase } = buildUseCase({ chores: [overdue, dueToday] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts.map((a) => a.type).sort()).toEqual([
+        AlertType.CHORE_DUE_TODAY,
+        AlertType.CHORE_OVERDUE,
+      ]);
+    });
+
+    it('fires regardless of the hour, unlike the budget nudge', async () => {
+      // No hour gate: the alert lives in the bell popover, so the user only
+      // ever sees it when they open the app themselves.
+      const chore = buildChore({ nextDueDate: '2026-05-19' });
+      const { useCase } = buildUseCase({ chores: [chore] });
+      // 06:00 Lima.
+      const earlyMorning = new Date('2026-05-19T11:00:00.000Z');
+      const result = await useCase.execute(USER_ID, TZ, earlyMorning);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.CHORE_DUE_TODAY]);
     });
   });
 

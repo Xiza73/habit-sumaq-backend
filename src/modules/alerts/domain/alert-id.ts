@@ -45,6 +45,17 @@ export function choreOverdueId(choreId: string): string {
 }
 
 /**
+ * `chore-due-today:{choreId}:{YYYY-MM-DD}` — per-day, scoped to the date.
+ *
+ * The date segment is what makes dismissing it today not carry into tomorrow.
+ * It is also what keeps this ID from ever colliding with `chore-overdue`'s,
+ * which is deliberately date-less.
+ */
+export function choreDueTodayId(choreId: string, date: string): string {
+  return `${AlertType.CHORE_DUE_TODAY}:${choreId}:${date}`;
+}
+
+/**
  * Recover the `AlertType` from a persisted ID. Used by `DismissAlertUseCase`
  * to look up the dismiss policy without coupling the caller to the format.
  * Returns `null` for an ID whose prefix doesn't match any known type —
