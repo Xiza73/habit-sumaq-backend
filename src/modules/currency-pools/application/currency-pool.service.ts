@@ -43,10 +43,16 @@ export class CurrencyPoolService {
    * Apply `delta` to the user's pool for `currency`, locking and
    * (auto-creating if needed) atomically. Returns the updated pool.
    *
-   * `manager` should be the transactional `EntityManager` from the
-   * caller's `repo.manager.transaction(...)` callback so the lock + write
-   * join that transaction. Omit only for standalone-test callers — the
-   * runtime use cases ALWAYS pass it.
+   * `manager` MUST be the transactional `EntityManager` from the caller's
+   * `repo.manager.transaction(...)` callback, so the lock + write join that
+   * transaction.
+   *
+   * The parameter is optional in the signature only; omitting it throws
+   * `PessimisticLockTransactionRequiredError`, because the read below always
+   * asks for `pessimistic_write` and TypeORM refuses a lock outside a
+   * transaction. (An earlier version of this note said standalone-test
+   * callers could omit it — they cannot. To seed a balance in a test, write
+   * the row directly instead of going through this method.)
    */
   async applyDelta(
     userId: string,

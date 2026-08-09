@@ -68,3 +68,55 @@ jobs:
       - name: E2E tests
         if: ${{ !cancelled() }}
         run: node_modules/.bin/jest --ci --config ./test/jest-e2e.json
+
+  integration:
+    name: Integration tests (real Postgres)
+    runs-on: ubuntu-latest
+
+    # A throwaway Postgres for the job. The suite runs the real migrations
+    # against it and truncates between cases, so it must never point at a
+    # database anyone cares about — `test/integration/data-source.ts` refuses
+    # to start unless the database name contains "test".
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: habit_sumaq_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        # Without the healthcheck the job races the container's startup and
+        # the first connection is refused.
+        options: >-
+          --health-cmd "pg_isready -U postgres -d habit_sumaq_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Integration tests
+        run: node_modules/.bin/jest --ci --config ./test/jest-integration.json --runInBand
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_NAME: habit_sumaq_test
+          TEST_DB_USER: postgres
+          TEST_DB_PASSWORD: secret
