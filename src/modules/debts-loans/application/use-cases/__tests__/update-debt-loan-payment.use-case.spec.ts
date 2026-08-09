@@ -345,4 +345,43 @@ describe('UpdateDebtLoanPaymentUseCase', () => {
       await expect(useCase.execute(payment.id, USER, { amount: 50 })).rejects.toThrow('db down');
     });
   });
+
+  describe('concurrency (lost update)', () => {
+    it('reads payment and debt INSIDE the transaction, passing the tx manager so both reads are locked', async () => {
+      const debt = buildDebtLoan({ userId: USER, amount: 100, remainingAmount: 60 });
+      const payment = buildPayment({ debtLoanId: debt.id, amount: 40, currency: Currency.PEN });
+      paymentRepo.findById.mockResolvedValue(payment);
+      debtRepo.findById.mockResolvedValue(debt);
+
+      await useCase.execute(payment.id, USER, { amount: 50 });
+
+      // The amount math is a read-modify-write on debt.remainingAmount whose
+      // delta moves the pool — it has to run against the locked row.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(paymentRepo.findById).toHaveBeenCalledWith(payment.id, FAKE_MGR);
+      expect(debtRepo.findById).toHaveBeenCalledWith(debt.id, FAKE_MGR);
+    });
+
+    it('runs the payment-not-found guard from inside the transaction', async () => {
+      paymentRepo.findById.mockResolvedValue(null);
+
+      await expect(useCase.execute('gone', USER, { amount: 50 })).rejects.toMatchObject({
+        code: 'DEBT_LOAN_PAYMENT_NOT_FOUND',
+      } satisfies Partial<DomainException>);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(pool.applyDelta).not.toHaveBeenCalled();
+    });
+
+    it('rejects the no-fields DTO without opening a transaction', async () => {
+      // Pure DTO validation — no row to lock, so it must stay outside the tx
+      // rather than paying for a connection and a lock to fail on shape.
+      await expect(useCase.execute('x', USER, {})).rejects.toMatchObject({
+        code: 'DEBT_LOAN_PAYMENT_UPDATE_NO_FIELDS',
+      } satisfies Partial<DomainException>);
+
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(paymentRepo.findById).not.toHaveBeenCalled();
+    });
+  });
 });

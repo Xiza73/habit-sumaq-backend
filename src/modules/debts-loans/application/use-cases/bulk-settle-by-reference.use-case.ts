@@ -35,6 +35,14 @@ import type { BulkSettleByReferenceDto } from '../dto/bulk-settle-by-reference.d
  * incluso cuando hay N rows + 1 delta de pool + N rows de payment history
  * (una por cada settle individual aplicado — mismo patrón que
  * `SettleDebtLoanUseCase`).
+ *
+ * **Concurrencia (lost update)**: la lectura del set pendiente corre DENTRO
+ * de la tx con `pessimistic_write` (`findPendingByNormalizedReference` con
+ * `manager`). Sin el lock, dos bulk-settles concurrentes sobre la misma
+ * reference leen el mismo set, liquidan ambos y duplican el delta neto del
+ * pool. El lock serializa: el segundo espera al commit del primero y su
+ * re-lectura ya no ve rows PENDING, así que devuelve `settledCount: 0`
+ * (que es el resultado correcto, no un error).
  */
 @Injectable()
 export class BulkSettleByReferenceUseCase {
@@ -53,36 +61,33 @@ export class BulkSettleByReferenceUseCase {
       throw new DomainException('DEBT_LOAN_REFERENCE_REQUIRED', '`reference` no puede estar vacía');
     }
 
-    const targets = await this.repo.findPendingByNormalizedReference(
-      userId,
-      reference,
-      dto.currency,
-    );
-
-    if (targets.length === 0) {
-      return Object.assign(new BulkSettleResultDto(), {
-        settledCount: 0,
-        totalSettledAmount: 0,
-        currency: dto.currency ?? null,
-        settledIds: [],
-      });
-    }
-
-    // Defensive cross-user guard — the repo query already filters by
-    // userId, but if anything ever bypasses that path, this is the
-    // last line of defense.
-    for (const row of targets) {
-      if (row.userId !== userId) {
-        throw new DomainException(
-          'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-          'No tenés acceso a una de las deudas/préstamos',
-        );
-      }
-    }
-
     const isRealPayment = dto.currency !== undefined;
 
     const result = await this.dataSource.transaction(async (manager) => {
+      // Locked read — see the concurrency note in the class docblock.
+      const targets = await this.repo.findPendingByNormalizedReference(
+        userId,
+        reference,
+        dto.currency,
+        manager,
+      );
+
+      if (targets.length === 0) {
+        return { totalSettled: 0, settledIds: [] as string[], netDelta: 0 };
+      }
+
+      // Defensive cross-user guard — the repo query already filters by
+      // userId, but if anything ever bypasses that path, this is the
+      // last line of defense.
+      for (const row of targets) {
+        if (row.userId !== userId) {
+          throw new DomainException(
+            'DEBT_LOAN_BELONGS_TO_OTHER_USER',
+            'No tenés acceso a una de las deudas/préstamos',
+          );
+        }
+      }
+
       let netDelta = 0;
       let totalSettled = 0;
       const settledIds: string[] = [];

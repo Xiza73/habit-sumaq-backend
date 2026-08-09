@@ -39,8 +39,17 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
     return rows.map((r) => this.toDomain(r));
   }
 
-  async findById(id: string): Promise<DebtLoan | null> {
-    const row = await this.ormRepo.findOne({ where: { id } });
+  async findById(id: string, manager?: EntityManager): Promise<DebtLoan | null> {
+    // `setLock` is conditional because TypeORM throws
+    // PessimisticLockTransactionRequiredError when a lock is requested outside
+    // a transaction — read-only callers (get, list-payments) pass no manager
+    // and get a plain SELECT.
+    const scoped = manager ? manager.getRepository(DebtLoanOrmEntity) : this.ormRepo;
+    const qb = scoped.createQueryBuilder('dl').where('dl.id = :id', { id });
+    if (manager) {
+      qb.setLock('pessimistic_write');
+    }
+    const row = await qb.getOne();
     return row ? this.toDomain(row) : null;
   }
 
@@ -118,15 +127,25 @@ export class DebtLoanRepositoryImpl extends DebtLoanRepository {
     userId: string,
     reference: string,
     currency?: Currency,
+    manager?: EntityManager,
   ): Promise<DebtLoan[]> {
-    const qb = this.ormRepo
+    const scoped = manager ? manager.getRepository(DebtLoanOrmEntity) : this.ormRepo;
+    const qb = scoped
       .createQueryBuilder('dl')
       .where('dl.userId = :userId', { userId })
       .andWhere(`dl.status = 'PENDING'`)
-      .andWhere('LOWER(unaccent(dl.reference)) = LOWER(unaccent(:reference))', { reference });
+      .andWhere('LOWER(unaccent(dl.reference)) = LOWER(unaccent(:reference))', { reference })
+      // Postgres takes row locks in scan order, so a deterministic order is
+      // what keeps two overlapping bulk-settles from grabbing the same two
+      // rows in opposite orders and deadlocking. Irrelevant to the result
+      // (bulk-settle closes every row it matches), free to add.
+      .orderBy('dl.id', 'ASC');
 
     if (currency) {
       qb.andWhere('dl.currency = :currency', { currency });
+    }
+    if (manager) {
+      qb.setLock('pessimistic_write');
     }
 
     const rows = await qb.getMany();
