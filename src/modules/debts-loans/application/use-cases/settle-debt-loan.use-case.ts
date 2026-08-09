@@ -34,6 +34,17 @@ import type { SettleDebtLoanDto } from '../dto/settle-debt-loan.dto';
  * insert falla, el settle se rollbackea (crítico para money: nunca
  * dejamos la parent row con un settle aplicado pero sin su row de
  * historial).
+ *
+ * **Concurrencia (lost update)**: la lectura del row Y TODOS los guards
+ * corren DENTRO de la transacción, con `findById(id, manager)` tomando
+ * `pessimistic_write` (`SELECT ... FOR UPDATE`). El settle es un
+ * read-modify-write sobre `remainingAmount` cuyo resultado mueve el pool: si
+ * la lectura pasa fuera de la tx, dos settles concurrentes sobre la misma
+ * deuda leen el mismo `remainingAmount`, ambos pasan el guard de
+ * `SETTLEMENT_EXCEEDS_REMAINING`, y el pool termina con el doble del delta.
+ * El guard sólo vale si se evalúa contra el row lockeado — por eso ninguna
+ * validación que dependa del estado de la DB queda afuera. Mismo patrón que
+ * `SettleAmountByReferenceUseCase`.
  */
 @Injectable()
 export class SettleDebtLoanUseCase {
@@ -47,39 +58,42 @@ export class SettleDebtLoanUseCase {
   ) {}
 
   async execute(id: string, userId: string, dto: SettleDebtLoanDto): Promise<DebtLoan> {
-    const debt = await this.repo.findById(id);
-    if (!debt || debt.isDeleted()) {
-      throw new DomainException('DEBT_LOAN_NOT_FOUND', 'Deuda/préstamo no encontrado');
-    }
-    if (debt.userId !== userId) {
-      throw new DomainException(
-        'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a esta deuda/préstamo',
-      );
-    }
-    if (debt.isSettled()) {
-      throw new DomainException(
-        'DEBT_LOAN_ALREADY_SETTLED',
-        'La deuda/préstamo ya fue liquidada completamente',
-      );
-    }
-    if (dto.settledAmount > debt.remainingAmount) {
-      throw new DomainException(
-        'DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING',
-        'El monto excede el saldo pendiente',
-      );
-    }
-    if (dto.currency !== undefined && dto.currency !== debt.currency) {
-      throw new DomainException(
-        'CURRENCY_MISMATCH',
-        `La moneda del pago (${dto.currency}) no coincide con la de la obligación (${debt.currency})`,
-      );
-    }
-
     const isRealPayment = dto.currency !== undefined;
-    const paymentCurrency = isRealPayment ? debt.currency : null;
 
     const saved = await this.dataSource.transaction(async (manager) => {
+      // Locked read — see the concurrency note in the class docblock. Every
+      // guard below runs against THIS row, held for the life of the tx.
+      const debt = await this.repo.findById(id, manager);
+      if (!debt || debt.isDeleted()) {
+        throw new DomainException('DEBT_LOAN_NOT_FOUND', 'Deuda/préstamo no encontrado');
+      }
+      if (debt.userId !== userId) {
+        throw new DomainException(
+          'DEBT_LOAN_BELONGS_TO_OTHER_USER',
+          'No tenés acceso a esta deuda/préstamo',
+        );
+      }
+      if (debt.isSettled()) {
+        throw new DomainException(
+          'DEBT_LOAN_ALREADY_SETTLED',
+          'La deuda/préstamo ya fue liquidada completamente',
+        );
+      }
+      if (dto.settledAmount > debt.remainingAmount) {
+        throw new DomainException(
+          'DEBT_LOAN_SETTLEMENT_EXCEEDS_REMAINING',
+          'El monto excede el saldo pendiente',
+        );
+      }
+      if (dto.currency !== undefined && dto.currency !== debt.currency) {
+        throw new DomainException(
+          'CURRENCY_MISMATCH',
+          `La moneda del pago (${dto.currency}) no coincide con la de la obligación (${debt.currency})`,
+        );
+      }
+
+      const paymentCurrency = isRealPayment ? debt.currency : null;
+
       debt.applySettlement(dto.settledAmount);
       const persisted = await this.repo.save(debt, manager);
 

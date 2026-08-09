@@ -72,7 +72,9 @@ describe('BulkSettleByReferenceUseCase', () => {
     expect(result.settledCount).toBe(0);
     expect(result.totalSettledAmount).toBe(0);
     expect(result.settledIds).toEqual([]);
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    // The transaction IS opened even on a miss: the pending-rows read is the
+    // thing that has to be locked, so it can only happen inside the tx.
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
   });
 
   describe('informal-close mode', () => {
@@ -174,6 +176,7 @@ describe('BulkSettleByReferenceUseCase', () => {
         USER,
         'Juan',
         Currency.USD,
+        FAKE_MGR,
       );
     });
   });
@@ -247,5 +250,39 @@ describe('BulkSettleByReferenceUseCase', () => {
       }),
       'debt_loan.bulk_settled',
     );
+  });
+
+  describe('concurrency (lost update)', () => {
+    it('reads the pending rows INSIDE the transaction, passing the tx manager so the read is locked', async () => {
+      repo.findPendingByNormalizedReference.mockResolvedValue([
+        buildDebtLoan({
+          userId: USER,
+          type: DebtLoanType.LOAN,
+          currency: Currency.PEN,
+          remainingAmount: 25,
+        }),
+      ]);
+
+      await useCase.execute(USER, { reference: 'Juan', currency: Currency.PEN });
+
+      // Reading outside the tx lets two concurrent bulk-settles observe the
+      // same pending set and apply the net pool delta twice.
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(repo.findPendingByNormalizedReference).toHaveBeenCalledWith(
+        USER,
+        'Juan',
+        Currency.PEN,
+        FAKE_MGR,
+      );
+    });
+
+    it('still opens the transaction when nothing matches, since the read itself is what must be locked', async () => {
+      repo.findPendingByNormalizedReference.mockResolvedValue([]);
+
+      const result = await useCase.execute(USER, { reference: 'Nobody' });
+
+      expect(result.settledCount).toBe(0);
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
   });
 });
