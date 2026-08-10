@@ -69,6 +69,37 @@ jobs:
         if: ${{ !cancelled() }}
         run: node_modules/.bin/jest --ci --config ./test/jest-e2e.json
 
+  deploy-parity:
+    name: Install the way Railway does (pnpm 9)
+    runs-on: ubuntu-latest
+
+    # Railway's Nixpacks builder runs pnpm 9, while local and the job above run
+    # pnpm 11. That skew is not cosmetic: pnpm 9 rejects a pnpm-workspace.yaml
+    # with no `packages` field, pnpm 10+ accepts it — so v0.10.0 passed every
+    # check here and then failed every deploy, and nothing in CI could see it.
+    #
+    # This job runs the exact command from the Railway build log, so the next
+    # install-level divergence fails a PR instead of a release.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build
+        run: pnpm build
+
   integration:
     name: Integration tests (real Postgres)
     runs-on: ubuntu-latest
