@@ -315,7 +315,7 @@ tal cual al frontend.
 
 | Valor                 | Policy     | Descripción                                                              |
 | --------------------- | ---------- | ------------------------------------------------------------------------ |
-| `service-due-today`   | per-day    | Servicio mensual a pagar este mes, aún no marcado como pagado            |
+| `service-due-today`   | per-day    | Servicio mensual a pagar este mes, sin pagar, desde su `dueDay` aproximado en adelante |
 | `service-overdue`     | persistent | Servicio cuyo `nextDuePeriod` es anterior al mes actual                  |
 | `habits-midday`       | per-day    | ≥1 hábito DAILY sin completar Y hora local del usuario ≥ 12:00           |
 | `budget-unlogged`     | per-day    | Budget del mes con `remaining > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local del usuario ≥ 12:00 |

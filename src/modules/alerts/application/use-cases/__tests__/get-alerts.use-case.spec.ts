@@ -166,12 +166,68 @@ describe('GetAlertsForUserUseCase', () => {
     });
 
     it('does NOT emit SERVICE_DUE_TODAY before the due day arrives', async () => {
-      // Due on the 29th, but today (Lima) is the 19th → not due yet. The alert
-      // must not fire until the actual due day.
+      // Due on the 29th, but today (Lima) is the 19th → not due yet. This is
+      // the case the day check was originally added for: without it the alert
+      // announced itself all month long.
       const service = buildMonthlyService({
         startPeriod: '2026-05',
         lastPaidPeriod: null,
         dueDay: 29,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('KEEPS emitting SERVICE_DUE_TODAY after the due day, because it is approximate', async () => {
+      // `dueDay` is "Día aproximado de vencimiento". Matching it exactly gave
+      // the alert a one-day life: miss that day and you miss it entirely.
+      // Due on the 15th, today is the 19th, still unpaid → still actionable.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+    });
+
+    it('emits from day 1 for a service due on the 1st', async () => {
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 1,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+    });
+
+    it('does NOT emit for a service with no due day at all', async () => {
+      // `dueDay` is nullable and there is no anchor to count from, so the
+      // service stays silent rather than guessing a date the user never set.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: null,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('does NOT emit once the service is paid, even past the due day', async () => {
+      // Paid for May → nextDuePeriod moves to June, so it is neither due nor
+      // overdue. Passing the due day again is not a prompt.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: '2026-05',
+        dueDay: 15,
       });
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
