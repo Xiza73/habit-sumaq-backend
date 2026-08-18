@@ -75,7 +75,7 @@ describe('HabitsController (e2e)', () => {
     findByHabitIdAndDate: jest.fn(),
     findByHabitId: jest.fn(),
     findByUserIdAndDate: jest.fn(),
-    findCompletedByHabitIdSince: jest.fn(),
+    findCompletedByHabitId: jest.fn(),
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
@@ -271,7 +271,7 @@ describe('HabitsController (e2e)', () => {
       const habit = buildHabit({ userId: USER_ID });
       mockHabitRepo.findById.mockResolvedValue(habit);
       mockHabitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
-      mockHabitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
+      mockHabitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
       mockHabitLogRepo.findByHabitIdAndDateRange.mockResolvedValue([]);
 
       return request(app.getHttpServer())

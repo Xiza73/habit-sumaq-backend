@@ -62,7 +62,7 @@ describe('AlertsController (e2e)', () => {
     findByHabitIdAndDate: jest.fn(),
     findByHabitId: jest.fn(),
     findByUserIdAndDate: jest.fn(),
-    findCompletedByHabitIdSince: jest.fn(),
+    findCompletedByHabitId: jest.fn(),
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),

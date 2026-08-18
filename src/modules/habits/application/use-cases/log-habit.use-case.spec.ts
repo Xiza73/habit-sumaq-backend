@@ -42,7 +42,7 @@ describe('LogHabitUseCase', () => {
       findByHabitIdAndDate: jest.fn(),
       findByHabitId: jest.fn(),
       findByUserIdAndDate: jest.fn(),
-      findCompletedByHabitIdSince: jest.fn(),
+      findCompletedByHabitId: jest.fn(),
       save: jest.fn().mockImplementation((l) => Promise.resolve(l)),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),

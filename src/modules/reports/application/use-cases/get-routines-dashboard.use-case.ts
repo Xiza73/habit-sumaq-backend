@@ -15,7 +15,6 @@ import { type RoutinesDashboardResponseDto } from '../dto/routines-dashboard-res
 import { computePeriodRange, type Period } from '../utils/period-range';
 
 const TOP_STREAKS_LIMIT = 5;
-const STATS_WINDOW_DAYS = 30;
 const DEFAULT_PERIOD: Period = 'month';
 const DEFAULT_TIMEZONE = 'UTC';
 
@@ -45,15 +44,13 @@ export class GetRoutinesDashboardUseCase {
       this.quickTaskRepo.findByUserId(userId),
     ]);
 
-    // Build habit stats for each active habit. We load completed logs within
-    // the stats window in parallel and hand the result to StatsCalculator.
-    const statsSince = new Date(today);
-    statsSince.setDate(statsSince.getDate() - STATS_WINDOW_DAYS);
-    const sinceStr = StatsCalculator.toDateString(statsSince);
-
+    // Build habit stats for each active habit, in parallel. The full log
+    // history is loaded, not a window: streaks have no upper bound, and
+    // capping the fetch is what used to clamp a 45-day streak to 30. The
+    // completion rate inside StatsCalculator is still a rolling 30 days.
     const habitsWithStats = await Promise.all(
       habits.map(async (habit) => {
-        const logs = await this.habitLogRepo.findCompletedByHabitIdSince(habit.id, sinceStr);
+        const logs = await this.habitLogRepo.findCompletedByHabitId(habit.id);
         const stats = StatsCalculator.calculate(habit.frequency, logs, today);
         return { habit, stats };
       }),

@@ -24,7 +24,7 @@ describe('GetHabitsUseCase', () => {
       findByHabitIdAndDate: jest.fn(),
       findByHabitId: jest.fn(),
       findByUserIdAndDate: jest.fn(),
-      findCompletedByHabitIdSince: jest.fn(),
+      findCompletedByHabitId: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
@@ -38,7 +38,7 @@ describe('GetHabitsUseCase', () => {
       buildHabit({ userId, name: 'Habit 1' }),
       buildHabit({ userId, name: 'Habit 2' }),
     ]);
-    habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
+    habitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const result = await useCase.execute(userId, {}, 'UTC');

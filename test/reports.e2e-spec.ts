@@ -97,7 +97,7 @@ describe('ReportsController (e2e)', () => {
     findByHabitIdAndDate: jest.fn(),
     findByHabitId: jest.fn(),
     findByUserIdAndDate: jest.fn(),
-    findCompletedByHabitIdSince: jest.fn(),
+    findCompletedByHabitId: jest.fn(),
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
@@ -181,7 +181,7 @@ describe('ReportsController (e2e)', () => {
     mockMspRepo.dailyByCurrencyInRange.mockResolvedValue([]);
     mockDebtLoanRepo.aggregateByReference.mockResolvedValue([]);
     mockHabitRepo.findByUserId.mockResolvedValue([]);
-    mockHabitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
+    mockHabitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
     mockHabitLogRepo.findByUserIdAndDate.mockResolvedValue([]);
     mockQuickTaskRepo.findByUserId.mockResolvedValue([]);
     mockSettingsRepo.findByUserId.mockResolvedValue(
@@ -285,7 +285,7 @@ describe('ReportsController (e2e)', () => {
     it('wires the response shape end-to-end with populated data', () => {
       const habit = buildHabit({ id: 'h1', name: 'Agua', frequency: HabitFrequency.DAILY });
       mockHabitRepo.findByUserId.mockResolvedValue([habit]);
-      mockHabitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([
+      mockHabitLogRepo.findCompletedByHabitId.mockResolvedValue([
         buildHabitLog({ habitId: 'h1', date: '2026-04-20', completed: true }),
       ]);
       mockHabitLogRepo.findByUserIdAndDate.mockResolvedValue([

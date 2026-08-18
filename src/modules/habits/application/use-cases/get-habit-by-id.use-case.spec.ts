@@ -28,7 +28,7 @@ describe('GetHabitByIdUseCase', () => {
       findByHabitIdAndDate: jest.fn(),
       findByHabitId: jest.fn(),
       findByUserIdAndDate: jest.fn(),
-      findCompletedByHabitIdSince: jest.fn(),
+      findCompletedByHabitId: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
@@ -40,7 +40,7 @@ describe('GetHabitByIdUseCase', () => {
   it('should return habit with stats', async () => {
     const habit = buildHabit({ id: habitId, userId });
     habitRepo.findById.mockResolvedValue(habit);
-    habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
+    habitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const result = await useCase.execute(habitId, userId, 'UTC');
@@ -56,7 +56,7 @@ describe('GetHabitByIdUseCase', () => {
     const habit = buildHabit({ id: habitId, userId });
     const todayLog = buildHabitLog({ habitId, count: 3 });
     habitRepo.findById.mockResolvedValue(habit);
-    habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
+    habitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(todayLog);
 
     const result = await useCase.execute(habitId, userId, 'UTC');

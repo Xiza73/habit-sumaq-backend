@@ -41,7 +41,7 @@ describe('GetRoutinesDashboardUseCase', () => {
       findByHabitIdAndDate: jest.fn(),
       findByHabitId: jest.fn(),
       findByUserIdAndDate: jest.fn().mockResolvedValue([]),
-      findCompletedByHabitIdSince: jest.fn().mockResolvedValue([]),
+      findCompletedByHabitId: jest.fn().mockResolvedValue([]),
       findByHabitIdAndDateRange: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
@@ -82,7 +82,7 @@ describe('GetRoutinesDashboardUseCase', () => {
 
     // Give each habit a different completion pattern. `a` gets 3 consecutive
     // recent days (streak=3), `b` gets none, `c` gets 1 recent (streak=1).
-    habitLogRepo.findCompletedByHabitIdSince.mockImplementation((habitId) => {
+    habitLogRepo.findCompletedByHabitId.mockImplementation((habitId) => {
       if (habitId === 'a') {
         return Promise.resolve([
           buildHabitLog({ habitId: 'a', date: '2026-04-20', completed: true }),
