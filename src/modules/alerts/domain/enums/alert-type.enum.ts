@@ -18,7 +18,7 @@ export enum AlertType {
    * Active budget with money left (`amount - spent > 0`) that has gone 2+
    * consecutive days with no movements ending today — a "did you forget to
    * log an expense?" nudge, since daily basics are logged every day. Gated to
-   * the user's local hour >= 11: before that the day has barely started and
+   * the user's local hour >= 12: before that the day has barely started and
    * the nudge asks about spending that had no chance to happen.
    */
   BUDGET_UNLOGGED = 'budget-unlogged',

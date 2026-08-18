@@ -327,31 +327,46 @@ describe('GetAlertsForUserUseCase', () => {
       expect(result.alerts).toEqual([]);
     });
 
-    it('suppresses the nudge before 11:00 in the user TZ (the gate)', async () => {
-      // Same data as the emitting case, only earlier in the day. Firing at
-      // breakfast asks "did you forget to log?" before the user has had a
-      // chance to spend anything — the nudge only reads as useful once the
-      // day is genuinely under way.
+    /** A budget that WOULD emit, so each case below isolates only the hour. */
+    function emittingBudget() {
       const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
-      const { useCase } = buildUseCase({
+      return {
         budgets: [budget],
         budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
-      });
+      };
+    }
+
+    it('suppresses the nudge early in the morning', async () => {
+      // Firing at breakfast asks "did you forget to log?" before the user has
+      // had a chance to spend anything — the nudge only reads as useful once
+      // the day is genuinely under way.
+      const { useCase } = buildUseCase(emittingBudget());
       // 2026-05-19 13:00 UTC = 08:00 Lima.
-      const preElevenAm = new Date('2026-05-19T13:00:00.000Z');
-      const result = await useCase.execute(USER_ID, TZ, preElevenAm);
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T13:00:00.000Z'));
       expect(result.alerts).toEqual([]);
     });
 
-    it('emits exactly at 11:00 local (the boundary is inclusive)', async () => {
-      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
-      const { useCase } = buildUseCase({
-        budgets: [budget],
-        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
-      });
+    it('still suppresses at 11:00 local, which used to be the boundary', async () => {
+      // The gate shipped at 11 and moved to midday after real use — 11 was
+      // still catching mornings where nothing had happened yet. This case
+      // exists so a revert to 11 fails loudly instead of silently.
+      const { useCase } = buildUseCase(emittingBudget());
       // 2026-05-19 16:00 UTC = 11:00 Lima exactly.
-      const elevenAm = new Date('2026-05-19T16:00:00.000Z');
-      const result = await useCase.execute(USER_ID, TZ, elevenAm);
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T16:00:00.000Z'));
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('emits exactly at 12:00 local (the boundary is inclusive)', async () => {
+      const { useCase } = buildUseCase(emittingBudget());
+      // 2026-05-19 17:00 UTC = 12:00 Lima exactly.
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T17:00:00.000Z'));
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+    });
+
+    it('emits in the afternoon', async () => {
+      const { useCase } = buildUseCase(emittingBudget());
+      // 2026-05-19 21:00 UTC = 16:00 Lima.
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T21:00:00.000Z'));
       expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
     });
   });
