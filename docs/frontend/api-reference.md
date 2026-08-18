@@ -2054,7 +2054,7 @@ badge sin segundo roundtrip.
 
 | Tipo                 | Policy     | Cuándo dispara                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` coincide con el día de hoy (en la zona del usuario) y no está pagado |
+| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` ya llegó o pasó (día de hoy `>= dueDay`, en la zona del usuario) y no está pagado. `dueDay` es **aproximado** ("Día aproximado de vencimiento"), por eso la alerta no vive un solo día: sigue hasta que se pague o el período pase a overdue. Sin `dueDay` no hay ancla y no se emite |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
 | `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 11:00 — recordatorio "¿olvidaste registrar un gasto?" |

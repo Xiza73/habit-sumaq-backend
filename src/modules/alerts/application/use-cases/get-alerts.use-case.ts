@@ -158,14 +158,28 @@ export class GetAlertsForUserUseCase {
         );
         continue; // Don't ALSO mark it as "due today" — overdue is more specific.
       }
-      // "Due today" means exactly that: today (in the user's timezone) is the
-      // service's due day. Without the day check this fired all month long, as
-      // soon as the service entered its due period — e.g. a day-29 service
-      // showing "due today" on the 11th.
+      // Fires from the service's due day ONWARD, not on that day alone.
+      //
+      // `dueDay` is presented to the user as "Día aproximado de vencimiento —
+      // solo para ordenar y recordar", so matching it with `===` read an
+      // approximate value as an exact one: the alert existed for a single day
+      // a month, and not opening the app that day meant missing it entirely.
+      // Bills are paid on or after their reference date.
+      //
+      // This is NOT a revert of the earlier fix that introduced the day check.
+      // That fix stopped the alert firing all month long — a day-29 service
+      // announcing itself on the 11th. `>=` keeps it silent before the due day
+      // and only starts once the date the user wrote down has arrived, which
+      // is what the original bug was actually about.
+      //
+      // The alert ID is scoped to the period while the dismissal is per-day,
+      // so closing it hides it until the user's midnight and it returns the
+      // next day — nagging daily from the due day until paid, which is the
+      // intended behaviour here rather than an oversight.
       if (
         service.nextDuePeriod() === currentPeriod &&
         service.dueDay !== null &&
-        dayInTimezone(now, timezone) === service.dueDay &&
+        dayInTimezone(now, timezone) >= service.dueDay &&
         !service.isPaidForMonth(currentPeriod)
       ) {
         alerts.push(
