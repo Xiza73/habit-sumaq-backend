@@ -96,6 +96,7 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
       date: log.date,
       count: log.count,
       completed: log.completed,
+      targetCount: log.targetCount,
       note: log.note,
       createdAt: log.createdAt,
       updatedAt: log.updatedAt,
@@ -119,6 +120,7 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
       entity.note,
       entity.createdAt,
       entity.updatedAt,
+      entity.targetCount,
     );
   }
 }

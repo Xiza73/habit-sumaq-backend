@@ -1058,13 +1058,29 @@ Soft delete. Elimina el hábito y todos sus logs asociados.
 
 Registra o actualiza el log de un hábito para una fecha. Si ya existe un log para esa fecha, lo actualiza (upsert).
 
-| Campo  | Tipo           | Requerido | Notas                             |
-| ------ | -------------- | --------- | --------------------------------- |
-| `date` | string         | sí        | Formato `YYYY-MM-DD`. No futura  |
-| `count`| number         | sí        | Mín `0`. Cantidad realizada       |
-| `note` | string \| null | no        | Máx 500 chars                     |
+| Campo         | Tipo           | Requerido | Notas                             |
+| ------------- | -------------- | --------- | --------------------------------- |
+| `date`        | string         | sí        | Formato `YYYY-MM-DD`. No futura  |
+| `count`       | number         | sí        | Mín `0`. Cantidad realizada       |
+| `targetCount` | number         | no        | Mín `1`. Objetivo de ESE día      |
+| `note`        | string \| null | no        | Máx 500 chars                     |
 
-`completed` se calcula automáticamente: `count >= habit.targetCount`.
+**`targetCount` — objetivo por día.** Cada log guarda el suyo, así cambiar el
+`targetCount` del hábito **no reescribe los días ya registrados**. Antes el
+denominador se leía del hábito en vivo: subirlo de 3 a 4 convertía cada día ya
+completado en «3/4».
+
+Resolución cuando se omite, en este orden:
+
+1. el `targetCount` que ya tenía ese log — **registrar de nuevo un día pasado no lo re-estampa** con el default de hoy;
+2. si el log no existe, el `targetCount` del hábito.
+
+Solo aplica a hábitos **DAILY**. En **WEEKLY** el objetivo es de la semana, no
+del día, y se sigue midiendo contra el del hábito.
+
+`completed` se calcula automáticamente: `count >= targetCount` del día. El
+`count` se capea en ese target, por lo que un log completo cumple siempre
+`count === targetCount`.
 
 **Response:** `201` — `HabitLogResponseDto`
 
@@ -1115,11 +1131,18 @@ Historial de logs paginados.
     "updatedAt": "2026-03-13T10:00:00.000Z"
   },
   "periodCount": 6,
-  "periodCompleted": false
+  "periodCompleted": false,
+  "periodTarget": 8
 }
 ```
 
-> **Nota:** `currentStreak`, `longestStreak`, `completionRate`, `todayLog`, `periodCount` y `periodCompleted` solo están presentes en los endpoints que devuelven stats (`GET /habits`, `GET /habits/daily`, `GET /habits/:id`). En `POST` y `PATCH` no se incluyen.
+> **Nota:** `currentStreak`, `longestStreak`, `completionRate`, `todayLog`, `periodCount`, `periodCompleted` y `periodTarget` solo están presentes en los endpoints que devuelven stats (`GET /habits`, `GET /habits/daily`, `GET /habits/:id`). En `POST` y `PATCH` no se incluyen.
+>
+> **`periodTarget`**: el DENOMINADOR a mostrar. Es el objetivo contra el que se mide
+> el período: en DAILY el del propio día (`todayLog.targetCount`), que puede diferir
+> del `targetCount` del hábito; en WEEKLY siempre el del hábito. **Usá siempre este
+> campo para renderizar `periodCount / X`** — leer `targetCount` del hábito reescribe
+> visualmente los días pasados.
 >
 > **`periodCount`**: Conteo acumulado en el período actual. Para hábitos DAILY es el count de hoy; para WEEKLY es la suma de counts de la semana actual (lunes a domingo ISO).
 >

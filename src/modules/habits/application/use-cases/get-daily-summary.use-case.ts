@@ -5,6 +5,7 @@ import { HabitRepository } from '../../domain/habit.repository';
 import { HabitLogRepository } from '../../domain/habit-log.repository';
 import { HabitResponseDto } from '../dto/habit-response.dto';
 
+import { resolvePeriodTarget } from './period-target';
 import { StatsCalculator } from './stats-calculator';
 
 import type { Habit } from '../../domain/habit.entity';
@@ -55,7 +56,8 @@ export class GetDailySummaryUseCase {
     const periodCount = isWeekly
       ? weekLogs.reduce((sum, l) => sum + l.count, 0)
       : (dateLog?.count ?? 0);
-    const periodCompleted = periodCount >= habit.targetCount;
+    const periodTarget = resolvePeriodTarget(habit, dateLog);
+    const periodCompleted = periodCount >= periodTarget;
 
     return HabitResponseDto.fromDomainWithStats(
       habit,
@@ -65,6 +67,7 @@ export class GetDailySummaryUseCase {
       dateLog,
       periodCount,
       periodCompleted,
+      periodTarget,
     );
   }
 }

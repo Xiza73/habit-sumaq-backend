@@ -299,6 +299,7 @@ describe('GetAlertsForUserUseCase', () => {
         null,
         new Date(),
         new Date(),
+        1,
       );
       const { useCase } = buildUseCase({ habits: [habit], habitLogs: [log] });
       const result = await useCase.execute(USER_ID, TZ, NOW);

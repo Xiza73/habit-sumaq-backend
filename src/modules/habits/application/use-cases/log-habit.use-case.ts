@@ -60,14 +60,19 @@ export class LogHabitUseCase {
       );
     }
 
-    const cappedCount = Math.min(dto.count, habit.targetCount);
-    const completed = cappedCount >= habit.targetCount;
-
-    // Upsert: update existing log or create new one
+    // The target for THIS day. `dto.targetCount` lets a single day ask for
+    // more or less without touching the habit's default and without rewriting
+    // any other day. Omitted, an existing log keeps the target it was written
+    // with — re-logging a past day must not silently re-stamp it with today's
+    // default, which is the whole point of snapshotting it.
     const existingLog = await this.habitLogRepo.findByHabitIdAndDate(habitId, logDate);
+    const targetCount = dto.targetCount ?? existingLog?.targetCount ?? habit.targetCount;
+
+    const cappedCount = Math.min(dto.count, targetCount);
+    const completed = cappedCount >= targetCount;
 
     if (existingLog) {
-      existingLog.updateCount(dto.count, habit.targetCount);
+      existingLog.updateCount(dto.count, targetCount);
       if (dto.note !== undefined) existingLog.note = dto.note ?? null;
       const updated = await this.habitLogRepo.save(existingLog);
       this.logger.info(
@@ -94,6 +99,7 @@ export class LogHabitUseCase {
       dto.note ?? null,
       now,
       now,
+      targetCount,
     );
 
     const saved = await this.habitLogRepo.save(log);
