@@ -480,4 +480,128 @@ describe('GetAlertsForUserUseCase', () => {
     const result = await useCase.execute(USER_ID, TZ, NOW);
     expect(result.lastSeenAt).toEqual(seenAt);
   });
+
+  describe('budget-unlogged across a day boundary', () => {
+    // The reported doubt: "I close the nudge, the next day I still haven't
+    // logged anything, and it never comes back."
+    //
+    // Two independent mechanisms are supposed to make it return, and this
+    // block pins both — if either regressed, the alert would go quiet for good
+    // and nothing else in the suite would notice.
+    //
+    //   1. The alert ID embeds the DATE, so tomorrow's alert is a different
+    //      row that no dismissal has ever matched.
+    //   2. The dismissal itself expires at the user's local midnight.
+    //
+    // NOW is 2026-05-19 12:00 Lima; TOMORROW is the same clock time a day on.
+    const TOMORROW = new Date('2026-05-20T17:00:00.000Z');
+
+    /** A budget with money left and no movements since the 17th. */
+    function silentBudget() {
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
+      const movements = new Map([
+        [
+          budget.id,
+          [
+            buildBudgetMovement({
+              budgetId: budget.id,
+              amount: 100,
+              currency: Currency.PEN,
+              date: new Date('2026-05-17T12:00:00.000Z'),
+            }),
+          ],
+        ],
+      ]);
+      return { budget, movements };
+    }
+
+    /** The dismissal the user creates by closing today's nudge. */
+    function dismissalFor(budgetId: string, date: string, expiresAt: Date) {
+      return new UserAlertDismissal(
+        'dismiss-budget',
+        USER_ID,
+        `budget-unlogged:${budgetId}:${date}`,
+        new Date('2026-05-19T17:05:00.000Z'),
+        expiresAt,
+      );
+    }
+
+    it('hides the nudge for the rest of the day it was closed', async () => {
+      const { budget, movements } = silentBudget();
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: movements,
+        // Expires at Lima midnight, which is 05:00 UTC on the 20th.
+        dismissals: [dismissalFor(budget.id, '2026-05-19', new Date('2026-05-20T05:00:00.000Z'))],
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('brings it back the next day when the budget is still silent', async () => {
+      const { budget, movements } = silentBudget();
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: movements,
+        dismissals: [dismissalFor(budget.id, '2026-05-19', new Date('2026-05-20T05:00:00.000Z'))],
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, TOMORROW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+      // A fresh ID for a fresh day — this is mechanism 1.
+      expect(result.alerts[0].id).toBe(`budget-unlogged:${budget.id}:2026-05-20`);
+      // And the streak has grown, so the copy reflects the longer silence.
+      expect(result.alerts[0].payload.days).toBe(3);
+    });
+
+    it('comes back even if the dismissal row somehow never expired', async () => {
+      // Belt and braces for mechanism 1 on its own: a dismissal with NO expiry
+      // at all (`expiresAt: null` is treated as permanently active) still only
+      // covers the day it names.
+      const { budget, movements } = silentBudget();
+      const neverExpires = new UserAlertDismissal(
+        'dismiss-budget',
+        USER_ID,
+        `budget-unlogged:${budget.id}:2026-05-19`,
+        new Date('2026-05-19T17:05:00.000Z'),
+        null,
+      );
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: movements,
+        dismissals: [neverExpires],
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, TOMORROW);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+    });
+
+    it('stays hidden the next day only if the user actually logged something', async () => {
+      // The honest alternative explanation for "it never came back": the
+      // streak reset because a movement landed. Pinning it so the two causes
+      // stay distinguishable.
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: new Map([
+          [
+            budget.id,
+            [
+              buildBudgetMovement({
+                budgetId: budget.id,
+                amount: 100,
+                currency: Currency.PEN,
+                date: new Date('2026-05-20T12:00:00.000Z'),
+              }),
+            ],
+          ],
+        ]),
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, TOMORROW);
+      expect(result.alerts).toEqual([]);
+    });
+  });
 });
