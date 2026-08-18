@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { IntervalUnit } from '../../src/modules/chores/domain/enums/interval-unit.enum';
 import { ChoreOrmEntity } from '../../src/modules/chores/infrastructure/persistence/chore.orm-entity';
 import { ChoreRepositoryImpl } from '../../src/modules/chores/infrastructure/persistence/chore.repository.impl';
+import { UserOrmEntity } from '../../src/modules/users/infrastructure/persistence/user.orm-entity';
 
 import { TestDataSource } from './data-source';
 import { closeTestDatabase, initTestDatabase } from './harness';
@@ -38,7 +39,18 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await TestDataSource.query('TRUNCATE "chores" CASCADE');
+  // `chores` carries an FK to `users`, unlike `debts_loans` — so the user has
+  // to exist before any chore can be inserted. CASCADE on `users` clears the
+  // chores along with it.
+  await TestDataSource.query('TRUNCATE "users" CASCADE');
+  await TestDataSource.getRepository(UserOrmEntity).save({
+    id: USER,
+    googleId: `google-${USER}`,
+    email: `${USER}@example.test`,
+    name: 'Integration user',
+    avatarUrl: null,
+    isActive: true,
+  } as UserOrmEntity);
 });
 
 async function seedChore(nextDueDate: string): Promise<string> {
