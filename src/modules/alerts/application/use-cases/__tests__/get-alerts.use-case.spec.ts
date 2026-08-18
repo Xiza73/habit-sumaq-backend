@@ -207,18 +207,111 @@ describe('GetAlertsForUserUseCase', () => {
       expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
     });
 
-    it('does NOT emit for a service with no due day at all', async () => {
-      // `dueDay` is nullable and there is no anchor to count from, so the
-      // service stays silent rather than guessing a date the user never set.
+    describe('service with no approximate due day', () => {
+      // `dueDay` is nullable, so there is no user-supplied anchor to count
+      // from. The period boundary is the anchor instead: the service MUST be
+      // paid inside its period — the day after the month ends it is overdue
+      // by definition. So the alert opens in the closing days of the period.
+      //
+      // May 2026 has 31 days, so the window is the 29th, 30th and 31st.
+      const may28 = new Date('2026-05-28T17:00:00.000Z'); // Lima: 28th
+      const may29 = new Date('2026-05-29T17:00:00.000Z'); // Lima: 29th
+      const may31 = new Date('2026-06-01T02:00:00.000Z'); // Lima: 31st, 21:00
+
+      function unpaidWithoutDueDay() {
+        return buildMonthlyService({
+          startPeriod: '2026-05',
+          lastPaidPeriod: null,
+          dueDay: null,
+          estimatedAmount: 45,
+        });
+      }
+
+      it('stays silent early in the month', async () => {
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+        const result = await useCase.execute(USER_ID, TZ, NOW); // Lima: 19th
+
+        expect(result.alerts).toEqual([]);
+      });
+
+      it('stays silent on the day BEFORE the window opens', async () => {
+        // 4 days left including today — one day short of the window.
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+        const result = await useCase.execute(USER_ID, TZ, may28);
+
+        expect(result.alerts).toEqual([]);
+      });
+
+      it('emits on the first day of the closing window', async () => {
+        const service = unpaidWithoutDueDay();
+        const { useCase } = buildUseCase({ services: [service] });
+        const result = await useCase.execute(USER_ID, TZ, may29);
+
+        expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+        expect(result.alerts[0].id).toBe(`service-due-today:${service.id}:2026-05`);
+      });
+
+      it('emits on the last day of the period', async () => {
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+        const result = await useCase.execute(USER_ID, TZ, may31);
+
+        expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+      });
+
+      it('reports the days left so the copy can say it without recomputing the date', async () => {
+        // The frontend must never derive "what day is it" for the user — the
+        // timezone lives here. `dueDay` stays null so the client knows to
+        // render the closing-window copy instead of "Día {day} del mes".
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+
+        const first = await useCase.execute(USER_ID, TZ, may29);
+        expect(first.alerts[0].payload.dueDay).toBeNull();
+        expect(first.alerts[0].payload.daysLeftInPeriod).toBe(3);
+
+        const last = await useCase.execute(USER_ID, TZ, may31);
+        expect(last.alerts[0].payload.daysLeftInPeriod).toBe(1);
+      });
+
+      it('does NOT emit inside the window once the service is paid', async () => {
+        const service = buildMonthlyService({
+          startPeriod: '2026-05',
+          lastPaidPeriod: '2026-05',
+          dueDay: null,
+        });
+        const { useCase } = buildUseCase({ services: [service] });
+        const result = await useCase.execute(USER_ID, TZ, may29);
+
+        expect(result.alerts).toEqual([]);
+      });
+
+      it('emits OVERDUE rather than the closing-window alert once the period has passed', async () => {
+        // Overdue is the more specific state and already wins for services
+        // WITH a due day. Dropping the anchor must not change that.
+        const service = buildMonthlyService({
+          startPeriod: '2026-03',
+          lastPaidPeriod: '2026-03',
+          dueDay: null,
+        });
+        const { useCase } = buildUseCase({ services: [service] });
+        const result = await useCase.execute(USER_ID, TZ, may29);
+
+        expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_OVERDUE]);
+      });
+    });
+
+    it('reports a null daysLeftInPeriod for a service that HAS a due day', async () => {
+      // The closing-window count is meaningless when the user gave an anchor;
+      // the copy uses `dueDay` in that case.
       const service = buildMonthlyService({
         startPeriod: '2026-05',
         lastPaidPeriod: null,
-        dueDay: null,
+        dueDay: 15,
       });
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
 
-      expect(result.alerts).toEqual([]);
+      expect(result.alerts[0].payload.dueDay).toBe(15);
+      expect(result.alerts[0].payload.daysLeftInPeriod).toBeNull();
     });
 
     it('does NOT emit once the service is paid, even past the due day', async () => {
