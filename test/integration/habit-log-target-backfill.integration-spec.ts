@@ -44,9 +44,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (TestDataSource.isInitialized) {
     await TestDataSource.query('TRUNCATE "users" CASCADE');
-    await TestDataSource.query(
-      `ALTER TABLE "habit_logs" ALTER COLUMN "targetCount" SET NOT NULL`,
-    );
+    await TestDataSource.query(`ALTER TABLE "habit_logs" ALTER COLUMN "targetCount" SET NOT NULL`);
     await TestDataSource.query(
       `ALTER TABLE "habit_logs" ADD CONSTRAINT "CHK_habit_logs_targetCount_positive" CHECK ("targetCount" >= 1)`,
     );
