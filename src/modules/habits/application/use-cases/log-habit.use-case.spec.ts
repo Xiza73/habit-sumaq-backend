@@ -298,4 +298,96 @@ describe('LogHabitUseCase', () => {
       expect(mockLogger.info).not.toHaveBeenCalled();
     });
   });
+  describe('per-day target', () => {
+    it('snapshots the habit target onto a brand-new log', async () => {
+      const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      const result = await useCase.execute(habitId, userId, { date: todayStr, count: 3 }, 'UTC');
+
+      expect(result.targetCount).toBe(8);
+    });
+
+    it('lets a single day ask for MORE than the habit default', async () => {
+      // The reported case: "yesterday it was 3 sets, today 4, both done".
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      const result = await useCase.execute(
+        habitId,
+        userId,
+        { date: todayStr, count: 4, targetCount: 4 },
+        'UTC',
+      );
+
+      expect(result.targetCount).toBe(4);
+      expect(result.count).toBe(4);
+      expect(result.completed).toBe(true);
+    });
+
+    it('lets a single day ask for LESS', async () => {
+      const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      const result = await useCase.execute(
+        habitId,
+        userId,
+        { date: todayStr, count: 2, targetCount: 2 },
+        'UTC',
+      );
+
+      expect(result.targetCount).toBe(2);
+      expect(result.completed).toBe(true);
+    });
+
+    it('KEEPS the existing target when re-logging a past day without one', async () => {
+      // Backfilling a forgotten day must not re-stamp it with today's default
+      // — that would be the retroactive rewrite all over again, just delayed.
+      const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(
+        buildHabitLog({ habitId, userId, date: todayStr, count: 1, targetCount: 3 }),
+      );
+
+      const result = await useCase.execute(habitId, userId, { date: todayStr, count: 3 }, 'UTC');
+
+      expect(result.targetCount).toBe(3);
+      expect(result.completed).toBe(true);
+    });
+
+    it('lets an explicit target override the existing one', async () => {
+      const habit = buildHabit({ id: habitId, userId, targetCount: 8 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(
+        buildHabitLog({ habitId, userId, date: todayStr, count: 1, targetCount: 3 }),
+      );
+
+      const result = await useCase.execute(
+        habitId,
+        userId,
+        { date: todayStr, count: 5, targetCount: 5 },
+        'UTC',
+      );
+
+      expect(result.targetCount).toBe(5);
+      expect(result.completed).toBe(true);
+    });
+
+    it('caps the count at the day target, which is what makes it recoverable', async () => {
+      // completed implies count === targetCount. The migration relies on it to
+      // recover historical targets exactly.
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      const result = await useCase.execute(habitId, userId, { date: todayStr, count: 99 }, 'UTC');
+
+      expect(result.count).toBe(3);
+      expect(result.targetCount).toBe(3);
+      expect(result.completed).toBe(true);
+    });
+  });
 });

@@ -12,6 +12,19 @@ export class LogHabitDto {
   @Min(0)
   count: number;
 
+  @ApiPropertyOptional({
+    example: 4,
+    description:
+      'Objetivo para ESTE día. Omitido usa el `targetCount` del hábito. ' +
+      'Permite que un día puntual pida más o menos sin tocar el default ' +
+      'ni reescribir los días ya registrados. Solo aplica a hábitos DAILY: ' +
+      'en los WEEKLY el objetivo es de la semana, no del día.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  targetCount?: number;
+
   @ApiPropertyOptional({ example: 'Hoy fue un buen día', nullable: true })
   @IsOptional()
   @IsString()

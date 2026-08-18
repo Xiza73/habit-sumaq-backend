@@ -7,6 +7,7 @@ import { HabitRepository } from '../../domain/habit.repository';
 import { HabitLogRepository } from '../../domain/habit-log.repository';
 import { HabitResponseDto } from '../dto/habit-response.dto';
 
+import { resolvePeriodTarget } from './period-target';
 import { StatsCalculator } from './stats-calculator';
 
 @Injectable()
@@ -51,7 +52,8 @@ export class GetHabitByIdUseCase {
     const periodCount = isWeekly
       ? weekLogs.reduce((sum, l) => sum + l.count, 0)
       : (todayLog?.count ?? 0);
-    const periodCompleted = periodCount >= habit.targetCount;
+    const periodTarget = resolvePeriodTarget(habit, todayLog);
+    const periodCompleted = periodCount >= periodTarget;
 
     return HabitResponseDto.fromDomainWithStats(
       habit,
@@ -61,6 +63,7 @@ export class GetHabitByIdUseCase {
       todayLog,
       periodCount,
       periodCompleted,
+      periodTarget,
     );
   }
 }
