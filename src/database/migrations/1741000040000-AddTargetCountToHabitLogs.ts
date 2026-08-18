@@ -26,6 +26,31 @@ import { type MigrationInterface, type QueryRunner } from 'typeorm';
  * backfilled for them so it can be NOT NULL and so a future weekly design has
  * data to work with.
  */
+/**
+ * The backfill statements, exported so the integration suite can run them
+ * against seeded rows and assert the outcome.
+ *
+ * A migration only ever runs once, on an empty database in CI — which proves
+ * the SQL parses and nothing more. These being shared means the behaviour the
+ * test pins is the behaviour that shipped, with no second copy to drift.
+ */
+export const BACKFILL_COMPLETED_FROM_COUNT = `
+  UPDATE "habit_logs"
+  SET "targetCount" = "count"
+  WHERE "completed" = true AND "count" > 0
+`;
+
+export const BACKFILL_REMAINDER_FROM_HABIT = `
+  UPDATE "habit_logs" AS l
+  SET "targetCount" = h."targetCount"
+  FROM "habits" AS h
+  WHERE l."habitId" = h."id" AND l."targetCount" IS NULL
+`;
+
+export const BACKFILL_ORPHANS = `
+  UPDATE "habit_logs" SET "targetCount" = 1 WHERE "targetCount" IS NULL
+`;
+
 export class AddTargetCountToHabitLogs1741000040000 implements MigrationInterface {
   name = 'AddTargetCountToHabitLogs1741000040000';
 
@@ -33,25 +58,14 @@ export class AddTargetCountToHabitLogs1741000040000 implements MigrationInterfac
     await queryRunner.query(`ALTER TABLE "habit_logs" ADD COLUMN "targetCount" smallint`);
 
     // Completed logs: the count IS the old target. Exact recovery.
-    await queryRunner.query(`
-      UPDATE "habit_logs"
-      SET "targetCount" = "count"
-      WHERE "completed" = true AND "count" > 0
-    `);
+    await queryRunner.query(BACKFILL_COMPLETED_FROM_COUNT);
 
     // Everything else: fall back to the habit's current target.
-    await queryRunner.query(`
-      UPDATE "habit_logs" AS l
-      SET "targetCount" = h."targetCount"
-      FROM "habits" AS h
-      WHERE l."habitId" = h."id" AND l."targetCount" IS NULL
-    `);
+    await queryRunner.query(BACKFILL_REMAINDER_FROM_HABIT);
 
     // Belt and braces: a log whose habit vanished (should not happen — the FK
     // prevents it) would still block the NOT NULL below.
-    await queryRunner.query(`
-      UPDATE "habit_logs" SET "targetCount" = 1 WHERE "targetCount" IS NULL
-    `);
+    await queryRunner.query(BACKFILL_ORPHANS);
 
     await queryRunner.query(`ALTER TABLE "habit_logs" ALTER COLUMN "targetCount" SET NOT NULL`);
     await queryRunner.query(
