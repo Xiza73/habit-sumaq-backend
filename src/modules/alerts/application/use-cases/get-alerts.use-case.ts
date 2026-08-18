@@ -31,12 +31,17 @@ const MIDDAY_HOUR = 12;
 /**
  * Earliest local hour the budget-unlogged nudge may fire.
  *
- * It asks "did you forget to log an expense?" — at 7am the honest answer is
- * "no, I just haven't spent anything yet", so the alert was reading as noise
- * every morning. 11 is late enough that a normal day has had a chance to
- * produce a expense, and early enough to still be actionable.
+ * It asks "did you forget to log an expense?" — early in the day the honest
+ * answer is "no, I just haven't spent anything yet", so the nudge read as
+ * noise every morning. Shipped at 11, moved to midday after using it: 11 was
+ * still catching mornings where nothing had happened yet.
+ *
+ * Deliberately its own constant rather than reusing `MIDDAY_HOUR`, even
+ * though they now hold the same value. They gate unrelated triggers for
+ * unrelated reasons and should be free to diverge again without one silently
+ * dragging the other along.
  */
-const BUDGET_UNLOGGED_EARLIEST_HOUR = 11;
+const BUDGET_UNLOGGED_EARLIEST_HOUR = 12;
 
 /**
  * Consecutive no-movement days (ending today) that trip the budget-unlogged

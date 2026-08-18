@@ -2057,7 +2057,7 @@ badge sin segundo roundtrip.
 | `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` coincide con el día de hoy (en la zona del usuario) y no está pagado |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
-| `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 11:00 — recordatorio "¿olvidaste registrar un gasto?" |
+| `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 12:00 — recordatorio "¿olvidaste registrar un gasto?" |
 | `chore-overdue`      | persistent | Chore activo con `nextDueDate < today`                                       |
 | `chore-due-today`    | per-day    | Chore activo con `nextDueDate == today` — "esto toca hoy". Sin gate horario: la alerta es in-app, así que solo se ve cuando el usuario abre la app |
 
