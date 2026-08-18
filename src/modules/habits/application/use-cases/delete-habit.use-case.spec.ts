@@ -27,7 +27,7 @@ describe('DeleteHabitUseCase', () => {
       findByHabitIdAndDate: jest.fn(),
       findByHabitId: jest.fn(),
       findByUserIdAndDate: jest.fn(),
-      findCompletedByHabitIdSince: jest.fn(),
+      findCompletedByHabitId: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),

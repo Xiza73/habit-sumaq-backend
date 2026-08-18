@@ -48,19 +48,11 @@ export class StatsCalculator {
       }
     }
 
-    // Longest streak within the 30-day window
-    let longestStreak = 0;
-    let streak = 0;
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (completedDates.has(StatsCalculator.toDateString(d))) {
-        streak++;
-        if (streak > longestStreak) longestStreak = streak;
-      } else {
-        streak = 0;
-      }
-    }
+    // Longest streak over the WHOLE history, not the completion-rate window.
+    // A streak is unbounded by nature; only the rate above is deliberately a
+    // rolling 30-day figure. Walking the sorted dates also finds streaks that
+    // ended long ago, which a window anchored on `today` never could.
+    const longestStreak = StatsCalculator.longestRun([...completedDates].sort(), 1);
 
     return { currentStreak, longestStreak, completionRate };
   }
@@ -105,20 +97,14 @@ export class StatsCalculator {
       }
     }
 
-    // Longest streak within the window
-    let longestStreak = 0;
-    let streak = 0;
-    for (let i = totalWeeks - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i * 7);
-      const key = StatsCalculator.toWeekKey(d);
-      if ((weekMap.get(key) ?? 0) > 0) {
-        streak++;
-        if (streak > longestStreak) longestStreak = streak;
-      } else {
-        streak = 0;
-      }
-    }
+    // Longest streak over the whole history — same reasoning as the daily
+    // case. Weeks are compared by their Monday rather than by the ISO week
+    // key, because "consecutive" is then just a 7-day step and needs no
+    // special handling at year boundaries.
+    const weekStarts = [
+      ...new Set(completedLogs.map((log) => StatsCalculator.weekStartOf(log.date))),
+    ].sort();
+    const longestStreak = StatsCalculator.longestRun(weekStarts, 7);
 
     return { currentStreak, longestStreak, completionRate };
   }
@@ -143,6 +129,42 @@ export class StatsCalculator {
     // Create a Date that represents midnight of "today" in that timezone
     // Using T12:00:00 to avoid DST edge cases when converting back
     return new Date(`${year}-${month}-${day}T12:00:00`);
+  }
+
+  /**
+   * Longest run of consecutive entries in an ascending list of `YYYY-MM-DD`
+   * strings, where "consecutive" means exactly `stepDays` apart — 1 for daily
+   * habits, 7 for weekly ones (compared by their Monday).
+   *
+   * Dates are parsed at noon UTC so the day arithmetic is immune to DST: a
+   * 23- or 25-hour day still rounds to a whole number of days.
+   */
+  private static longestRun(sortedDates: string[], stepDays: number): number {
+    let longest = 0;
+    let run = 0;
+    let previous: number | null = null;
+
+    for (const date of sortedDates) {
+      const at = Date.parse(`${date}T12:00:00Z`);
+      const isConsecutive =
+        previous !== null && Math.round((at - previous) / 86_400_000) === stepDays;
+      run = isConsecutive ? run + 1 : 1;
+      if (run > longest) longest = run;
+      previous = at;
+    }
+
+    return longest;
+  }
+
+  /** The Monday of the given date's ISO week, as `YYYY-MM-DD`. */
+  private static weekStartOf(date: Date | string): string {
+    // Anchor strings at noon before reading `getDay()` — parsing a bare
+    // `YYYY-MM-DD` yields UTC midnight, which reads as the previous day in any
+    // negative-offset zone and would shift the whole week.
+    const d = new Date(typeof date === 'string' ? `${date}T12:00:00` : date);
+    const day = d.getDay();
+    d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+    return StatsCalculator.toDateString(d);
   }
 
   static toDateString(date: Date | string): string {

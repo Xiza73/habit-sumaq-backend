@@ -102,6 +102,82 @@ describe('StatsCalculator', () => {
     });
   });
 
+  describe('streaks past the completion-rate window', () => {
+    // The reported bug: a habit with 40+ consecutive days always showed 30.
+    // Two separate caps produced it — the use cases only fetched 30 days of
+    // logs, and `longestStreak` looped over a hardcoded 30-day window. Streaks
+    // are unbounded by nature; only the completion RATE is a 30-day metric.
+    const today = new Date(2026, 2, 13);
+
+    /** `count` consecutive completed days ending `endingDaysAgo` before today. */
+    function consecutive(count: number, endingDaysAgo = 0) {
+      return Array.from({ length: count }, (_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - endingDaysAgo - i);
+        return buildHabitLog({ date: StatsCalculator.toDateString(d), completed: true });
+      });
+    }
+
+    it('counts a current streak of 45 days as 45, not 30', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, consecutive(45), today);
+      expect(result.currentStreak).toBe(45);
+    });
+
+    it('counts a longest streak of 45 days as 45, not 30', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, consecutive(45), today);
+      expect(result.longestStreak).toBe(45);
+    });
+
+    it('finds a long past streak that ended before the 30-day window', () => {
+      // 40 days ending 60 days ago, then a gap, then 3 recent days. The old
+      // 30-day window could not see the 40 at all.
+      const logs = [...consecutive(40, 60), ...consecutive(3)];
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, logs, today);
+      expect(result.longestStreak).toBe(40);
+      expect(result.currentStreak).toBe(3);
+    });
+
+    it('keeps completionRate a 30-day metric even with a year of history', () => {
+      // 365 completed days. The rate must stay 1 (30/30), NOT grow with the
+      // extra history — it is deliberately a rolling 30-day figure.
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, consecutive(365), today);
+      expect(result.completionRate).toBe(1);
+      expect(result.currentStreak).toBe(365);
+    });
+
+    it('caps completionRate at 1 when the streak is longer than the window', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, consecutive(100), today);
+      expect(result.completionRate).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('weekly streaks past the 4-week window', () => {
+    const today = new Date(2026, 2, 13); // A Friday
+
+    function consecutiveWeeks(count: number) {
+      return Array.from({ length: count }, (_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i * 7);
+        return buildHabitLog({ date: StatsCalculator.toDateString(d), completed: true });
+      });
+    }
+
+    it('counts a current streak of 12 weeks as 12, not 4', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.WEEKLY, consecutiveWeeks(12), today);
+      expect(result.currentStreak).toBe(12);
+    });
+
+    it('counts a longest streak of 12 weeks as 12, not 4', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.WEEKLY, consecutiveWeeks(12), today);
+      expect(result.longestStreak).toBe(12);
+    });
+
+    it('keeps completionRate a 4-week metric', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.WEEKLY, consecutiveWeeks(52), today);
+      expect(result.completionRate).toBe(1);
+    });
+  });
+
   describe('toDateString()', () => {
     it('should format date as YYYY-MM-DD', () => {
       expect(StatsCalculator.toDateString(new Date('2026-03-13T15:30:00Z'))).toBe('2026-03-13');

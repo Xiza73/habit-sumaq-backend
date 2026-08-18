@@ -24,7 +24,7 @@ describe('GetDailySummaryUseCase', () => {
       findByHabitIdAndDate: jest.fn(),
       findByHabitId: jest.fn(),
       findByUserIdAndDate: jest.fn(),
-      findCompletedByHabitIdSince: jest.fn(),
+      findCompletedByHabitId: jest.fn(),
       save: jest.fn(),
       softDeleteByHabitId: jest.fn(),
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
@@ -35,7 +35,7 @@ describe('GetDailySummaryUseCase', () => {
 
   it('should return only active habits with stats', async () => {
     habitRepo.findByUserId.mockResolvedValue([buildHabit({ userId })]);
-    habitLogRepo.findCompletedByHabitIdSince.mockResolvedValue([]);
+    habitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
     habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
 
     const result = await useCase.execute(userId, 'UTC');

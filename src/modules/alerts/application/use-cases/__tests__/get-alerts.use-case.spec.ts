@@ -68,7 +68,7 @@ function buildUseCase(
     findByHabitIdAndDate: jest.fn(),
     findByHabitId: jest.fn(),
     findByUserIdAndDate: jest.fn().mockResolvedValue(habitLogs),
-    findCompletedByHabitIdSince: jest.fn(),
+    findCompletedByHabitId: jest.fn(),
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),

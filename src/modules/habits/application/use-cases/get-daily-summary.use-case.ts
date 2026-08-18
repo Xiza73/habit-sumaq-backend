@@ -31,9 +31,6 @@ export class GetDailySummaryUseCase {
     today: Date,
   ): Promise<HabitResponseDto> {
     const refStr = StatsCalculator.toDateString(referenceDate);
-    const since = new Date(today);
-    since.setDate(since.getDate() - 30);
-    const sinceStr = StatsCalculator.toDateString(since);
 
     const isWeekly = habit.frequency === HabitFrequency.WEEKLY;
 
@@ -42,7 +39,7 @@ export class GetDailySummaryUseCase {
       : undefined;
 
     const [logs, dateLog, weekLogs] = await Promise.all([
-      this.habitLogRepo.findCompletedByHabitIdSince(habit.id, sinceStr),
+      this.habitLogRepo.findCompletedByHabitId(habit.id),
       this.habitLogRepo.findByHabitIdAndDate(habit.id, refStr),
       isWeekly
         ? this.habitLogRepo.findByHabitIdAndDateRange(habit.id, weekStartStr!, refStr)

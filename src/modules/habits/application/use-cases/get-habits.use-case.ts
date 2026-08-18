@@ -30,15 +30,12 @@ export class GetHabitsUseCase {
 
   private async buildHabitWithStats(habit: Habit, today: Date): Promise<HabitResponseDto> {
     const todayStr = StatsCalculator.toDateString(today);
-    const since = new Date(today);
-    since.setDate(since.getDate() - 30);
-    const sinceStr = StatsCalculator.toDateString(since);
 
     const isWeekly = habit.frequency === HabitFrequency.WEEKLY;
     const weekStartStr = isWeekly ? StatsCalculator.toWeekStart(today) : undefined;
 
     const [logs, todayLog, weekLogs] = await Promise.all([
-      this.habitLogRepo.findCompletedByHabitIdSince(habit.id, sinceStr),
+      this.habitLogRepo.findCompletedByHabitId(habit.id),
       this.habitLogRepo.findByHabitIdAndDate(habit.id, todayStr),
       isWeekly
         ? this.habitLogRepo.findByHabitIdAndDateRange(habit.id, weekStartStr!, todayStr)
