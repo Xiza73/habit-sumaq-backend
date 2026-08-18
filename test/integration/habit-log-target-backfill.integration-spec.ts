@@ -7,7 +7,6 @@ import {
 } from '../../src/database/migrations/1741000040000-AddTargetCountToHabitLogs';
 import { HabitFrequency } from '../../src/modules/habits/domain/enums/habit-frequency.enum';
 import { HabitOrmEntity } from '../../src/modules/habits/infrastructure/persistence/habit.orm-entity';
-import { HabitLogOrmEntity } from '../../src/modules/habits/infrastructure/persistence/habit-log.orm-entity';
 import { UserOrmEntity } from '../../src/modules/users/infrastructure/persistence/user.orm-entity';
 
 import { TestDataSource } from './data-source';
@@ -32,9 +31,26 @@ jest.setTimeout(30_000);
 
 beforeAll(async () => {
   await initTestDatabase();
+  // The migration has already run here, so the column is NOT NULL with a
+  // CHECK — the very state the backfill exists to reach. Reproducing the
+  // pre-migration shape means standing both down for the duration of this
+  // suite, then putting them back so later specs see the real schema.
+  await TestDataSource.query(
+    `ALTER TABLE "habit_logs" DROP CONSTRAINT IF EXISTS "CHK_habit_logs_targetCount_positive"`,
+  );
+  await TestDataSource.query(`ALTER TABLE "habit_logs" ALTER COLUMN "targetCount" DROP NOT NULL`);
 });
 
 afterAll(async () => {
+  if (TestDataSource.isInitialized) {
+    await TestDataSource.query('TRUNCATE "users" CASCADE');
+    await TestDataSource.query(
+      `ALTER TABLE "habit_logs" ALTER COLUMN "targetCount" SET NOT NULL`,
+    );
+    await TestDataSource.query(
+      `ALTER TABLE "habit_logs" ADD CONSTRAINT "CHK_habit_logs_targetCount_positive" CHECK ("targetCount" >= 1)`,
+    );
+  }
   await closeTestDatabase();
 });
 
