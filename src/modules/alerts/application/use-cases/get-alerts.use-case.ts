@@ -13,6 +13,7 @@ import { HabitLogRepository } from '@modules/habits/domain/habit-log.repository'
 import { MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
 import { currentPeriodInTimezone } from '@modules/monthly-services/infrastructure/timezone/current-period-in-timezone';
 import { dayInTimezone } from '@modules/monthly-services/infrastructure/timezone/day-in-timezone';
+import { ReminderRepository } from '@modules/reminders/domain/reminder.repository';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
 import { Alert } from '../../domain/alert.entity';
@@ -21,6 +22,7 @@ import {
   choreDueTodayId,
   choreOverdueId,
   habitsMiddayId,
+  reminderDueId,
   serviceDueTodayId,
   serviceOverdueId,
 } from '../../domain/alert-id';
@@ -94,6 +96,7 @@ export class GetAlertsForUserUseCase {
     private readonly budgetsRepo: BudgetRepository,
     private readonly budgetMovementRepo: BudgetMovementRepository,
     private readonly choresRepo: ChoreRepository,
+    private readonly remindersRepo: ReminderRepository,
     private readonly userSettingsRepo: UserSettingsRepository,
     private readonly dismissalsRepo: UserAlertDismissalRepository,
   ) {}
@@ -115,18 +118,21 @@ export class GetAlertsForUserUseCase {
     const currentHour = hourInTimezone(timezone, now);
 
     // 3) Build candidate alerts from every module in parallel.
-    const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts] = await Promise.all([
-      this.buildServiceAlerts(userId, currentPeriod, timezone, now),
-      this.buildHabitsMiddayAlert(userId, today, currentHour, now),
-      this.buildBudgetAlerts(userId, year, month, today, timezone, currentHour, now),
-      this.buildChoreAlerts(userId, today),
-    ]);
+    const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts, reminderAlerts] =
+      await Promise.all([
+        this.buildServiceAlerts(userId, currentPeriod, timezone, now),
+        this.buildHabitsMiddayAlert(userId, today, currentHour, now),
+        this.buildBudgetAlerts(userId, year, month, today, timezone, currentHour, now),
+        this.buildChoreAlerts(userId, today),
+        this.buildReminderAlerts(userId, today, currentHour),
+      ]);
 
     const candidates: Alert[] = [
       ...serviceAlerts,
       ...(habitsAlert ? [habitsAlert] : []),
       ...budgetAlerts,
       ...choreAlerts,
+      ...reminderAlerts,
     ];
 
     // 4) Filter out alerts whose ID has an active dismissal row.
@@ -370,6 +376,51 @@ export class GetAlertsForUserUseCase {
    * from the moment today starts. And the alert only surfaces inside the bell
    * popover, so "too early" isn't a thing: the user is the one opening it.
    */
+  /**
+   * Reminder triggers — one per pending, dated reminder whose moment has come.
+   *
+   * The "is it due?" decision lives on the entity (`Reminder.isDueOn`) rather
+   * than here: the hour only applies on the reminder's OWN day, and that rule
+   * belongs with the data it constrains.
+   *
+   * `triggeredAt` is the start of the reminder's day, so an overdue one keeps
+   * an older timestamp and sorts above today's — the bell badge counts by
+   * recency, and something you have been putting off should not look new.
+   */
+  private async buildReminderAlerts(
+    userId: string,
+    today: string,
+    currentHour: number,
+  ): Promise<Alert[]> {
+    const reminders = await this.remindersRepo.findByUserId(userId);
+    const alerts: Alert[] = [];
+
+    for (const reminder of reminders) {
+      if (!reminder.isDueOn(today, currentHour)) continue;
+
+      alerts.push(
+        new Alert(
+          // Scoped to TODAY, not to `remindDate`: a date-scoped id would never
+          // change again for an overdue reminder, so one dismiss would silence
+          // it for good.
+          reminderDueId(reminder.id, today),
+          AlertType.REMINDER_DUE,
+          // Overdue reminders read as a warning; today's is just information.
+          reminder.remindDate! < today ? AlertSeverity.WARNING : AlertSeverity.INFO,
+          new Date(`${reminder.remindDate!}T00:00:00.000Z`),
+          {
+            reminderId: reminder.id,
+            title: reminder.title,
+            remindDate: reminder.remindDate,
+            remindTime: reminder.remindTime,
+          },
+        ),
+      );
+    }
+
+    return alerts;
+  }
+
   private async buildChoreAlerts(userId: string, today: string): Promise<Alert[]> {
     const chores = await this.choresRepo.findByUserId(userId, false);
     const alerts: Alert[] = [];

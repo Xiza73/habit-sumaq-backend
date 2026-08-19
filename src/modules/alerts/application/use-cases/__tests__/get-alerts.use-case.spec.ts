@@ -6,6 +6,8 @@ import { buildHabit } from '@modules/habits/domain/__tests__/habit.factory';
 import { HabitFrequency } from '@modules/habits/domain/enums/habit-frequency.enum';
 import { HabitLog } from '@modules/habits/domain/habit-log.entity';
 import { buildMonthlyService } from '@modules/monthly-services/domain/__tests__/monthly-service.factory';
+import { Reminder } from '@modules/reminders/domain/reminder.entity';
+import { type ReminderRepository } from '@modules/reminders/domain/reminder.repository';
 import { buildUserSettings } from '@modules/users/domain/__tests__/user-settings.factory';
 
 import { isDismissable } from '../../../domain/alert-dismiss-policy';
@@ -36,6 +38,7 @@ function buildUseCase(
     budgets: ReturnType<typeof makeBudget>[];
     budgetMovementsMap: Map<string, BudgetMovement[]>;
     chores: ReturnType<typeof buildChore>[];
+    reminders: Reminder[];
     dismissals: UserAlertDismissal[];
     lastAlertsSeenAt: Date | null;
   }>,
@@ -46,6 +49,7 @@ function buildUseCase(
   const budgets = overrides.budgets ?? [];
   const budgetMovementsMap = overrides.budgetMovementsMap ?? new Map<string, BudgetMovement[]>();
   const chores = overrides.chores ?? [];
+  const reminders = overrides.reminders ?? [];
   const dismissals = overrides.dismissals ?? [];
 
   const servicesRepo: jest.Mocked<MonthlyServiceRepository> = {
@@ -97,6 +101,13 @@ function buildUseCase(
     softDelete: jest.fn(),
   };
 
+  const remindersRepo: jest.Mocked<ReminderRepository> = {
+    findByUserId: jest.fn().mockResolvedValue(reminders),
+    findById: jest.fn(),
+    save: jest.fn(),
+    deleteById: jest.fn(),
+  };
+
   const userSettingsRepo: jest.Mocked<UserSettingsRepository> = {
     findByUserId: jest.fn().mockResolvedValue(
       buildUserSettings({
@@ -120,6 +131,7 @@ function buildUseCase(
     budgetsRepo,
     budgetMovementRepo,
     choresRepo,
+    remindersRepo,
     userSettingsRepo,
     dismissalsRepo,
   );
@@ -143,6 +155,108 @@ describe('GetAlertsForUserUseCase', () => {
     const result = await useCase.execute(USER_ID, TZ, NOW);
     expect(result.alerts).toEqual([]);
     expect(result.lastSeenAt).toBeNull();
+  });
+
+  describe('reminder triggers', () => {
+    // NOW is 2026-05-19T17:00Z = 12:00 in Lima.
+    function buildReminder(
+      over: Partial<{
+        id: string;
+        title: string;
+        remindDate: string | null;
+        remindTime: string | null;
+        completed: boolean;
+      }> = {},
+    ): Reminder {
+      const now = new Date('2026-05-01T00:00:00.000Z');
+      return new Reminder(
+        over.id ?? 'rem-1',
+        USER_ID,
+        over.title ?? 'Llamar al dentista',
+        null,
+        over.remindDate !== undefined ? over.remindDate : '2026-05-19',
+        over.remindTime !== undefined ? over.remindTime : null,
+        over.completed ?? false,
+        null,
+        now,
+        now,
+      );
+    }
+
+    it('emits REMINDER_DUE for a dated reminder whose day has arrived', async () => {
+      const { useCase } = buildUseCase({ reminders: [buildReminder()] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toHaveLength(1);
+      expect(result.alerts[0].type).toBe(AlertType.REMINDER_DUE);
+      expect(result.alerts[0].payload.title).toBe('Llamar al dentista');
+    });
+
+    it('never emits for a reminder with no date — a note is not a nag', async () => {
+      const { useCase } = buildUseCase({ reminders: [buildReminder({ remindDate: null })] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('does not emit before the day arrives', async () => {
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ remindDate: '2026-05-20' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('keeps emitting after the day has passed — it is still not done', async () => {
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ remindDate: '2026-05-10' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.REMINDER_DUE]);
+    });
+
+    it('waits for the hour on the reminder own day', async () => {
+      const before = buildUseCase({
+        reminders: [buildReminder({ remindTime: '15:00' })],
+      });
+      expect((await before.useCase.execute(USER_ID, TZ, NOW)).alerts).toEqual([]);
+
+      const after = buildUseCase({
+        reminders: [buildReminder({ remindTime: '11:00' })],
+      });
+      expect((await after.useCase.execute(USER_ID, TZ, NOW)).alerts).toHaveLength(1);
+    });
+
+    it('ignores the hour once the day has passed', async () => {
+      // A 23:00 reminder from last week must not hide every morning and
+      // resurface at 23:00 — that is how you lose it.
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ remindDate: '2026-05-10', remindTime: '23:00' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toHaveLength(1);
+    });
+
+    it('stops once completed', async () => {
+      const { useCase } = buildUseCase({ reminders: [buildReminder({ completed: true })] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('scopes the id to TODAY, not to the reminder date, so a dismiss lasts one day', async () => {
+      // Keying the id on `remindDate` would freeze it, and one dismiss would
+      // silence an overdue reminder permanently.
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ id: 'rem-9', remindDate: '2026-05-10' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts[0].id).toBe('reminder-due:rem-9:2026-05-19');
+    });
   });
 
   describe('service triggers', () => {

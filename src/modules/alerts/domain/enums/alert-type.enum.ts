@@ -30,4 +30,12 @@ export enum AlertType {
    * strictly-earlier case.
    */
   CHORE_DUE_TODAY = 'chore-due-today',
+  /**
+   * Reminder that is dated, still pending, and whose moment has arrived —
+   * its date is today (past its hour, if it has one) or already behind.
+   *
+   * A reminder with no date never fires: it is a note the user has not
+   * scheduled yet, and nagging about it would punish writing things down.
+   */
+  REMINDER_DUE = 'reminder-due',
 }

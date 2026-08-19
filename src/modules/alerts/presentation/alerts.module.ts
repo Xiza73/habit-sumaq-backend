@@ -8,6 +8,7 @@ import { HabitsModule } from '@modules/habits/presentation/habits.module';
 import { MonthlyServicesModule } from '@modules/monthly-services/presentation/monthly-services.module';
 import { UsersModule } from '@modules/users/presentation/users.module';
 
+import { RemindersModule } from '../../reminders/presentation/reminders.module';
 import { DismissAlertUseCase } from '../application/use-cases/dismiss-alert.use-case';
 import { GetAlertsForUserUseCase } from '../application/use-cases/get-alerts.use-case';
 import { MarkAlertsSeenUseCase } from '../application/use-cases/mark-alerts-seen.use-case';
@@ -35,6 +36,7 @@ import { AlertsController } from './alerts.controller';
     ChoresModule,
     HabitsModule,
     MonthlyServicesModule,
+    RemindersModule,
     UsersModule,
   ],
   controllers: [AlertsController],
