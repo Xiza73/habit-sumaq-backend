@@ -58,14 +58,18 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
     return entities.map((e) => this.toDomain(e));
   }
 
-  async findCompletedByHabitIdSince(habitId: string, since: string): Promise<HabitLog[]> {
-    const entities = await this.repo
+  async findCompletedByHabitId(habitId: string, since?: string): Promise<HabitLog[]> {
+    const qb = this.repo
       .createQueryBuilder('log')
       .where('log.habitId = :habitId', { habitId })
       .andWhere('log.completed = true')
-      .andWhere('log.date >= :since', { since })
-      .orderBy('log.date', 'ASC')
-      .getMany();
+      .orderBy('log.date', 'ASC');
+
+    if (since !== undefined) {
+      qb.andWhere('log.date >= :since', { since });
+    }
+
+    const entities = await qb.getMany();
     return entities.map((e) => this.toDomain(e));
   }
 
@@ -92,6 +96,7 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
       date: log.date,
       count: log.count,
       completed: log.completed,
+      targetCount: log.targetCount,
       note: log.note,
       createdAt: log.createdAt,
       updatedAt: log.updatedAt,
@@ -115,6 +120,7 @@ export class HabitLogRepositoryImpl extends HabitLogRepository {
       entity.note,
       entity.createdAt,
       entity.updatedAt,
+      entity.targetCount,
     );
   }
 }

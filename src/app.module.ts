@@ -22,6 +22,7 @@ import { HealthModule } from './modules/health/health.module';
 import { MonthlyServicePaymentsModule } from './modules/monthly-service-payments/presentation/monthly-service-payments.module';
 import { MonthlyServicesModule } from './modules/monthly-services/presentation/monthly-services.module';
 import { QuickTasksModule } from './modules/quick-tasks/presentation/quick-tasks.module';
+import { RemindersModule } from './modules/reminders/presentation/reminders.module';
 import { ReportsModule } from './modules/reports/presentation/reports.module';
 import { TasksModule } from './modules/tasks/presentation/tasks.module';
 import { UsersModule } from './modules/users/presentation/users.module';
@@ -37,6 +38,7 @@ import { AppService } from './app.service';
     CategoriesModule,
     HabitsModule,
     QuickTasksModule,
+    RemindersModule,
     MonthlyServicesModule,
     ChoresModule,
     BudgetsModule,

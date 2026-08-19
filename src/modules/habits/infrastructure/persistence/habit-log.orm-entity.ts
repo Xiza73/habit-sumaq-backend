@@ -40,6 +40,14 @@ export class HabitLogOrmEntity {
   @Column({ default: false })
   completed: boolean;
 
+  /**
+   * The target that applied to this specific day. Snapshotted on write so
+   * editing a habit's target never rewrites past days. See migration
+   * `AddTargetCountToHabitLogs1741000040000` for the backfill reasoning.
+   */
+  @Column({ type: 'smallint', default: 1 })
+  targetCount: number;
+
   @Column({ type: 'varchar', length: 500, nullable: true, default: null })
   note: string | null;
 

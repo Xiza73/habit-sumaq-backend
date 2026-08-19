@@ -6,6 +6,8 @@ import { buildHabit } from '@modules/habits/domain/__tests__/habit.factory';
 import { HabitFrequency } from '@modules/habits/domain/enums/habit-frequency.enum';
 import { HabitLog } from '@modules/habits/domain/habit-log.entity';
 import { buildMonthlyService } from '@modules/monthly-services/domain/__tests__/monthly-service.factory';
+import { Reminder } from '@modules/reminders/domain/reminder.entity';
+import { type ReminderRepository } from '@modules/reminders/domain/reminder.repository';
 import { buildUserSettings } from '@modules/users/domain/__tests__/user-settings.factory';
 
 import { isDismissable } from '../../../domain/alert-dismiss-policy';
@@ -36,6 +38,7 @@ function buildUseCase(
     budgets: ReturnType<typeof makeBudget>[];
     budgetMovementsMap: Map<string, BudgetMovement[]>;
     chores: ReturnType<typeof buildChore>[];
+    reminders: Reminder[];
     dismissals: UserAlertDismissal[];
     lastAlertsSeenAt: Date | null;
   }>,
@@ -46,6 +49,7 @@ function buildUseCase(
   const budgets = overrides.budgets ?? [];
   const budgetMovementsMap = overrides.budgetMovementsMap ?? new Map<string, BudgetMovement[]>();
   const chores = overrides.chores ?? [];
+  const reminders = overrides.reminders ?? [];
   const dismissals = overrides.dismissals ?? [];
 
   const servicesRepo: jest.Mocked<MonthlyServiceRepository> = {
@@ -68,7 +72,7 @@ function buildUseCase(
     findByHabitIdAndDate: jest.fn(),
     findByHabitId: jest.fn(),
     findByUserIdAndDate: jest.fn().mockResolvedValue(habitLogs),
-    findCompletedByHabitIdSince: jest.fn(),
+    findCompletedByHabitId: jest.fn(),
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
@@ -97,6 +101,13 @@ function buildUseCase(
     softDelete: jest.fn(),
   };
 
+  const remindersRepo: jest.Mocked<ReminderRepository> = {
+    findByUserId: jest.fn().mockResolvedValue(reminders),
+    findById: jest.fn(),
+    save: jest.fn(),
+    deleteById: jest.fn(),
+  };
+
   const userSettingsRepo: jest.Mocked<UserSettingsRepository> = {
     findByUserId: jest.fn().mockResolvedValue(
       buildUserSettings({
@@ -120,6 +131,7 @@ function buildUseCase(
     budgetsRepo,
     budgetMovementRepo,
     choresRepo,
+    remindersRepo,
     userSettingsRepo,
     dismissalsRepo,
   );
@@ -145,6 +157,108 @@ describe('GetAlertsForUserUseCase', () => {
     expect(result.lastSeenAt).toBeNull();
   });
 
+  describe('reminder triggers', () => {
+    // NOW is 2026-05-19T17:00Z = 12:00 in Lima.
+    function buildReminder(
+      over: Partial<{
+        id: string;
+        title: string;
+        remindDate: string | null;
+        remindTime: string | null;
+        completed: boolean;
+      }> = {},
+    ): Reminder {
+      const now = new Date('2026-05-01T00:00:00.000Z');
+      return new Reminder(
+        over.id ?? 'rem-1',
+        USER_ID,
+        over.title ?? 'Llamar al dentista',
+        null,
+        over.remindDate !== undefined ? over.remindDate : '2026-05-19',
+        over.remindTime !== undefined ? over.remindTime : null,
+        over.completed ?? false,
+        null,
+        now,
+        now,
+      );
+    }
+
+    it('emits REMINDER_DUE for a dated reminder whose day has arrived', async () => {
+      const { useCase } = buildUseCase({ reminders: [buildReminder()] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toHaveLength(1);
+      expect(result.alerts[0].type).toBe(AlertType.REMINDER_DUE);
+      expect(result.alerts[0].payload.title).toBe('Llamar al dentista');
+    });
+
+    it('never emits for a reminder with no date — a note is not a nag', async () => {
+      const { useCase } = buildUseCase({ reminders: [buildReminder({ remindDate: null })] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('does not emit before the day arrives', async () => {
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ remindDate: '2026-05-20' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('keeps emitting after the day has passed — it is still not done', async () => {
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ remindDate: '2026-05-10' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.REMINDER_DUE]);
+    });
+
+    it('waits for the hour on the reminder own day', async () => {
+      const before = buildUseCase({
+        reminders: [buildReminder({ remindTime: '15:00' })],
+      });
+      expect((await before.useCase.execute(USER_ID, TZ, NOW)).alerts).toEqual([]);
+
+      const after = buildUseCase({
+        reminders: [buildReminder({ remindTime: '11:00' })],
+      });
+      expect((await after.useCase.execute(USER_ID, TZ, NOW)).alerts).toHaveLength(1);
+    });
+
+    it('ignores the hour once the day has passed', async () => {
+      // A 23:00 reminder from last week must not hide every morning and
+      // resurface at 23:00 — that is how you lose it.
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ remindDate: '2026-05-10', remindTime: '23:00' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toHaveLength(1);
+    });
+
+    it('stops once completed', async () => {
+      const { useCase } = buildUseCase({ reminders: [buildReminder({ completed: true })] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('scopes the id to TODAY, not to the reminder date, so a dismiss lasts one day', async () => {
+      // Keying the id on `remindDate` would freeze it, and one dismiss would
+      // silence an overdue reminder permanently.
+      const { useCase } = buildUseCase({
+        reminders: [buildReminder({ id: 'rem-9', remindDate: '2026-05-10' })],
+      });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts[0].id).toBe('reminder-due:rem-9:2026-05-19');
+    });
+  });
+
   describe('service triggers', () => {
     it('emits SERVICE_DUE_TODAY for a service whose nextDuePeriod matches the current period and is unpaid', async () => {
       const service = buildMonthlyService({
@@ -166,12 +280,161 @@ describe('GetAlertsForUserUseCase', () => {
     });
 
     it('does NOT emit SERVICE_DUE_TODAY before the due day arrives', async () => {
-      // Due on the 29th, but today (Lima) is the 19th → not due yet. The alert
-      // must not fire until the actual due day.
+      // Due on the 29th, but today (Lima) is the 19th → not due yet. This is
+      // the case the day check was originally added for: without it the alert
+      // announced itself all month long.
       const service = buildMonthlyService({
         startPeriod: '2026-05',
         lastPaidPeriod: null,
         dueDay: 29,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('KEEPS emitting SERVICE_DUE_TODAY after the due day, because it is approximate', async () => {
+      // `dueDay` is "Día aproximado de vencimiento". Matching it exactly gave
+      // the alert a one-day life: miss that day and you miss it entirely.
+      // Due on the 15th, today is the 19th, still unpaid → still actionable.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+    });
+
+    it('emits from day 1 for a service due on the 1st', async () => {
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 1,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+    });
+
+    describe('service with no approximate due day', () => {
+      // `dueDay` is nullable, so there is no user-supplied anchor to count
+      // from. The period boundary is the anchor instead: the service MUST be
+      // paid inside its period — the day after the month ends it is overdue
+      // by definition. So the alert opens in the closing days of the period.
+      //
+      // May 2026 has 31 days, so the window is the 29th, 30th and 31st.
+      const may28 = new Date('2026-05-28T17:00:00.000Z'); // Lima: 28th
+      const may29 = new Date('2026-05-29T17:00:00.000Z'); // Lima: 29th
+      const may31 = new Date('2026-06-01T02:00:00.000Z'); // Lima: 31st, 21:00
+
+      function unpaidWithoutDueDay() {
+        return buildMonthlyService({
+          startPeriod: '2026-05',
+          lastPaidPeriod: null,
+          dueDay: null,
+          estimatedAmount: 45,
+        });
+      }
+
+      it('stays silent early in the month', async () => {
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+        const result = await useCase.execute(USER_ID, TZ, NOW); // Lima: 19th
+
+        expect(result.alerts).toEqual([]);
+      });
+
+      it('stays silent on the day BEFORE the window opens', async () => {
+        // 4 days left including today — one day short of the window.
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+        const result = await useCase.execute(USER_ID, TZ, may28);
+
+        expect(result.alerts).toEqual([]);
+      });
+
+      it('emits on the first day of the closing window', async () => {
+        const service = unpaidWithoutDueDay();
+        const { useCase } = buildUseCase({ services: [service] });
+        const result = await useCase.execute(USER_ID, TZ, may29);
+
+        expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+        expect(result.alerts[0].id).toBe(`service-due-today:${service.id}:2026-05`);
+      });
+
+      it('emits on the last day of the period', async () => {
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+        const result = await useCase.execute(USER_ID, TZ, may31);
+
+        expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+      });
+
+      it('reports the days left so the copy can say it without recomputing the date', async () => {
+        // The frontend must never derive "what day is it" for the user — the
+        // timezone lives here. `dueDay` stays null so the client knows to
+        // render the closing-window copy instead of "Día {day} del mes".
+        const { useCase } = buildUseCase({ services: [unpaidWithoutDueDay()] });
+
+        const first = await useCase.execute(USER_ID, TZ, may29);
+        expect(first.alerts[0].payload.dueDay).toBeNull();
+        expect(first.alerts[0].payload.daysLeftInPeriod).toBe(3);
+
+        const last = await useCase.execute(USER_ID, TZ, may31);
+        expect(last.alerts[0].payload.daysLeftInPeriod).toBe(1);
+      });
+
+      it('does NOT emit inside the window once the service is paid', async () => {
+        const service = buildMonthlyService({
+          startPeriod: '2026-05',
+          lastPaidPeriod: '2026-05',
+          dueDay: null,
+        });
+        const { useCase } = buildUseCase({ services: [service] });
+        const result = await useCase.execute(USER_ID, TZ, may29);
+
+        expect(result.alerts).toEqual([]);
+      });
+
+      it('emits OVERDUE rather than the closing-window alert once the period has passed', async () => {
+        // Overdue is the more specific state and already wins for services
+        // WITH a due day. Dropping the anchor must not change that.
+        const service = buildMonthlyService({
+          startPeriod: '2026-03',
+          lastPaidPeriod: '2026-03',
+          dueDay: null,
+        });
+        const { useCase } = buildUseCase({ services: [service] });
+        const result = await useCase.execute(USER_ID, TZ, may29);
+
+        expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_OVERDUE]);
+      });
+    });
+
+    it('reports a null daysLeftInPeriod for a service that HAS a due day', async () => {
+      // The closing-window count is meaningless when the user gave an anchor;
+      // the copy uses `dueDay` in that case.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts[0].payload.dueDay).toBe(15);
+      expect(result.alerts[0].payload.daysLeftInPeriod).toBeNull();
+    });
+
+    it('does NOT emit once the service is paid, even past the due day', async () => {
+      // Paid for May → nextDuePeriod moves to June, so it is neither due nor
+      // overdue. Passing the due day again is not a prompt.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: '2026-05',
+        dueDay: 15,
       });
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
@@ -243,6 +506,7 @@ describe('GetAlertsForUserUseCase', () => {
         null,
         new Date(),
         new Date(),
+        1,
       );
       const { useCase } = buildUseCase({ habits: [habit], habitLogs: [log] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
@@ -327,31 +591,46 @@ describe('GetAlertsForUserUseCase', () => {
       expect(result.alerts).toEqual([]);
     });
 
-    it('suppresses the nudge before 11:00 in the user TZ (the gate)', async () => {
-      // Same data as the emitting case, only earlier in the day. Firing at
-      // breakfast asks "did you forget to log?" before the user has had a
-      // chance to spend anything — the nudge only reads as useful once the
-      // day is genuinely under way.
+    /** A budget that WOULD emit, so each case below isolates only the hour. */
+    function emittingBudget() {
       const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
-      const { useCase } = buildUseCase({
+      return {
         budgets: [budget],
         budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
-      });
+      };
+    }
+
+    it('suppresses the nudge early in the morning', async () => {
+      // Firing at breakfast asks "did you forget to log?" before the user has
+      // had a chance to spend anything — the nudge only reads as useful once
+      // the day is genuinely under way.
+      const { useCase } = buildUseCase(emittingBudget());
       // 2026-05-19 13:00 UTC = 08:00 Lima.
-      const preElevenAm = new Date('2026-05-19T13:00:00.000Z');
-      const result = await useCase.execute(USER_ID, TZ, preElevenAm);
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T13:00:00.000Z'));
       expect(result.alerts).toEqual([]);
     });
 
-    it('emits exactly at 11:00 local (the boundary is inclusive)', async () => {
-      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
-      const { useCase } = buildUseCase({
-        budgets: [budget],
-        budgetMovementsMap: new Map([[budget.id, [movementOn(budget.id, '17')]]]),
-      });
+    it('still suppresses at 11:00 local, which used to be the boundary', async () => {
+      // The gate shipped at 11 and moved to midday after real use — 11 was
+      // still catching mornings where nothing had happened yet. This case
+      // exists so a revert to 11 fails loudly instead of silently.
+      const { useCase } = buildUseCase(emittingBudget());
       // 2026-05-19 16:00 UTC = 11:00 Lima exactly.
-      const elevenAm = new Date('2026-05-19T16:00:00.000Z');
-      const result = await useCase.execute(USER_ID, TZ, elevenAm);
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T16:00:00.000Z'));
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('emits exactly at 12:00 local (the boundary is inclusive)', async () => {
+      const { useCase } = buildUseCase(emittingBudget());
+      // 2026-05-19 17:00 UTC = 12:00 Lima exactly.
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T17:00:00.000Z'));
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+    });
+
+    it('emits in the afternoon', async () => {
+      const { useCase } = buildUseCase(emittingBudget());
+      // 2026-05-19 21:00 UTC = 16:00 Lima.
+      const result = await useCase.execute(USER_ID, TZ, new Date('2026-05-19T21:00:00.000Z'));
       expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
     });
   });
@@ -479,5 +758,129 @@ describe('GetAlertsForUserUseCase', () => {
     const { useCase } = buildUseCase({ lastAlertsSeenAt: seenAt });
     const result = await useCase.execute(USER_ID, TZ, NOW);
     expect(result.lastSeenAt).toEqual(seenAt);
+  });
+
+  describe('budget-unlogged across a day boundary', () => {
+    // The reported doubt: "I close the nudge, the next day I still haven't
+    // logged anything, and it never comes back."
+    //
+    // Two independent mechanisms are supposed to make it return, and this
+    // block pins both — if either regressed, the alert would go quiet for good
+    // and nothing else in the suite would notice.
+    //
+    //   1. The alert ID embeds the DATE, so tomorrow's alert is a different
+    //      row that no dismissal has ever matched.
+    //   2. The dismissal itself expires at the user's local midnight.
+    //
+    // NOW is 2026-05-19 12:00 Lima; TOMORROW is the same clock time a day on.
+    const TOMORROW = new Date('2026-05-20T17:00:00.000Z');
+
+    /** A budget with money left and no movements since the 17th. */
+    function silentBudget() {
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
+      const movements = new Map([
+        [
+          budget.id,
+          [
+            buildBudgetMovement({
+              budgetId: budget.id,
+              amount: 100,
+              currency: Currency.PEN,
+              date: new Date('2026-05-17T12:00:00.000Z'),
+            }),
+          ],
+        ],
+      ]);
+      return { budget, movements };
+    }
+
+    /** The dismissal the user creates by closing today's nudge. */
+    function dismissalFor(budgetId: string, date: string, expiresAt: Date) {
+      return new UserAlertDismissal(
+        'dismiss-budget',
+        USER_ID,
+        `budget-unlogged:${budgetId}:${date}`,
+        new Date('2026-05-19T17:05:00.000Z'),
+        expiresAt,
+      );
+    }
+
+    it('hides the nudge for the rest of the day it was closed', async () => {
+      const { budget, movements } = silentBudget();
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: movements,
+        // Expires at Lima midnight, which is 05:00 UTC on the 20th.
+        dismissals: [dismissalFor(budget.id, '2026-05-19', new Date('2026-05-20T05:00:00.000Z'))],
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('brings it back the next day when the budget is still silent', async () => {
+      const { budget, movements } = silentBudget();
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: movements,
+        dismissals: [dismissalFor(budget.id, '2026-05-19', new Date('2026-05-20T05:00:00.000Z'))],
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, TOMORROW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+      // A fresh ID for a fresh day — this is mechanism 1.
+      expect(result.alerts[0].id).toBe(`budget-unlogged:${budget.id}:2026-05-20`);
+      // And the streak has grown, so the copy reflects the longer silence.
+      expect(result.alerts[0].payload.days).toBe(3);
+    });
+
+    it('comes back even if the dismissal row somehow never expired', async () => {
+      // Belt and braces for mechanism 1 on its own: a dismissal with NO expiry
+      // at all (`expiresAt: null` is treated as permanently active) still only
+      // covers the day it names.
+      const { budget, movements } = silentBudget();
+      const neverExpires = new UserAlertDismissal(
+        'dismiss-budget',
+        USER_ID,
+        `budget-unlogged:${budget.id}:2026-05-19`,
+        new Date('2026-05-19T17:05:00.000Z'),
+        null,
+      );
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: movements,
+        dismissals: [neverExpires],
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, TOMORROW);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.BUDGET_UNLOGGED]);
+    });
+
+    it('stays hidden the next day only if the user actually logged something', async () => {
+      // The honest alternative explanation for "it never came back": the
+      // streak reset because a movement landed. Pinning it so the two causes
+      // stay distinguishable.
+      const budget = makeBudget({ year: 2026, month: 5, amount: 1000, currency: 'PEN' });
+      const { useCase } = buildUseCase({
+        budgets: [budget],
+        budgetMovementsMap: new Map([
+          [
+            budget.id,
+            [
+              buildBudgetMovement({
+                budgetId: budget.id,
+                amount: 100,
+                currency: Currency.PEN,
+                date: new Date('2026-05-20T12:00:00.000Z'),
+              }),
+            ],
+          ],
+        ]),
+      });
+
+      const result = await useCase.execute(USER_ID, TZ, TOMORROW);
+      expect(result.alerts).toEqual([]);
+    });
   });
 });

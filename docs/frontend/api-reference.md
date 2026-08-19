@@ -1058,13 +1058,29 @@ Soft delete. Elimina el hábito y todos sus logs asociados.
 
 Registra o actualiza el log de un hábito para una fecha. Si ya existe un log para esa fecha, lo actualiza (upsert).
 
-| Campo  | Tipo           | Requerido | Notas                             |
-| ------ | -------------- | --------- | --------------------------------- |
-| `date` | string         | sí        | Formato `YYYY-MM-DD`. No futura  |
-| `count`| number         | sí        | Mín `0`. Cantidad realizada       |
-| `note` | string \| null | no        | Máx 500 chars                     |
+| Campo         | Tipo           | Requerido | Notas                             |
+| ------------- | -------------- | --------- | --------------------------------- |
+| `date`        | string         | sí        | Formato `YYYY-MM-DD`. No futura  |
+| `count`       | number         | sí        | Mín `0`. Cantidad realizada       |
+| `targetCount` | number         | no        | Mín `1`. Objetivo de ESE día      |
+| `note`        | string \| null | no        | Máx 500 chars                     |
 
-`completed` se calcula automáticamente: `count >= habit.targetCount`.
+**`targetCount` — objetivo por día.** Cada log guarda el suyo, así cambiar el
+`targetCount` del hábito **no reescribe los días ya registrados**. Antes el
+denominador se leía del hábito en vivo: subirlo de 3 a 4 convertía cada día ya
+completado en «3/4».
+
+Resolución cuando se omite, en este orden:
+
+1. el `targetCount` que ya tenía ese log — **registrar de nuevo un día pasado no lo re-estampa** con el default de hoy;
+2. si el log no existe, el `targetCount` del hábito.
+
+Solo aplica a hábitos **DAILY**. En **WEEKLY** el objetivo es de la semana, no
+del día, y se sigue midiendo contra el del hábito.
+
+`completed` se calcula automáticamente: `count >= targetCount` del día. El
+`count` se capea en ese target, por lo que un log completo cumple siempre
+`count === targetCount`.
 
 **Response:** `201` — `HabitLogResponseDto`
 
@@ -1115,11 +1131,18 @@ Historial de logs paginados.
     "updatedAt": "2026-03-13T10:00:00.000Z"
   },
   "periodCount": 6,
-  "periodCompleted": false
+  "periodCompleted": false,
+  "periodTarget": 8
 }
 ```
 
-> **Nota:** `currentStreak`, `longestStreak`, `completionRate`, `todayLog`, `periodCount` y `periodCompleted` solo están presentes en los endpoints que devuelven stats (`GET /habits`, `GET /habits/daily`, `GET /habits/:id`). En `POST` y `PATCH` no se incluyen.
+> **Nota:** `currentStreak`, `longestStreak`, `completionRate`, `todayLog`, `periodCount`, `periodCompleted` y `periodTarget` solo están presentes en los endpoints que devuelven stats (`GET /habits`, `GET /habits/daily`, `GET /habits/:id`). En `POST` y `PATCH` no se incluyen.
+>
+> **`periodTarget`**: el DENOMINADOR a mostrar. Es el objetivo contra el que se mide
+> el período: en DAILY el del propio día (`todayLog.targetCount`), que puede diferir
+> del `targetCount` del hábito; en WEEKLY siempre el del hábito. **Usá siempre este
+> campo para renderizar `periodCount / X`** — leer `targetCount` del hábito reescribe
+> visualmente los días pasados.
 >
 > **`periodCount`**: Conteo acumulado en el período actual. Para hábitos DAILY es el count de hoy; para WEEKLY es la suma de counts de la semana actual (lunes a domingo ISO).
 >
@@ -1819,6 +1842,8 @@ Detalle de un budget específico (pasado, presente o futuro), con KPI y movimien
   "remaining": 1550,
   "daysRemainingIncludingToday": 16,
   "dailyAllowance": 96.88,
+  "initialDailyAllowance": 66.67,
+  "recovery": { "zeroSpendDays": 0, "halfSpendDays": 0 },
   "currentDate": "2026-04-15",
   "movements": [
     {
@@ -1848,7 +1873,54 @@ Detalle de un budget específico (pasado, presente o futuro), con KPI y movimien
   - Mes futuro: días totales del mes.
 - `dailyAllowance = round2(remaining / daysRemainingIncludingToday)`. **`null`** cuando
   `daysRemaining = 0` (mes ya cerrado).
+- `initialDailyAllowance = round2(amount / díasDelMes)` — el diario con el que arrancó el mes.
+  **`null`** cuando el mes ya cerró.
+- `recovery` — plan de recuperación (ver abajo). **`null`** cuando el mes ya cerró.
 - `currentDate` = `YYYY-MM-DD` en la timezone del cliente.
+
+#### Plan de recuperación (`recovery`)
+
+`dailyAllowance` se recalcula vivo, así que ya se auto-corrige: te pasás hoy y mañana baja.
+`recovery` responde la pregunta inversa — **cuántos días de contención hacen falta para que
+vuelva a `initialDailyAllowance`**.
+
+Con `A` = amount, `D` = días del mes, `R` = remaining, `d` = días restantes incluyendo hoy,
+y `a₀ = A/D`:
+
+Gastar 0 durante `k` días deja el mismo `R` repartido en `d − k` días, así que el diario
+sube a `R / (d − k)`. Pidiendo que eso alcance `a₀`:
+
+```
+k₀ = ceil(d − R·D/A)
+```
+
+Y gastar una fracción `f` de `a₀` en vez de nada estira el mismo resultado a `k₀ / (1 − f)`.
+Por eso **gastar la mitad cuesta exactamente el doble de días**, y `halfSpendDays` se deriva
+en vez de resolverse de nuevo.
+
+| Campo | Significado |
+| ----- | ----------- |
+| `zeroSpendDays` | Días enteros gastando 0. **`null`** si no entra en los días que quedan |
+| `halfSpendDays` | Días enteros gastando `a₀/2` — el doble. **`null`** si no entra |
+
+**Cada plan se valida por separado.** El de la mitad es el doble de largo, así que se queda
+sin mes antes: con 12 días restantes, un plan de 7 días en cero es alcanzable pero su gemelo
+de 14 gastando la mitad no. Reportarlo igual producía cosas como *"18 días gastando la mitad"*
+un día con 12 restantes.
+
+Ojo con `0` vs `null` en `zeroSpendDays`: **`0` = no hay nada que recuperar** (estás en ritmo
+o adelantado), **`null` = no se recupera este mes**. Son respuestas distintas y la UI las
+muestra distinto.
+
+Ejemplo: budget 3000 en abril (30 días) → `a₀ = 100`. El día 10 con 1500 gastados:
+`R = 1500`, `d = 21`, diario actual `71.43`. Entonces `k₀ = 21 − 15 = 6` días en cero
+(1500/15 = 100 exacto) o 12 días gastando 50.
+
+Se redondea **hacia arriba**: medio día de contención no te deja ahí.
+
+Con los dos en `null` hay que mostrar "no se recupera este mes", no un número: un plan que
+iguala o supera `d` no deja ningún día para efectivamente gastar el diario recuperado. Un
+budget ya excedido (`remaining` negativo) cae también acá.
 
 ### `POST /budgets`
 
@@ -2054,12 +2126,25 @@ badge sin segundo roundtrip.
 
 | Tipo                 | Policy     | Cuándo dispara                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` coincide con el día de hoy (en la zona del usuario) y no está pagado |
+| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod` y no está pagado, con la ventana abierta según tenga o no día aproximado (ver abajo) |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
-| `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 11:00 — recordatorio "¿olvidaste registrar un gasto?" |
+| `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 12:00 — recordatorio "¿olvidaste registrar un gasto?" |
 | `chore-overdue`      | persistent | Chore activo con `nextDueDate < today`                                       |
 | `chore-due-today`    | per-day    | Chore activo con `nextDueDate == today` — "esto toca hoy". Sin gate horario: la alerta es in-app, así que solo se ve cuando el usuario abre la app |
+
+#### Ventana de `service-due-today`
+
+Cuándo se considera que el servicio "toca", según tenga ancla o no:
+
+| `dueDay` | Ventana | Por qué |
+| -------- | ------- | ------- |
+| definido | desde el día `dueDay` en adelante (día de hoy `>= dueDay`, en la TZ del usuario) | `dueDay` es **aproximado** ("Día aproximado de vencimiento"). Compararlo con `===` le daba a la alerta un solo día de vida: no abrir la app ese día era perderla entera. Las boletas se pagan en o después de su fecha de referencia |
+| `null`   | los últimos **3 días** del período | Sin ancla del usuario, el ancla es el borde del período: el servicio debe pagarse *dentro* de su período y al día siguiente ya es overdue por definición. Antes esto no emitía nada, así que un servicio sin fecha aproximada recién avisaba cuando ya estaba vencido |
+
+En ambos casos la alerta vive hasta que se pague o el período pase a overdue, y `service-overdue` gana cuando corresponde (es el estado más específico).
+
+El payload lleva `daysLeftInPeriod` **solo** en el caso sin ancla (`dueDay: null`); con `dueDay` definido viene en `null`, porque ahí el copy usa el día. El cálculo vive en el backend porque la zona horaria del usuario vive de este lado — el frontend nunca deriva "qué día es hoy".
 
 - **Per-day**: el usuario puede cerrarlas y vuelven a aparecer al día siguiente (medianoche
   en su TZ). El backend registra el dismiss con `expiresAt = endOfDayInTimezone(tz, now)`.
@@ -2097,6 +2182,7 @@ de mediodía.
         "serviceId": "550e8400-...",
         "serviceName": "Netflix",
         "dueDay": 15,
+        "daysLeftInPeriod": null,
         "currency": "PEN",
         "estimatedAmount": 45.9
       }

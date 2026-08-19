@@ -61,7 +61,7 @@ describe('HabitResponseDto', () => {
       const habit = buildHabit();
       const todayLog = buildHabitLog({ count: 5, completed: false });
 
-      const dto = HabitResponseDto.fromDomainWithStats(habit, 3, 10, 0.75, todayLog, 5, false);
+      const dto = HabitResponseDto.fromDomainWithStats(habit, 3, 10, 0.75, todayLog, 5, false, 8);
 
       expect(dto.currentStreak).toBe(3);
       expect(dto.longestStreak).toBe(10);
@@ -75,7 +75,7 @@ describe('HabitResponseDto', () => {
     it('should set todayLog to null when no log exists', () => {
       const habit = buildHabit();
 
-      const dto = HabitResponseDto.fromDomainWithStats(habit, 0, 0, 0, null, 0, false);
+      const dto = HabitResponseDto.fromDomainWithStats(habit, 0, 0, 0, null, 0, false, 1);
 
       expect(dto.todayLog).toBeNull();
       expect(dto.periodCount).toBe(0);

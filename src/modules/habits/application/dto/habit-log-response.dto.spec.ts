@@ -23,6 +23,17 @@ describe('HabitLogResponseDto', () => {
       expect(dto.updatedAt).toBe(log.updatedAt);
     });
 
+    it("exposes the day's own targetCount", () => {
+      // Without this the frontend has no denominator per day: the heatmap
+      // falls back to the habit's current default for EVERY cell, which is
+      // the exact rewrite-history bug per-day targets exist to prevent.
+      const log = buildHabitLog({ count: 2, targetCount: 2, completed: true });
+
+      const dto = HabitLogResponseDto.fromDomain(log);
+
+      expect(dto.targetCount).toBe(2);
+    });
+
     it('should not expose userId', () => {
       const log = buildHabitLog();
       const dto = HabitLogResponseDto.fromDomain(log);

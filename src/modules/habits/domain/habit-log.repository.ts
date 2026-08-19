@@ -10,7 +10,18 @@ export abstract class HabitLogRepository {
     limit?: number,
   ): Promise<{ data: HabitLog[]; total: number }>;
   abstract findByUserIdAndDate(userId: string, date: string): Promise<HabitLog[]>;
-  abstract findCompletedByHabitIdSince(habitId: string, since: string): Promise<HabitLog[]>;
+  /**
+   * Completed logs for a habit, oldest first.
+   *
+   * `since` is OPTIONAL and omitting it means the whole history. Streaks have
+   * no natural upper bound, so the stats callers must not pass one — capping
+   * the fetch at 30 days is what made a 45-day streak report as 30, since the
+   * calculator simply never saw the older logs.
+   *
+   * Volume is one row per habit per day, so a multi-year history is still in
+   * the low thousands of rows.
+   */
+  abstract findCompletedByHabitId(habitId: string, since?: string): Promise<HabitLog[]>;
   abstract findByHabitIdAndDateRange(
     habitId: string,
     dateFrom: string,

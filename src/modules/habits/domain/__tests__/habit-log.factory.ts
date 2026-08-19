@@ -13,6 +13,7 @@ export function buildHabitLog(
     note: string | null;
     createdAt: Date;
     updatedAt: Date;
+    targetCount: number;
   }> = {},
 ): HabitLog {
   return new HabitLog(
@@ -25,5 +26,9 @@ export function buildHabitLog(
     overrides.note !== undefined ? overrides.note : null,
     overrides.createdAt ?? new Date('2026-01-01T00:00:00Z'),
     overrides.updatedAt ?? new Date('2026-01-01T00:00:00Z'),
+    // Matches `buildHabit`'s default target of 8, so a log built alongside a
+    // default habit measures against the same number. A low default here
+    // would silently cap counts and make unrelated assertions fail.
+    overrides.targetCount ?? 8,
   );
 }

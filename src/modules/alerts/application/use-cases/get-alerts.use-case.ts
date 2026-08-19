@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { BudgetRepository } from '@modules/budgets/domain/budget.repository';
-import { currentMonthInTimezone } from '@modules/budgets/infrastructure/timezone/current-month-in-timezone';
+import {
+  currentMonthInTimezone,
+  daysInMonth,
+} from '@modules/budgets/infrastructure/timezone/current-month-in-timezone';
 import { ChoreRepository } from '@modules/chores/domain/chore.repository';
 import { HabitFrequency } from '@modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '@modules/habits/domain/habit.repository';
@@ -10,6 +13,7 @@ import { HabitLogRepository } from '@modules/habits/domain/habit-log.repository'
 import { MonthlyServiceRepository } from '@modules/monthly-services/domain/monthly-service.repository';
 import { currentPeriodInTimezone } from '@modules/monthly-services/infrastructure/timezone/current-period-in-timezone';
 import { dayInTimezone } from '@modules/monthly-services/infrastructure/timezone/day-in-timezone';
+import { ReminderRepository } from '@modules/reminders/domain/reminder.repository';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
 
 import { Alert } from '../../domain/alert.entity';
@@ -18,6 +22,7 @@ import {
   choreDueTodayId,
   choreOverdueId,
   habitsMiddayId,
+  reminderDueId,
   serviceDueTodayId,
   serviceOverdueId,
 } from '../../domain/alert-id';
@@ -31,12 +36,17 @@ const MIDDAY_HOUR = 12;
 /**
  * Earliest local hour the budget-unlogged nudge may fire.
  *
- * It asks "did you forget to log an expense?" — at 7am the honest answer is
- * "no, I just haven't spent anything yet", so the alert was reading as noise
- * every morning. 11 is late enough that a normal day has had a chance to
- * produce a expense, and early enough to still be actionable.
+ * It asks "did you forget to log an expense?" — early in the day the honest
+ * answer is "no, I just haven't spent anything yet", so the nudge read as
+ * noise every morning. Shipped at 11, moved to midday after using it: 11 was
+ * still catching mornings where nothing had happened yet.
+ *
+ * Deliberately its own constant rather than reusing `MIDDAY_HOUR`, even
+ * though they now hold the same value. They gate unrelated triggers for
+ * unrelated reasons and should be free to diverge again without one silently
+ * dragging the other along.
  */
-const BUDGET_UNLOGGED_EARLIEST_HOUR = 11;
+const BUDGET_UNLOGGED_EARLIEST_HOUR = 12;
 
 /**
  * Consecutive no-movement days (ending today) that trip the budget-unlogged
@@ -44,6 +54,20 @@ const BUDGET_UNLOGGED_EARLIEST_HOUR = 11;
  * always means "forgot to register", not genuinely no spending.
  */
 const MIN_UNLOGGED_DAYS = 2;
+
+/**
+ * How many closing days of a period count as "due" for a service with NO
+ * approximate due day. 3 — enough runway to survive a day away from the app,
+ * short enough that an unpaid service is not lit up for the whole month, which
+ * is the pattern that trains people to ignore the bell.
+ */
+const CLOSING_WINDOW_DAYS = 3;
+
+/** Number of days in a `YYYY-MM` period. */
+function daysInPeriod(period: string): number {
+  const [year, month] = period.split('-').map(Number);
+  return daysInMonth(year, month);
+}
 
 export interface GetAlertsResult {
   /** Alerts visible to the user RIGHT NOW (post-dismiss filter). */
@@ -72,6 +96,7 @@ export class GetAlertsForUserUseCase {
     private readonly budgetsRepo: BudgetRepository,
     private readonly budgetMovementRepo: BudgetMovementRepository,
     private readonly choresRepo: ChoreRepository,
+    private readonly remindersRepo: ReminderRepository,
     private readonly userSettingsRepo: UserSettingsRepository,
     private readonly dismissalsRepo: UserAlertDismissalRepository,
   ) {}
@@ -93,18 +118,21 @@ export class GetAlertsForUserUseCase {
     const currentHour = hourInTimezone(timezone, now);
 
     // 3) Build candidate alerts from every module in parallel.
-    const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts] = await Promise.all([
-      this.buildServiceAlerts(userId, currentPeriod, timezone, now),
-      this.buildHabitsMiddayAlert(userId, today, currentHour, now),
-      this.buildBudgetAlerts(userId, year, month, today, timezone, currentHour, now),
-      this.buildChoreAlerts(userId, today),
-    ]);
+    const [serviceAlerts, habitsAlert, budgetAlerts, choreAlerts, reminderAlerts] =
+      await Promise.all([
+        this.buildServiceAlerts(userId, currentPeriod, timezone, now),
+        this.buildHabitsMiddayAlert(userId, today, currentHour, now),
+        this.buildBudgetAlerts(userId, year, month, today, timezone, currentHour, now),
+        this.buildChoreAlerts(userId, today),
+        this.buildReminderAlerts(userId, today, currentHour),
+      ]);
 
     const candidates: Alert[] = [
       ...serviceAlerts,
       ...(habitsAlert ? [habitsAlert] : []),
       ...budgetAlerts,
       ...choreAlerts,
+      ...reminderAlerts,
     ];
 
     // 4) Filter out alerts whose ID has an active dismissal row.
@@ -158,14 +186,39 @@ export class GetAlertsForUserUseCase {
         );
         continue; // Don't ALSO mark it as "due today" — overdue is more specific.
       }
-      // "Due today" means exactly that: today (in the user's timezone) is the
-      // service's due day. Without the day check this fired all month long, as
-      // soon as the service entered its due period — e.g. a day-29 service
-      // showing "due today" on the 11th.
+      // Fires from the service's due day ONWARD, not on that day alone.
+      //
+      // `dueDay` is presented to the user as "Día aproximado de vencimiento —
+      // solo para ordenar y recordar", so matching it with `===` read an
+      // approximate value as an exact one: the alert existed for a single day
+      // a month, and not opening the app that day meant missing it entirely.
+      // Bills are paid on or after their reference date.
+      //
+      // This is NOT a revert of the earlier fix that introduced the day check.
+      // That fix stopped the alert firing all month long — a day-29 service
+      // announcing itself on the 11th. `>=` keeps it silent before the due day
+      // and only starts once the date the user wrote down has arrived, which
+      // is what the original bug was actually about.
+      //
+      // The alert ID is scoped to the period while the dismissal is per-day,
+      // so closing it hides it until the user's midnight and it returns the
+      // next day — nagging daily from the due day until paid, which is the
+      // intended behaviour here rather than an oversight.
+      //
+      // A service with NO due day has no user-supplied anchor, so the period
+      // boundary is the anchor instead: it must be paid inside its period, and
+      // the day after the period ends it is overdue by definition. The alert
+      // therefore opens in the closing days of the period. Silence was the old
+      // behaviour and it meant a bill with no approximate date announced itself
+      // only once it was already late.
+      const today = dayInTimezone(now, timezone);
+      const daysLeftInPeriod = daysInPeriod(currentPeriod) - today + 1;
+      const withinDueWindow =
+        service.dueDay !== null ? today >= service.dueDay : daysLeftInPeriod <= CLOSING_WINDOW_DAYS;
+
       if (
         service.nextDuePeriod() === currentPeriod &&
-        service.dueDay !== null &&
-        dayInTimezone(now, timezone) === service.dueDay &&
+        withinDueWindow &&
         !service.isPaidForMonth(currentPeriod)
       ) {
         alerts.push(
@@ -180,6 +233,10 @@ export class GetAlertsForUserUseCase {
               serviceId: service.id,
               serviceName: service.name,
               dueDay: service.dueDay,
+              // Only meaningful for the anchorless case — the copy uses
+              // `dueDay` when the user did supply one. Computed here because
+              // the user's timezone lives on this side.
+              daysLeftInPeriod: service.dueDay === null ? daysLeftInPeriod : null,
               currency: service.currency,
               estimatedAmount: service.estimatedAmount,
             },
@@ -319,6 +376,51 @@ export class GetAlertsForUserUseCase {
    * from the moment today starts. And the alert only surfaces inside the bell
    * popover, so "too early" isn't a thing: the user is the one opening it.
    */
+  /**
+   * Reminder triggers — one per pending, dated reminder whose moment has come.
+   *
+   * The "is it due?" decision lives on the entity (`Reminder.isDueOn`) rather
+   * than here: the hour only applies on the reminder's OWN day, and that rule
+   * belongs with the data it constrains.
+   *
+   * `triggeredAt` is the start of the reminder's day, so an overdue one keeps
+   * an older timestamp and sorts above today's — the bell badge counts by
+   * recency, and something you have been putting off should not look new.
+   */
+  private async buildReminderAlerts(
+    userId: string,
+    today: string,
+    currentHour: number,
+  ): Promise<Alert[]> {
+    const reminders = await this.remindersRepo.findByUserId(userId);
+    const alerts: Alert[] = [];
+
+    for (const reminder of reminders) {
+      if (!reminder.isDueOn(today, currentHour)) continue;
+
+      alerts.push(
+        new Alert(
+          // Scoped to TODAY, not to `remindDate`: a date-scoped id would never
+          // change again for an overdue reminder, so one dismiss would silence
+          // it for good.
+          reminderDueId(reminder.id, today),
+          AlertType.REMINDER_DUE,
+          // Overdue reminders read as a warning; today's is just information.
+          reminder.remindDate! < today ? AlertSeverity.WARNING : AlertSeverity.INFO,
+          new Date(`${reminder.remindDate!}T00:00:00.000Z`),
+          {
+            reminderId: reminder.id,
+            title: reminder.title,
+            remindDate: reminder.remindDate,
+            remindTime: reminder.remindTime,
+          },
+        ),
+      );
+    }
+
+    return alerts;
+  }
+
   private async buildChoreAlerts(userId: string, today: string): Promise<Alert[]> {
     const chores = await this.choresRepo.findByUserId(userId, false);
     const alerts: Alert[] = [];

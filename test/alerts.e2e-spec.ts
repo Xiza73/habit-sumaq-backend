@@ -28,6 +28,7 @@ import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
+import { ReminderRepository } from '../src/modules/reminders/domain/reminder.repository';
 import { buildUserSettings } from '../src/modules/users/domain/__tests__/user-settings.factory';
 import { UserSettingsRepository } from '../src/modules/users/domain/user-settings.repository';
 
@@ -62,7 +63,7 @@ describe('AlertsController (e2e)', () => {
     findByHabitIdAndDate: jest.fn(),
     findByHabitId: jest.fn(),
     findByUserIdAndDate: jest.fn(),
-    findCompletedByHabitIdSince: jest.fn(),
+    findCompletedByHabitId: jest.fn(),
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
@@ -88,6 +89,13 @@ describe('AlertsController (e2e)', () => {
     save: jest.fn(),
     softDelete: jest.fn(),
   } as unknown as jest.Mocked<ChoreRepository>;
+
+  const mockReminderRepo = {
+    findByUserId: jest.fn(),
+    findById: jest.fn(),
+    save: jest.fn(),
+    deleteById: jest.fn(),
+  } as unknown as jest.Mocked<ReminderRepository>;
 
   const mockUserSettingsRepo: jest.Mocked<UserSettingsRepository> = {
     findByUserId: jest.fn(),
@@ -122,6 +130,7 @@ describe('AlertsController (e2e)', () => {
         { provide: BudgetRepository, useValue: mockBudgetRepo },
         { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: ChoreRepository, useValue: mockChoreRepo },
+        { provide: ReminderRepository, useValue: mockReminderRepo },
         { provide: UserSettingsRepository, useValue: mockUserSettingsRepo },
         { provide: UserAlertDismissalRepository, useValue: mockDismissalsRepo },
         JwtAccessStrategy,
@@ -159,6 +168,7 @@ describe('AlertsController (e2e)', () => {
     mockHabitLogRepo.findByUserIdAndDate.mockResolvedValue([]);
     mockBudgetRepo.findByUserId.mockResolvedValue([]);
     mockChoreRepo.findByUserId.mockResolvedValue([]);
+    mockReminderRepo.findByUserId.mockResolvedValue([]);
     mockUserSettingsRepo.findByUserId.mockResolvedValue(buildUserSettings({ userId: USER_ID }));
     mockDismissalsRepo.findByUserId.mockResolvedValue([]);
   });

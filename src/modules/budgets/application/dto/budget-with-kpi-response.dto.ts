@@ -3,15 +3,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMovementResponseDto } from '@modules/budget-movements/application/dto/budget-movement-response.dto';
 
 import type { Budget } from '../../domain/budget.entity';
+// Imported rather than re-declared: this file used to carry a hand-mirrored
+// copy of the snapshot shape, which silently drifted the moment the use-case
+// grew a field.
+import type { BudgetKpiSnapshot as KpiSnapshot } from '../use-cases/compute-budget-kpi';
 import type { BudgetMovement } from '@modules/budget-movements/domain/budget-movement.entity';
-
-interface KpiSnapshot {
-  spent: number;
-  remaining: number;
-  daysRemainingIncludingToday: number;
-  dailyAllowance: number | null;
-  currentDate: string; // YYYY-MM-DD in user timezone
-}
 
 /**
  * Full Budget shape with KPI snapshot and embedded movements. Used by:
@@ -63,6 +59,27 @@ export class BudgetWithKpiResponseDto {
   })
   dailyAllowance: number | null;
 
+  @ApiPropertyOptional({
+    example: 100,
+    description:
+      'Asignación diaria con la que arrancó el mes = amount / díasDelMes. Es la barra que apunta a recuperar `recovery`. null cuando daysRemainingIncludingToday = 0.',
+    nullable: true,
+  })
+  initialDailyAllowance: number | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Cuántos días de contención hacen falta para que dailyAllowance vuelva a initialDailyAllowance. ' +
+      '`zeroSpendDays` = días gastando 0; `halfSpendDays` = días gastando la mitad del diario inicial, ' +
+      'que es el doble. Cada plan viene en **null** cuando NO entra en los días que quedan del mes — ' +
+      'se validan por separado porque el de la mitad, al ser el doble de largo, se queda sin mes antes. ' +
+      'Los dos en null = no se recupera este mes. `zeroSpendDays: 0` (distinto de null) = no hay nada ' +
+      'que recuperar. `recovery: null` = el mes ya cerró.',
+    example: { zeroSpendDays: 6, halfSpendDays: 12 },
+    nullable: true,
+  })
+  recovery: { zeroSpendDays: number | null; halfSpendDays: number | null } | null;
+
   @ApiProperty({
     example: '2026-04-15',
     description:
@@ -98,6 +115,8 @@ export class BudgetWithKpiResponseDto {
     dto.remaining = kpi.remaining;
     dto.daysRemainingIncludingToday = kpi.daysRemainingIncludingToday;
     dto.dailyAllowance = kpi.dailyAllowance;
+    dto.initialDailyAllowance = kpi.initialDailyAllowance;
+    dto.recovery = kpi.recovery;
     dto.currentDate = kpi.currentDate;
     dto.movements = movements.map((m) => BudgetMovementResponseDto.fromDomain(m));
     dto.createdAt = budget.createdAt;

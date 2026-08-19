@@ -56,6 +56,20 @@ export function choreDueTodayId(choreId: string, date: string): string {
 }
 
 /**
+ * `reminder-due:{reminderId}:{YYYY-MM-DD}` — per-day, scoped to the date the
+ * alert is being shown on, NOT to the reminder's own date.
+ *
+ * That distinction matters for an overdue reminder: scoping the ID to
+ * `remindDate` would make one dismiss silence it for good, because the ID
+ * would never change again. Scoping it to today means dismissing it today and
+ * seeing it again tomorrow, which is what a reminder you have not done yet
+ * should do.
+ */
+export function reminderDueId(reminderId: string, today: string): string {
+  return `${AlertType.REMINDER_DUE}:${reminderId}:${today}`;
+}
+
+/**
  * Recover the `AlertType` from a persisted ID. Used by `DismissAlertUseCase`
  * to look up the dismiss policy without coupling the caller to the format.
  * Returns `null` for an ID whose prefix doesn't match any known type —

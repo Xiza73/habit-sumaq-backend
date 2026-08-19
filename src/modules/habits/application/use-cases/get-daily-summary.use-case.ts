@@ -5,6 +5,7 @@ import { HabitRepository } from '../../domain/habit.repository';
 import { HabitLogRepository } from '../../domain/habit-log.repository';
 import { HabitResponseDto } from '../dto/habit-response.dto';
 
+import { resolvePeriodTarget } from './period-target';
 import { StatsCalculator } from './stats-calculator';
 
 import type { Habit } from '../../domain/habit.entity';
@@ -31,9 +32,6 @@ export class GetDailySummaryUseCase {
     today: Date,
   ): Promise<HabitResponseDto> {
     const refStr = StatsCalculator.toDateString(referenceDate);
-    const since = new Date(today);
-    since.setDate(since.getDate() - 30);
-    const sinceStr = StatsCalculator.toDateString(since);
 
     const isWeekly = habit.frequency === HabitFrequency.WEEKLY;
 
@@ -42,7 +40,7 @@ export class GetDailySummaryUseCase {
       : undefined;
 
     const [logs, dateLog, weekLogs] = await Promise.all([
-      this.habitLogRepo.findCompletedByHabitIdSince(habit.id, sinceStr),
+      this.habitLogRepo.findCompletedByHabitId(habit.id),
       this.habitLogRepo.findByHabitIdAndDate(habit.id, refStr),
       isWeekly
         ? this.habitLogRepo.findByHabitIdAndDateRange(habit.id, weekStartStr!, refStr)
@@ -58,7 +56,8 @@ export class GetDailySummaryUseCase {
     const periodCount = isWeekly
       ? weekLogs.reduce((sum, l) => sum + l.count, 0)
       : (dateLog?.count ?? 0);
-    const periodCompleted = periodCount >= habit.targetCount;
+    const periodTarget = resolvePeriodTarget(habit, dateLog);
+    const periodCompleted = periodCount >= periodTarget;
 
     return HabitResponseDto.fromDomainWithStats(
       habit,
@@ -68,6 +67,7 @@ export class GetDailySummaryUseCase {
       dateLog,
       periodCount,
       periodCompleted,
+      periodTarget,
     );
   }
 }
