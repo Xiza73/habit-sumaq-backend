@@ -10,16 +10,23 @@ import type { Budget } from '../../domain/budget.entity';
  * what it was on day 1 of the month.
  */
 export interface BudgetRecoveryPlan {
-  /** Whole days spending nothing. */
-  zeroSpendDays: number;
-  /** Whole days spending half the initial allowance — always 2x the above. */
-  halfSpendDays: number;
   /**
-   * False when even spending nothing for the rest of the month cannot get
-   * there. Render that as "no recuperable este mes" rather than a day count
-   * the user cannot act on.
+   * Whole days spending nothing, or `null` when even total abstinence for the
+   * rest of the month cannot get there.
+   *
+   * `0` and `null` are different answers: `0` means there is nothing to
+   * recover, `null` means it cannot be done this month.
    */
-  recoverable: boolean;
+  zeroSpendDays: number | null;
+  /**
+   * Whole days spending half the opening allowance — twice the zero-spend
+   * count — or `null` when that does not FIT in the days the month has left.
+   *
+   * Checked independently of `zeroSpendDays` on purpose. Being twice as long,
+   * it runs out of month first: a 7-day zero-spend plan is achievable with 12
+   * days left, but its 14-day half-spend twin is not.
+   */
+  halfSpendDays: number | null;
 }
 
 export interface BudgetKpiSnapshot {
@@ -120,13 +127,22 @@ function computeRecovery(
   if (daysLeft <= 0) return null;
 
   const zeroSpendDays = Math.max(0, Math.ceil(daysLeft - (remaining * daysInMonth_) / amount));
-  // Needing the whole remainder of the month means there is no day left to
-  // actually spend the recovered allowance on, so it does not count as
-  // recovered. Overspent budgets land here too, with `remaining` negative
-  // pushing the count past `daysLeft`.
-  const recoverable = zeroSpendDays < daysLeft;
 
-  return { zeroSpendDays, halfSpendDays: zeroSpendDays * 2, recoverable };
+  // Each plan is only real if it FITS in the days that are left. Needing the
+  // whole remainder of the month leaves no day to actually spend the recovered
+  // allowance on, so it does not count. Overspent budgets land here too, with
+  // a negative `remaining` pushing the count past `daysLeft`.
+  //
+  // The two are checked separately because the half-spend plan is twice as
+  // long and therefore runs out of month first — reporting it as `2 *
+  // zeroSpendDays` unconditionally is what produced "18 días gastando la
+  // mitad" on a day with 12 left.
+  const fits = (days: number): number | null => (days < daysLeft ? days : null);
+
+  return {
+    zeroSpendDays: fits(zeroSpendDays),
+    halfSpendDays: fits(zeroSpendDays * 2),
+  };
 }
 
 function round2(n: number): number {

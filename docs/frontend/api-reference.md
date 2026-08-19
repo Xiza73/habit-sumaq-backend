@@ -1843,7 +1843,7 @@ Detalle de un budget específico (pasado, presente o futuro), con KPI y movimien
   "daysRemainingIncludingToday": 16,
   "dailyAllowance": 96.88,
   "initialDailyAllowance": 66.67,
-  "recovery": { "zeroSpendDays": 0, "halfSpendDays": 0, "recoverable": true },
+  "recovery": { "zeroSpendDays": 0, "halfSpendDays": 0 },
   "currentDate": "2026-04-15",
   "movements": [
     {
@@ -1900,9 +1900,17 @@ en vez de resolverse de nuevo.
 
 | Campo | Significado |
 | ----- | ----------- |
-| `zeroSpendDays` | Días enteros gastando 0 |
-| `halfSpendDays` | Días enteros gastando `a₀/2` — siempre `2 × zeroSpendDays` |
-| `recoverable` | `false` cuando ni gastando 0 el resto del mes se llega |
+| `zeroSpendDays` | Días enteros gastando 0. **`null`** si no entra en los días que quedan |
+| `halfSpendDays` | Días enteros gastando `a₀/2` — el doble. **`null`** si no entra |
+
+**Cada plan se valida por separado.** El de la mitad es el doble de largo, así que se queda
+sin mes antes: con 12 días restantes, un plan de 7 días en cero es alcanzable pero su gemelo
+de 14 gastando la mitad no. Reportarlo igual producía cosas como *"18 días gastando la mitad"*
+un día con 12 restantes.
+
+Ojo con `0` vs `null` en `zeroSpendDays`: **`0` = no hay nada que recuperar** (estás en ritmo
+o adelantado), **`null` = no se recupera este mes**. Son respuestas distintas y la UI las
+muestra distinto.
 
 Ejemplo: budget 3000 en abril (30 días) → `a₀ = 100`. El día 10 con 1500 gastados:
 `R = 1500`, `d = 21`, diario actual `71.43`. Entonces `k₀ = 21 − 15 = 6` días en cero
@@ -1910,9 +1918,9 @@ Ejemplo: budget 3000 en abril (30 días) → `a₀ = 100`. El día 10 con 1500 g
 
 Se redondea **hacia arriba**: medio día de contención no te deja ahí.
 
-Cuando `recoverable` es `false` hay que mostrar "no recuperable este mes", no el número —
-`zeroSpendDays` puede igualar o superar `d`, y ahí no queda ningún día para efectivamente
-gastar el diario recuperado. Un budget ya excedido (`remaining` negativo) cae también acá.
+Con los dos en `null` hay que mostrar "no se recupera este mes", no un número: un plan que
+iguala o supera `d` no deja ningún día para efectivamente gastar el diario recuperado. Un
+budget ya excedido (`remaining` negativo) cae también acá.
 
 ### `POST /budgets`
 
