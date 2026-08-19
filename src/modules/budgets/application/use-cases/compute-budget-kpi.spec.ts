@@ -25,7 +25,7 @@ describe('computeBudgetKpi', () => {
       const kpi = computeBudgetKpi(budget, 900, TZ_, new Date('2026-04-10T17:00:00.000Z'));
 
       expect(kpi.initialDailyAllowance).toBe(100);
-      expect(kpi.recovery).toEqual({ zeroSpendDays: 0, halfSpendDays: 0, recoverable: true });
+      expect(kpi.recovery).toEqual({ zeroSpendDays: 0, halfSpendDays: 0 });
     });
 
     it('counts the zero-spend days needed to get back to the initial allowance', () => {
@@ -45,7 +45,8 @@ describe('computeBudgetKpi', () => {
       const budget = makeBudget({ year: 2026, month: 4, amount: 3000 });
       const kpi = computeBudgetKpi(budget, 1500, TZ_, new Date('2026-04-10T17:00:00.000Z'));
 
-      expect(kpi.recovery?.halfSpendDays).toBe(2 * kpi.recovery!.zeroSpendDays);
+      // Both fit here (d = 21), so the 2x relation holds and is visible.
+      expect(kpi.recovery?.halfSpendDays).toBe(2 * kpi.recovery!.zeroSpendDays!);
       expect(kpi.recovery?.halfSpendDays).toBe(12);
     });
 
@@ -59,23 +60,51 @@ describe('computeBudgetKpi', () => {
       expect(kpi.recovery?.zeroSpendDays).toBe(8);
     });
 
-    it('reports the month as unrecoverable when even total abstinence is not enough', () => {
-      // 2900 spent by the 10th. R = 100, d = 21, k = 21 - 1 = 20 — that fits,
-      // barely. Push to 2990: R = 10, k = 21 - 0.1 = 20.9 → 21, which is the
-      // whole rest of the month, so there is no day left to spend the target on.
+    it('drops the half-spend plan on its own when it does not fit the month', () => {
+      // The bug this replaces: `halfSpendDays` was always 2x zeroSpendDays and
+      // was reported even when it exceeded the days actually left — telling
+      // someone on the 19th to hold back for 18 days of a month with 12 left.
+      //
+      // 3000/30 -> a0 = 100. On the 19th: d = 12. Spend 1500 -> R = 1500,
+      // k0 = 12 - 15 = -3 -> 0, nothing to recover. Push to 2500:
+      // R = 500, k0 = ceil(12 - 5) = 7 (fits), half = 14 (does NOT fit in 12).
+      const budget = makeBudget({ year: 2026, month: 4, amount: 3000 });
+      const kpi = computeBudgetKpi(budget, 2500, TZ_, new Date('2026-04-19T17:00:00.000Z'));
+
+      expect(kpi.daysRemainingIncludingToday).toBe(12);
+      expect(kpi.recovery?.zeroSpendDays).toBe(7);
+      expect(kpi.recovery?.halfSpendDays).toBeNull();
+    });
+
+    it('reports both plans as null when even total abstinence is not enough', () => {
+      // 2990 spent by the 10th. R = 10, d = 21, k = ceil(21 - 0.1) = 21 — the
+      // whole rest of the month, so there is no day left to spend on.
       const budget = makeBudget({ year: 2026, month: 4, amount: 3000 });
       const kpi = computeBudgetKpi(budget, 2990, TZ_, new Date('2026-04-10T17:00:00.000Z'));
 
-      expect(kpi.recovery?.recoverable).toBe(false);
+      expect(kpi.recovery).toEqual({ zeroSpendDays: null, halfSpendDays: null });
     });
 
-    it('reports unrecoverable rather than a negative count once the budget is blown', () => {
+    it('reports null rather than a count once the budget is blown', () => {
       const budget = makeBudget({ year: 2026, month: 4, amount: 3000 });
       const kpi = computeBudgetKpi(budget, 3400, TZ_, new Date('2026-04-10T17:00:00.000Z'));
 
       expect(kpi.remaining).toBe(-400);
-      expect(kpi.recovery?.recoverable).toBe(false);
-      expect(kpi.recovery?.zeroSpendDays).toBeGreaterThan(0);
+      expect(kpi.recovery).toEqual({ zeroSpendDays: null, halfSpendDays: null });
+    });
+
+    it('never reports a plan longer than the days the month has left', () => {
+      // The invariant behind all of the above, asserted directly across a
+      // sweep of spend levels rather than at one hand-picked point.
+      const budget = makeBudget({ year: 2026, month: 4, amount: 3000 });
+
+      for (let spent = 0; spent <= 3600; spent += 50) {
+        const kpi = computeBudgetKpi(budget, spent, TZ_, new Date('2026-04-19T17:00:00.000Z'));
+        const d = kpi.daysRemainingIncludingToday;
+
+        expect(kpi.recovery?.zeroSpendDays ?? 0).toBeLessThan(d);
+        expect(kpi.recovery?.halfSpendDays ?? 0).toBeLessThan(d);
+      }
     });
 
     it('has no plan for a closed month — there is nothing left to recover into', () => {

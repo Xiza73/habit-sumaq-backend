@@ -71,13 +71,14 @@ export class BudgetWithKpiResponseDto {
     description:
       'Cuántos días de contención hacen falta para que dailyAllowance vuelva a initialDailyAllowance. ' +
       '`zeroSpendDays` = días gastando 0; `halfSpendDays` = días gastando la mitad del diario inicial, ' +
-      'que es exactamente el doble. `recoverable: false` cuando ni gastando 0 el resto del mes se llega — ' +
-      'mostrar "no recuperable este mes" en vez de un número que el usuario no puede accionar. ' +
-      'null cuando el mes ya cerró.',
-    example: { zeroSpendDays: 6, halfSpendDays: 12, recoverable: true },
+      'que es el doble. Cada plan viene en **null** cuando NO entra en los días que quedan del mes — ' +
+      'se validan por separado porque el de la mitad, al ser el doble de largo, se queda sin mes antes. ' +
+      'Los dos en null = no se recupera este mes. `zeroSpendDays: 0` (distinto de null) = no hay nada ' +
+      'que recuperar. `recovery: null` = el mes ya cerró.',
+    example: { zeroSpendDays: 6, halfSpendDays: 12 },
     nullable: true,
   })
-  recovery: { zeroSpendDays: number; halfSpendDays: number; recoverable: boolean } | null;
+  recovery: { zeroSpendDays: number | null; halfSpendDays: number | null } | null;
 
   @ApiProperty({
     example: '2026-04-15',

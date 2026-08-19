@@ -18,6 +18,15 @@ export class HabitLogResponseDto {
   @ApiProperty({ example: false })
   completed: boolean;
 
+  @ApiProperty({
+    example: 3,
+    description:
+      'Objetivo que aplicaba a ESE día, congelado al escribir el log. Es el denominador ' +
+      'de ese día: el heatmap colorea cada celda contra su propio targetCount, no contra ' +
+      'el default actual del hábito. Sin este campo, subir el objetivo repinta el pasado.',
+  })
+  targetCount: number;
+
   @ApiPropertyOptional({ example: 'Hoy fue un buen día', nullable: true })
   note: string | null;
 
@@ -34,6 +43,7 @@ export class HabitLogResponseDto {
     dto.date = log.date;
     dto.count = log.count;
     dto.completed = log.completed;
+    dto.targetCount = log.targetCount;
     dto.note = log.note;
     dto.createdAt = log.createdAt;
     dto.updatedAt = log.updatedAt;
