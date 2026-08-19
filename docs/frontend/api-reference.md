@@ -1842,6 +1842,8 @@ Detalle de un budget específico (pasado, presente o futuro), con KPI y movimien
   "remaining": 1550,
   "daysRemainingIncludingToday": 16,
   "dailyAllowance": 96.88,
+  "initialDailyAllowance": 66.67,
+  "recovery": { "zeroSpendDays": 0, "halfSpendDays": 0, "recoverable": true },
   "currentDate": "2026-04-15",
   "movements": [
     {
@@ -1871,7 +1873,46 @@ Detalle de un budget específico (pasado, presente o futuro), con KPI y movimien
   - Mes futuro: días totales del mes.
 - `dailyAllowance = round2(remaining / daysRemainingIncludingToday)`. **`null`** cuando
   `daysRemaining = 0` (mes ya cerrado).
+- `initialDailyAllowance = round2(amount / díasDelMes)` — el diario con el que arrancó el mes.
+  **`null`** cuando el mes ya cerró.
+- `recovery` — plan de recuperación (ver abajo). **`null`** cuando el mes ya cerró.
 - `currentDate` = `YYYY-MM-DD` en la timezone del cliente.
+
+#### Plan de recuperación (`recovery`)
+
+`dailyAllowance` se recalcula vivo, así que ya se auto-corrige: te pasás hoy y mañana baja.
+`recovery` responde la pregunta inversa — **cuántos días de contención hacen falta para que
+vuelva a `initialDailyAllowance`**.
+
+Con `A` = amount, `D` = días del mes, `R` = remaining, `d` = días restantes incluyendo hoy,
+y `a₀ = A/D`:
+
+Gastar 0 durante `k` días deja el mismo `R` repartido en `d − k` días, así que el diario
+sube a `R / (d − k)`. Pidiendo que eso alcance `a₀`:
+
+```
+k₀ = ceil(d − R·D/A)
+```
+
+Y gastar una fracción `f` de `a₀` en vez de nada estira el mismo resultado a `k₀ / (1 − f)`.
+Por eso **gastar la mitad cuesta exactamente el doble de días**, y `halfSpendDays` se deriva
+en vez de resolverse de nuevo.
+
+| Campo | Significado |
+| ----- | ----------- |
+| `zeroSpendDays` | Días enteros gastando 0 |
+| `halfSpendDays` | Días enteros gastando `a₀/2` — siempre `2 × zeroSpendDays` |
+| `recoverable` | `false` cuando ni gastando 0 el resto del mes se llega |
+
+Ejemplo: budget 3000 en abril (30 días) → `a₀ = 100`. El día 10 con 1500 gastados:
+`R = 1500`, `d = 21`, diario actual `71.43`. Entonces `k₀ = 21 − 15 = 6` días en cero
+(1500/15 = 100 exacto) o 12 días gastando 50.
+
+Se redondea **hacia arriba**: medio día de contención no te deja ahí.
+
+Cuando `recoverable` es `false` hay que mostrar "no recuperable este mes", no el número —
+`zeroSpendDays` puede igualar o superar `d`, y ahí no queda ningún día para efectivamente
+gastar el diario recuperado. Un budget ya excedido (`remaining` negativo) cae también acá.
 
 ### `POST /budgets`
 
