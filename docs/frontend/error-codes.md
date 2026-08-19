@@ -139,8 +139,8 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `RMDR_003` | 422  | Título obligatorio                   | POST/PATCH con `title` vacío o solo whitespace                      |
 | `RMDR_004` | 422  | Título supera 120 chars              | POST/PATCH con título demasiado largo                               |
 | `RMDR_005` | 422  | Notas superan 5000 chars             | POST/PATCH con notas demasiado largas                               |
-| `RMDR_006` | 422  | Fecha con formato inválido           | `remindDate` que no es `YYYY-MM-DD`                                 |
-| `RMDR_007` | 422  | Hora con formato inválido            | `remindTime` que no es `HH:mm` 24h                                  |
+| `RMDR_006` | 422  | Fecha con formato inválido           | Guarda de dominio. Por HTTP no se alcanza: el `@Matches` del DTO corta antes con **400** |
+| `RMDR_007` | 422  | Hora con formato inválido            | Ídem `RMDR_006` — el pipe de validación responde **400** primero    |
 | `RMDR_008` | 422  | Hora sin fecha                       | `remindTime` seteada con `remindDate` en null — no es un estado válido |
 
 ### Monthly Services
