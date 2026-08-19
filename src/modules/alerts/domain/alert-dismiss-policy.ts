@@ -28,6 +28,11 @@ const DISMISS_POLICY: Record<AlertType, DismissPolicy> = {
   // it comes back as CHORE_OVERDUE — which is persistent, because by then
   // there is no "later today" left to appeal to.
   [AlertType.CHORE_DUE_TODAY]: 'per-day',
+  // Per-day. A reminder has no "overdue" sibling to escalate into, so the
+  // alert itself is the only pressure there is — making it persistent would
+  // mean one dismiss silences it forever and the reminder is simply lost.
+  // Coming back tomorrow is the whole point.
+  [AlertType.REMINDER_DUE]: 'per-day',
 };
 
 export function dismissPolicyFor(type: AlertType): DismissPolicy {
