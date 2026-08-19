@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { BudgetMovementRepository } from '@modules/budget-movements/domain/budget-movement.repository';
 import { BudgetRepository } from '@modules/budgets/domain/budget.repository';
-import { currentMonthInTimezone } from '@modules/budgets/infrastructure/timezone/current-month-in-timezone';
+import {
+  currentMonthInTimezone,
+  daysInMonth,
+} from '@modules/budgets/infrastructure/timezone/current-month-in-timezone';
 import { ChoreRepository } from '@modules/chores/domain/chore.repository';
 import { HabitFrequency } from '@modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '@modules/habits/domain/habit.repository';
@@ -49,6 +52,20 @@ const BUDGET_UNLOGGED_EARLIEST_HOUR = 12;
  * always means "forgot to register", not genuinely no spending.
  */
 const MIN_UNLOGGED_DAYS = 2;
+
+/**
+ * How many closing days of a period count as "due" for a service with NO
+ * approximate due day. 3 — enough runway to survive a day away from the app,
+ * short enough that an unpaid service is not lit up for the whole month, which
+ * is the pattern that trains people to ignore the bell.
+ */
+const CLOSING_WINDOW_DAYS = 3;
+
+/** Number of days in a `YYYY-MM` period. */
+function daysInPeriod(period: string): number {
+  const [year, month] = period.split('-').map(Number);
+  return daysInMonth(year, month);
+}
 
 export interface GetAlertsResult {
   /** Alerts visible to the user RIGHT NOW (post-dismiss filter). */
@@ -181,10 +198,21 @@ export class GetAlertsForUserUseCase {
       // so closing it hides it until the user's midnight and it returns the
       // next day — nagging daily from the due day until paid, which is the
       // intended behaviour here rather than an oversight.
+      //
+      // A service with NO due day has no user-supplied anchor, so the period
+      // boundary is the anchor instead: it must be paid inside its period, and
+      // the day after the period ends it is overdue by definition. The alert
+      // therefore opens in the closing days of the period. Silence was the old
+      // behaviour and it meant a bill with no approximate date announced itself
+      // only once it was already late.
+      const today = dayInTimezone(now, timezone);
+      const daysLeftInPeriod = daysInPeriod(currentPeriod) - today + 1;
+      const withinDueWindow =
+        service.dueDay !== null ? today >= service.dueDay : daysLeftInPeriod <= CLOSING_WINDOW_DAYS;
+
       if (
         service.nextDuePeriod() === currentPeriod &&
-        service.dueDay !== null &&
-        dayInTimezone(now, timezone) >= service.dueDay &&
+        withinDueWindow &&
         !service.isPaidForMonth(currentPeriod)
       ) {
         alerts.push(
@@ -199,6 +227,10 @@ export class GetAlertsForUserUseCase {
               serviceId: service.id,
               serviceName: service.name,
               dueDay: service.dueDay,
+              // Only meaningful for the anchorless case — the copy uses
+              // `dueDay` when the user did supply one. Computed here because
+              // the user's timezone lives on this side.
+              daysLeftInPeriod: service.dueDay === null ? daysLeftInPeriod : null,
               currency: service.currency,
               estimatedAmount: service.estimatedAmount,
             },

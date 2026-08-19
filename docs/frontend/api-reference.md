@@ -2077,12 +2077,25 @@ badge sin segundo roundtrip.
 
 | Tipo                 | Policy     | Cuándo dispara                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod`, cuyo `dueDay` ya llegó o pasó (día de hoy `>= dueDay`, en la zona del usuario) y no está pagado. `dueDay` es **aproximado** ("Día aproximado de vencimiento"), por eso la alerta no vive un solo día: sigue hasta que se pague o el período pase a overdue. Sin `dueDay` no hay ancla y no se emite |
+| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod` y no está pagado, con la ventana abierta según tenga o no día aproximado (ver abajo) |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
 | `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 12:00 — recordatorio "¿olvidaste registrar un gasto?" |
 | `chore-overdue`      | persistent | Chore activo con `nextDueDate < today`                                       |
 | `chore-due-today`    | per-day    | Chore activo con `nextDueDate == today` — "esto toca hoy". Sin gate horario: la alerta es in-app, así que solo se ve cuando el usuario abre la app |
+
+#### Ventana de `service-due-today`
+
+Cuándo se considera que el servicio "toca", según tenga ancla o no:
+
+| `dueDay` | Ventana | Por qué |
+| -------- | ------- | ------- |
+| definido | desde el día `dueDay` en adelante (día de hoy `>= dueDay`, en la TZ del usuario) | `dueDay` es **aproximado** ("Día aproximado de vencimiento"). Compararlo con `===` le daba a la alerta un solo día de vida: no abrir la app ese día era perderla entera. Las boletas se pagan en o después de su fecha de referencia |
+| `null`   | los últimos **3 días** del período | Sin ancla del usuario, el ancla es el borde del período: el servicio debe pagarse *dentro* de su período y al día siguiente ya es overdue por definición. Antes esto no emitía nada, así que un servicio sin fecha aproximada recién avisaba cuando ya estaba vencido |
+
+En ambos casos la alerta vive hasta que se pague o el período pase a overdue, y `service-overdue` gana cuando corresponde (es el estado más específico).
+
+El payload lleva `daysLeftInPeriod` **solo** en el caso sin ancla (`dueDay: null`); con `dueDay` definido viene en `null`, porque ahí el copy usa el día. El cálculo vive en el backend porque la zona horaria del usuario vive de este lado — el frontend nunca deriva "qué día es hoy".
 
 - **Per-day**: el usuario puede cerrarlas y vuelven a aparecer al día siguiente (medianoche
   en su TZ). El backend registra el dismiss con `expiresAt = endOfDayInTimezone(tz, now)`.
@@ -2120,6 +2133,7 @@ de mediodía.
         "serviceId": "550e8400-...",
         "serviceName": "Netflix",
         "dueDay": 15,
+        "daysLeftInPeriod": null,
         "currency": "PEN",
         "estimatedAmount": 45.9
       }
