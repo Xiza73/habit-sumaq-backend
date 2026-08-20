@@ -2126,7 +2126,8 @@ badge sin segundo roundtrip.
 
 | Tipo                 | Policy     | Cuándo dispara                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod` y no está pagado, con la ventana abierta según tenga o no día aproximado (ver abajo) |
+| `service-due-today`  | per-day    | Servicio activo del período, impago, y **hoy ES** su día aproximado — o no tiene día y el período está cerrando (ver abajo) |
+| `service-past-due-day` | per-day  | Mismo caso pero **hoy ya pasó** el día aproximado, dentro del mismo mes. Lleva `daysPastDueDay` |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
 | `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 12:00 — recordatorio "¿olvidaste registrar un gasto?" |
@@ -2143,6 +2144,25 @@ Cuándo se considera que el servicio "toca", según tenga ancla o no:
 | `null`   | los últimos **3 días** del período | Sin ancla del usuario, el ancla es el borde del período: el servicio debe pagarse *dentro* de su período y al día siguiente ya es overdue por definición. Antes esto no emitía nada, así que un servicio sin fecha aproximada recién avisaba cuando ya estaba vencido |
 
 En ambos casos la alerta vive hasta que se pague o el período pase a overdue, y `service-overdue` gana cuando corresponde (es el estado más específico).
+
+**Dentro de la ventana hay dos estados**, mutuamente excluyentes por construcción — hoy es el
+día aproximado, o ya pasó:
+
+| Hoy vs `dueDay` | Tipo | Severidad |
+| --------------- | ---- | --------- |
+| `today === dueDay` | `service-due-today` | info |
+| `today > dueDay` | `service-past-due-day` | warning |
+
+Antes eran una sola alerta, así que un servicio con referencia el 15 decía *"vence hoy"* todos
+los días hasta fin de mes. Avisaba bien, pero mentía sobre qué día era. Un servicio **sin**
+`dueDay` no tiene día que pasar, así que se queda en `service-due-today` con su copy de cierre
+de período.
+
+`service-past-due-day` es **per-day**, igual que su hermana: el mes sigue corriendo y la boleta
+sigue siendo pagable, así que el recordatorio vuelve mañana. Recién se vuelve persistente
+cuando cruza a `service-overdue` el mes siguiente.
+
+El payload lleva `daysPastDueDay` (cuántos días pasaron desde la fecha de referencia).
 
 El payload lleva `daysLeftInPeriod` **solo** en el caso sin ancla (`dueDay: null`); con `dueDay` definido viene en `null`, porque ahí el copy usa el día. El cálculo vive en el backend porque la zona horaria del usuario vive de este lado — el frontend nunca deriva "qué día es hoy".
 
