@@ -159,6 +159,78 @@ describe('LogHabitUseCase', () => {
     expect(result.completed).toBe(true);
   });
 
+  describe("remembering the day's target", () => {
+    // Setting today to 4 has to still be 4 tomorrow. Snapshotting the target
+    // per day protected the past; on its own it also meant every new day
+    // started over from the habit's original default, so the edit had to be
+    // repeated daily.
+    it("moves the habit default when TODAY's target is set", async () => {
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      await useCase.execute(habitId, userId, { date: todayStr, count: 4, targetCount: 4 }, 'UTC');
+
+      expect(habitRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: habitId, targetCount: 4 }),
+      );
+    });
+
+    it('leaves the default alone when a PAST day is corrected', async () => {
+      // Back-filling a day you forgot is the common case, and it must not
+      // move the default forward — that would make fixing Tuesday rewrite
+      // what every day from now on starts at.
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      await useCase.execute(
+        habitId,
+        userId,
+        { date: '2020-01-05', count: 5, targetCount: 5 },
+        'UTC',
+      );
+
+      expect(habitRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('leaves the default alone when no target is given', async () => {
+      // A plain check-in is not an edit of the objective.
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      await useCase.execute(habitId, userId, { date: todayStr, count: 1 }, 'UTC');
+
+      expect(habitRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not write when the target given matches the default', async () => {
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      await useCase.execute(habitId, userId, { date: todayStr, count: 1, targetCount: 3 }, 'UTC');
+
+      expect(habitRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("still writes the day's own log target, not just the default", async () => {
+      const habit = buildHabit({ id: habitId, userId, targetCount: 3 });
+      habitRepo.findById.mockResolvedValue(habit);
+      habitLogRepo.findByHabitIdAndDate.mockResolvedValue(null);
+
+      const result = await useCase.execute(
+        habitId,
+        userId,
+        { date: todayStr, count: 4, targetCount: 4 },
+        'UTC',
+      );
+
+      expect(result.targetCount).toBe(4);
+    });
+  });
+
   it('should throw HABIT_NOT_FOUND when habit does not exist', async () => {
     habitRepo.findById.mockResolvedValue(null);
 

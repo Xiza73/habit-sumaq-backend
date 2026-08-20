@@ -1078,6 +1078,16 @@ Resolución cuando se omite, en este orden:
 Solo aplica a hábitos **DAILY**. En **WEEKLY** el objetivo es de la semana, no
 del día, y se sigue midiendo contra el del hábito.
 
+**Mandar `targetCount` para HOY además mueve el default del hábito.** Si hoy lo
+ponés en 4, mañana arranca en 4 en vez de volver al valor original — el
+snapshot por día protege el pasado, pero por sí solo hacía que cada día nuevo
+empezara de cero y hubiera que repetir la edición a diario.
+
+Solo para **hoy**. Corregir un día pasado deja el default intacto: registrar
+tarde algo que olvidaste es el caso común, y no puede reescribir con qué
+arrancan todos los días siguientes. El log de ese día guarda su propio target
+igual, así que el pasado queda bien en los dos casos.
+
 `completed` se calcula automáticamente: `count >= targetCount` del día. El
 `count` se capea en ese target, por lo que un log completo cumple siempre
 `count === targetCount`.
