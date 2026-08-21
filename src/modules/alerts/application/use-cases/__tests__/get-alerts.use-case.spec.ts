@@ -294,10 +294,11 @@ describe('GetAlertsForUserUseCase', () => {
       expect(result.alerts).toEqual([]);
     });
 
-    it('KEEPS emitting SERVICE_DUE_TODAY after the due day, because it is approximate', async () => {
-      // `dueDay` is "Día aproximado de vencimiento". Matching it exactly gave
-      // the alert a one-day life: miss that day and you miss it entirely.
-      // Due on the 15th, today is the 19th, still unpaid → still actionable.
+    it('emits SERVICE_PAST_DUE_DAY once the approximate day has gone by', async () => {
+      // Still actionable — the month is running and the bill is payable — but
+      // calling it "vence hoy" on the 19th when the reference date was the
+      // 15th is false. It keeps nagging daily, it just stops lying about which
+      // day it is.
       const service = buildMonthlyService({
         startPeriod: '2026-05',
         lastPaidPeriod: null,
@@ -306,10 +307,77 @@ describe('GetAlertsForUserUseCase', () => {
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
 
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_PAST_DUE_DAY]);
+      expect(result.alerts[0].id).toBe(`service-past-due-day:${service.id}:2026-05`);
+    });
+
+    it('reports how many days ago the approximate day was', async () => {
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW); // Lima: 19th
+
+      expect(result.alerts[0].payload.dueDay).toBe(15);
+      expect(result.alerts[0].payload.daysPastDueDay).toBe(4);
+    });
+
+    it('emits DUE_TODAY, not PAST_DUE_DAY, on the day itself', async () => {
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 19,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
       expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
     });
 
-    it('emits from day 1 for a service due on the 1st', async () => {
+    it('never emits both for the same service', async () => {
+      // They are mutually exclusive by construction — today is either the due
+      // day or past it, never both — and this pins that they stay that way.
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: null,
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toHaveLength(1);
+    });
+
+    it('stops emitting PAST_DUE_DAY once the service is paid', async () => {
+      const service = buildMonthlyService({
+        startPeriod: '2026-05',
+        lastPaidPeriod: '2026-05',
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts).toEqual([]);
+    });
+
+    it('OVERDUE still wins once the whole period has passed', async () => {
+      const service = buildMonthlyService({
+        startPeriod: '2026-01',
+        lastPaidPeriod: '2026-02',
+        dueDay: 15,
+      });
+      const { useCase } = buildUseCase({ services: [service] });
+      const result = await useCase.execute(USER_ID, TZ, NOW);
+
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_OVERDUE]);
+    });
+
+    it('still nags for a service due on the 1st, as PAST_DUE_DAY by the 19th', async () => {
+      // The point this originally pinned — a day-1 service does not go silent
+      // for the rest of the month — still holds. It just reports the state it
+      // is actually in rather than claiming the 1st is today.
       const service = buildMonthlyService({
         startPeriod: '2026-05',
         lastPaidPeriod: null,
@@ -318,7 +386,8 @@ describe('GetAlertsForUserUseCase', () => {
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
 
-      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_DUE_TODAY]);
+      expect(result.alerts.map((a) => a.type)).toEqual([AlertType.SERVICE_PAST_DUE_DAY]);
+      expect(result.alerts[0].payload.daysPastDueDay).toBe(18);
     });
 
     describe('service with no approximate due day', () => {
@@ -415,16 +484,18 @@ describe('GetAlertsForUserUseCase', () => {
 
     it('reports a null daysLeftInPeriod for a service that HAS a due day', async () => {
       // The closing-window count is meaningless when the user gave an anchor;
-      // the copy uses `dueDay` in that case.
+      // the copy uses `dueDay` in that case. Anchored ON today so this stays a
+      // DUE_TODAY alert — past the day it becomes PAST_DUE_DAY, which carries
+      // `daysPastDueDay` instead.
       const service = buildMonthlyService({
         startPeriod: '2026-05',
         lastPaidPeriod: null,
-        dueDay: 15,
+        dueDay: 19,
       });
       const { useCase } = buildUseCase({ services: [service] });
       const result = await useCase.execute(USER_ID, TZ, NOW);
 
-      expect(result.alerts[0].payload.dueDay).toBe(15);
+      expect(result.alerts[0].payload.dueDay).toBe(19);
       expect(result.alerts[0].payload.daysLeftInPeriod).toBeNull();
     });
 

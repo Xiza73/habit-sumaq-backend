@@ -70,6 +70,14 @@ export function reminderDueId(reminderId: string, today: string): string {
 }
 
 /**
+ * `service-past-due-day:{serviceId}:{YYYY-MM}` — per-day dismissal, period in
+ * the id so a new month is a fresh alert.
+ */
+export function servicePastDueDayId(serviceId: string, period: string): string {
+  return `${AlertType.SERVICE_PAST_DUE_DAY}:${serviceId}:${period}`;
+}
+
+/**
  * Recover the `AlertType` from a persisted ID. Used by `DismissAlertUseCase`
  * to look up the dismiss policy without coupling the caller to the format.
  * Returns `null` for an ID whose prefix doesn't match any known type —
