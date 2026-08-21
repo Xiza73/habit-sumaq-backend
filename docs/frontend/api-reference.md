@@ -672,9 +672,20 @@ sin error (cap — el excedente se ignora). Toda la aritmética se hace en centa
 
 ### `GET /debts/:id/payments`
 
-Lista el historial de pagos (settles) aplicados a una deuda/préstamo, más reciente primero.
-Cada row representa un evento de settle (parcial o total). `currency` es `null` para settles
-informales (sin paso por el pool).
+Lista el historial de pagos (settles) aplicados a una deuda/préstamo, más reciente primero
+**por `paidAt`**. Cada row representa un evento de settle (parcial o total). `currency` es
+`null` para settles informales (sin paso por el pool).
+
+**`paidAt` vs `createdAt`.** Son dos hechos distintos y no se pueden colapsar:
+
+| Campo | Qué es | Editable |
+| ----- | ------ | -------- |
+| `paidAt` | Cuándo se movió el dinero | **sí** |
+| `createdAt` | Cuándo se escribió la fila | no |
+
+Iguales al crearse; divergen solo cuando el usuario corrige la fecha. La lista ordena por
+`paidAt` porque corregir la fecha de un pago debe moverlo en el historial — es el motivo por
+el que se edita.
 
 | Error code | HTTP | Cuándo                              |
 | ---------- | ---- | ----------------------------------- |
@@ -685,21 +696,22 @@ informales (sin paso por el pool).
 
 ### `PATCH /debts/payments/:paymentId`
 
-Edita un pago del historial (`amount` y/o `note`). Recomputa `remainingAmount` y `status`
-del parent (`SETTLED` ↔ `PENDING`) de forma atómica. Si el pago es real-payment (tiene
-`currency`), revierte el delta previo en el pool y aplica el nuevo. `currency` NO es editable
-post-creación. Debe enviarse al menos uno de `amount` o `note`.
+Edita un pago del historial (`amount`, `note` y/o `paidAt`). Recomputa `remainingAmount` y
+`status` del parent (`SETTLED` ↔ `PENDING`) de forma atómica. Si el pago es real-payment
+(tiene `currency`), revierte el delta previo en el pool y aplica el nuevo. `currency` NO es
+editable post-creación. Debe enviarse al menos uno de los tres.
 
 | Campo    | Tipo            | Requerido        | Notas                                                |
 | -------- | --------------- | ---------------- | ---------------------------------------------------- |
 | `amount` | number          | no (al menos uno) | > 0, 2 decimales. Recomputa saldo y status.         |
 | `note`   | string \| null  | no (al menos uno) | Máx 255 chars. `null` borra la nota.                |
+| `paidAt` | string (ISO)    | no (al menos uno) | Fecha real del pago. **No toca `createdAt`.**       |
 
 | Error code | HTTP | Cuándo                                                          |
 | ---------- | ---- | --------------------------------------------------------------- |
 | `DBT_008`  | 404  | El payment no existe                                            |
 | `DBT_002`  | 403  | El payment pertenece a otro usuario                             |
-| `DBT_009`  | 422  | Body sin `amount` ni `note`                                     |
+| `DBT_009`  | 422  | Body sin `amount`, `note` ni `paidAt`                           |
 | `DBT_006`  | 422  | El nuevo `amount` haría `remainingAmount < 0` (sobrepago)       |
 | `DBT_010`  | 422  | El nuevo `remainingAmount` excedería el `amount` del debt/loan  |
 
@@ -1077,6 +1089,16 @@ Resolución cuando se omite, en este orden:
 
 Solo aplica a hábitos **DAILY**. En **WEEKLY** el objetivo es de la semana, no
 del día, y se sigue midiendo contra el del hábito.
+
+**Mandar `targetCount` para HOY además mueve el default del hábito.** Si hoy lo
+ponés en 4, mañana arranca en 4 en vez de volver al valor original — el
+snapshot por día protege el pasado, pero por sí solo hacía que cada día nuevo
+empezara de cero y hubiera que repetir la edición a diario.
+
+Solo para **hoy**. Corregir un día pasado deja el default intacto: registrar
+tarde algo que olvidaste es el caso común, y no puede reescribir con qué
+arrancan todos los días siguientes. El log de ese día guarda su propio target
+igual, así que el pasado queda bien en los dos casos.
 
 `completed` se calcula automáticamente: `count >= targetCount` del día. El
 `count` se capea en ese target, por lo que un log completo cumple siempre
@@ -1901,12 +1923,26 @@ en vez de resolverse de nuevo.
 | Campo | Significado |
 | ----- | ----------- |
 | `zeroSpendDays` | Días enteros gastando 0. **`null`** si no entra en los días que quedan |
-| `halfSpendDays` | Días enteros gastando `a₀/2` — el doble. **`null`** si no entra |
+| `partialSpend` | El plan parcial **más suave que entra**, o **`null`** si no entra ninguno |
 
-**Cada plan se valida por separado.** El de la mitad es el doble de largo, así que se queda
-sin mes antes: con 12 días restantes, un plan de 7 días en cero es alcanzable pero su gemelo
-de 14 gastando la mitad no. Reportarlo igual producía cosas como *"18 días gastando la mitad"*
-un día con 12 restantes.
+`partialSpend` es `{ fraction: 'HALF' \| 'THIRD' \| 'QUARTER', days }`.
+
+**La escalera de fracciones.** Como `k_f = k₀/(1−f)`, gastar **menos tarda menos**:
+
+| Gastás | Días |
+| ------ | ---- |
+| nada | `k₀` |
+| la mitad | `2.00 × k₀` |
+| un tercio | `1.50 × k₀` |
+| un cuarto | `1.33 × k₀` |
+
+O sea que **"la mitad" es la opción más larga** de las tres, y la primera en quedarse sin mes.
+El backend prueba de la más suave a la más estricta y devuelve la primera que entra: si con 12
+días restantes el plan de la mitad pide 14, ofrece el del tercio con 11. Si ni el cuarto entra,
+`partialSpend` viene en `null` y solo queda gastar cero.
+
+Ofrecer la mitad sin validar producía cosas como *"18 días gastando la mitad"* un día con 12
+restantes.
 
 Ojo con `0` vs `null` en `zeroSpendDays`: **`0` = no hay nada que recuperar** (estás en ritmo
 o adelantado), **`null` = no se recupera este mes**. Son respuestas distintas y la UI las
@@ -2126,7 +2162,8 @@ badge sin segundo roundtrip.
 
 | Tipo                 | Policy     | Cuándo dispara                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `service-due-today`  | per-day    | Servicio mensual activo cuyo `nextDuePeriod === currentPeriod` y no está pagado, con la ventana abierta según tenga o no día aproximado (ver abajo) |
+| `service-due-today`  | per-day    | Servicio activo del período, impago, y **hoy ES** su día aproximado — o no tiene día y el período está cerrando (ver abajo) |
+| `service-past-due-day` | per-day  | Mismo caso pero **hoy ya pasó** el día aproximado, dentro del mismo mes. Lleva `daysPastDueDay` |
 | `service-overdue`    | persistent | Servicio cuyo `nextDuePeriod < currentPeriod` (más viejo que este mes)       |
 | `habits-midday`      | per-day    | ≥1 hábito DAILY activo sin log de hoy Y hora local ≥ 12:00                   |
 | `budget-unlogged`    | per-day    | Budget del mes con `amount - spent > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local ≥ 12:00 — recordatorio "¿olvidaste registrar un gasto?" |
@@ -2143,6 +2180,25 @@ Cuándo se considera que el servicio "toca", según tenga ancla o no:
 | `null`   | los últimos **3 días** del período | Sin ancla del usuario, el ancla es el borde del período: el servicio debe pagarse *dentro* de su período y al día siguiente ya es overdue por definición. Antes esto no emitía nada, así que un servicio sin fecha aproximada recién avisaba cuando ya estaba vencido |
 
 En ambos casos la alerta vive hasta que se pague o el período pase a overdue, y `service-overdue` gana cuando corresponde (es el estado más específico).
+
+**Dentro de la ventana hay dos estados**, mutuamente excluyentes por construcción — hoy es el
+día aproximado, o ya pasó:
+
+| Hoy vs `dueDay` | Tipo | Severidad |
+| --------------- | ---- | --------- |
+| `today === dueDay` | `service-due-today` | info |
+| `today > dueDay` | `service-past-due-day` | warning |
+
+Antes eran una sola alerta, así que un servicio con referencia el 15 decía *"vence hoy"* todos
+los días hasta fin de mes. Avisaba bien, pero mentía sobre qué día era. Un servicio **sin**
+`dueDay` no tiene día que pasar, así que se queda en `service-due-today` con su copy de cierre
+de período.
+
+`service-past-due-day` es **per-day**, igual que su hermana: el mes sigue corriendo y la boleta
+sigue siendo pagable, así que el recordatorio vuelve mañana. Recién se vuelve persistente
+cuando cruza a `service-overdue` el mes siguiente.
+
+El payload lleva `daysPastDueDay` (cuántos días pasaron desde la fecha de referencia).
 
 El payload lleva `daysLeftInPeriod` **solo** en el caso sin ancla (`dueDay: null`); con `dueDay` definido viene en `null`, porque ahí el copy usa el día. El cálculo vive en el backend porque la zona horaria del usuario vive de este lado — el frontend nunca deriva "qué día es hoy".
 

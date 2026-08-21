@@ -180,7 +180,10 @@ describe('StatsCalculator', () => {
 
   describe('toDateString()', () => {
     it('should format date as YYYY-MM-DD', () => {
-      expect(StatsCalculator.toDateString(new Date('2026-03-13T15:30:00Z'))).toBe('2026-03-13');
+      // Built in LOCAL terms because that is what `toDateString` formats in.
+      // A UTC instant only maps to a fixed date string inside a band of
+      // offsets: 15:30Z on the 13th is already the 14th at UTC+14.
+      expect(StatsCalculator.toDateString(new Date(2026, 2, 13, 15, 30))).toBe('2026-03-13');
     });
 
     it('should pad month and day with zeros', () => {

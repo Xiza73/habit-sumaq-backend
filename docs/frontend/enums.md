@@ -315,12 +315,14 @@ tal cual al frontend.
 
 | Valor                 | Policy     | Descripción                                                              |
 | --------------------- | ---------- | ------------------------------------------------------------------------ |
-| `service-due-today`   | per-day    | Servicio mensual a pagar este mes, sin pagar, desde su `dueDay` aproximado en adelante |
+| `service-due-today`   | per-day    | Servicio a pagar este mes, sin pagar, y hoy **es** su `dueDay` aproximado (o no tiene y el período está cerrando) |
+| `service-past-due-day`| per-day    | Ídem pero hoy **ya pasó** el `dueDay`, dentro del mismo mes            |
 | `service-overdue`     | persistent | Servicio cuyo `nextDuePeriod` es anterior al mes actual                  |
 | `habits-midday`       | per-day    | ≥1 hábito DAILY sin completar Y hora local del usuario ≥ 12:00           |
 | `budget-unlogged`     | per-day    | Budget del mes con `remaining > 0` y ≥2 días consecutivos sin movimientos (hasta hoy) Y hora local del usuario ≥ 12:00 |
 | `chore-overdue`       | persistent | Chore activo cuyo `nextDueDate < today`                                  |
 | `chore-due-today`     | per-day    | Chore activo cuyo `nextDueDate == today`                                 |
+| `reminder-due`        | per-day    | Recordatorio con fecha, pendiente, cuya fecha (y hora, si tiene) ya llegó |
 
 - **Per-day**: el usuario puede cerrarlas (`POST /alerts/:id/dismiss`) — vuelven a
   medianoche en su TZ.
@@ -328,6 +330,30 @@ tal cual al frontend.
   Se van solas al resolverse la condición.
 
 **Uso:** campo `type` en `AlertResponseDto`. Ver shape completa en [api-reference.md → Alerts](api-reference.md#alerts-notificaciones-in-app).
+
+---
+
+## TaskStatus
+
+Ciclo de vida de una task dentro de una sección. Reemplaza al booleano `completed`, que
+necesitaba un tercer valor.
+
+| Valor | Descripción |
+| ----- | ----------- |
+| `PENDING` | Sin empezar o en curso. Es el default |
+| `IN_REVIEW` | Terminada pero en validación. **Nunca** la barre el cleanup semanal |
+| `DONE` | Hecha. Elegible para el cleanup semanal cuando pase la semana |
+
+Los estados son **lineales**: se valida algo antes de darlo por hecho. Un flag al lado del
+booleano habría permitido `completed && inReview`, una combinación sin significado que cada
+consumidor tendría que prohibir a mano.
+
+`IN_REVIEW` **no** es un sabor de terminada, y esa es la parte que importa: el cleanup semanal
+borra físicamente las tasks DONE con `completedAt` anterior al inicio de semana. Una task que
+estás verificando tiene que sobrevivir ese barrido, así que `completedAt` se sella **solo** al
+entrar a DONE y se limpia al salir — incluso volviendo a IN_REVIEW.
+
+**Uso:** campo `status` en `TaskResponseDto` y en el body de `PATCH /tasks/:id`.
 
 ---
 

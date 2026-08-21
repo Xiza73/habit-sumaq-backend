@@ -10,6 +10,13 @@
 export enum AlertType {
   /** Service due in the user's current calendar month and not yet paid. */
   SERVICE_DUE_TODAY = 'service-due-today',
+  /**
+   * Service still due this month whose approximate payment day has already
+   * gone by, unpaid. Distinct from SERVICE_DUE_TODAY because calling it "due
+   * today" on the 19th when the reference date was the 15th is simply false —
+   * and from SERVICE_OVERDUE, which means the whole period elapsed.
+   */
+  SERVICE_PAST_DUE_DAY = 'service-past-due-day',
   /** Service whose `nextDuePeriod` is earlier than the user's current month. */
   SERVICE_OVERDUE = 'service-overdue',
   /** DAILY habit with no log for today after midday in the user's TZ. */

@@ -17,8 +17,13 @@ import { type Currency } from '@common/enums/currency.enum';
  *     match before inserting). `currency` is immutable post-create —
  *     Phase 2 edit cannot change it (would change pool mode).
  *   - `note` is editable in Phase 2 (and may be set to null to clear it).
- *   - Phase 2 adds `applyEdit` for edit support; `id`, `debtLoanId`,
- *     `currency`, and `createdAt` remain immutable.
+ *   - `paidAt` is WHEN THE MONEY MOVED, and is editable. `createdAt` is when
+ *     this row was written and stays immutable — conflating the two would
+ *     mean backdating a payment silently rewrites the audit trail. They are
+ *     equal at creation and only diverge when the user corrects the date
+ *     afterwards.
+ *   - `applyEdit` covers `amount`, `note` and `paidAt`; `id`, `debtLoanId`,
+ *     `currency` and `createdAt` remain immutable.
  */
 export class DebtLoanPayment {
   constructor(
@@ -28,21 +33,26 @@ export class DebtLoanPayment {
     readonly currency: Currency | null,
     public note: string | null,
     readonly createdAt: Date,
+    public paidAt: Date,
   ) {}
 
   /**
-   * Phase 2 — apply an in-place edit to `amount` and/or `note`.
+   * Apply an in-place edit to `amount`, `note` and/or `paidAt`.
    * Caller validates business rules (positivity, no-overpayment,
    * at-least-one-field-present) BEFORE invoking. `currency` is NOT
    * editable: changing it would flip pool/no-pool mode, which is
-   * out of scope for the edit endpoint.
+   * out of scope for the edit endpoint. Neither is `createdAt` — see the
+   * class doc on why it must not follow `paidAt`.
    */
-  applyEdit(partial: { amount?: number; note?: string | null }): void {
+  applyEdit(partial: { amount?: number; note?: string | null; paidAt?: Date }): void {
     if (partial.amount !== undefined) {
       this.amount = round2(partial.amount);
     }
     if (partial.note !== undefined) {
       this.note = partial.note;
+    }
+    if (partial.paidAt !== undefined) {
+      this.paidAt = partial.paidAt;
     }
   }
 }

@@ -51,6 +51,7 @@ describe('ListDebtLoanPaymentsUseCase', () => {
       Currency.PEN,
       null,
       new Date('2026-02-01T12:00:00.000Z'),
+      new Date('2026-02-01T12:00:00.000Z'),
     );
     const older = new DebtLoanPayment(
       randomUUID(),
@@ -58,6 +59,7 @@ describe('ListDebtLoanPaymentsUseCase', () => {
       20,
       Currency.PEN,
       null,
+      new Date('2026-01-15T12:00:00.000Z'),
       new Date('2026-01-15T12:00:00.000Z'),
     );
     paymentRepo.findByDebtLoanId.mockResolvedValue([newer, older]);

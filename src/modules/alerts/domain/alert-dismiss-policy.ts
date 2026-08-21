@@ -19,6 +19,10 @@ export type DismissPolicy = 'per-day' | 'persistent';
 
 const DISMISS_POLICY: Record<AlertType, DismissPolicy> = {
   [AlertType.SERVICE_DUE_TODAY]: 'per-day',
+  // Per-day, like its due-today sibling: the month is still running, so the
+  // bill is still payable and the reminder should return tomorrow. It becomes
+  // persistent only once it crosses into SERVICE_OVERDUE next month.
+  [AlertType.SERVICE_PAST_DUE_DAY]: 'per-day',
   [AlertType.SERVICE_OVERDUE]: 'persistent',
   [AlertType.HABITS_MIDDAY]: 'per-day',
   [AlertType.BUDGET_UNLOGGED]: 'per-day',

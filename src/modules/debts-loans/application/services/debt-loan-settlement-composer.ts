@@ -107,7 +107,17 @@ export class DebtLoanSettlementComposer {
     const settled = await this.repo.save(created, manager);
 
     await this.paymentRepo.create(
-      new DebtLoanPayment(randomUUID(), settled.id, input.amount, input.currency, null, new Date()),
+      new DebtLoanPayment(
+        randomUUID(),
+        settled.id,
+        input.amount,
+        input.currency,
+        null,
+        new Date(),
+        // Settled now, so `paidAt` matches `createdAt`. They only diverge
+        // when the user corrects the date afterwards.
+        new Date(),
+      ),
       manager,
     );
 

@@ -19,15 +19,33 @@ export interface BudgetRecoveryPlan {
    */
   zeroSpendDays: number | null;
   /**
-   * Whole days spending half the opening allowance — twice the zero-spend
-   * count — or `null` when that does not FIT in the days the month has left.
+   * The gentlest partial-spend plan that still FITS the days the month has
+   * left, or `null` when not even the strictest one does.
    *
-   * Checked independently of `zeroSpendDays` on purpose. Being twice as long,
-   * it runs out of month first: a 7-day zero-spend plan is achievable with 12
-   * days left, but its 14-day half-spend twin is not.
+   * `k_f = k0 / (1 - f)`, so spending LESS takes FEWER days:
+   *
+   *   half     f = 1/2   →  2.00 × k0
+   *   third    f = 1/3   →  1.50 × k0
+   *   quarter  f = 1/4   →  1.33 × k0
+   *
+   * That makes the fallback a ladder of shrinking durations: when the
+   * gentlest option overruns the month, the next one asks for more restraint
+   * but less time. The half-spend plan, being the longest, is the first to
+   * stop fitting — which is why offering it unconditionally produced "18 días
+   * gastando la mitad" on a day with 12 left.
    */
-  halfSpendDays: number | null;
+  partialSpend: { fraction: PartialSpendFraction; days: number } | null;
 }
+
+/** Fraction of the opening daily allowance a partial-spend plan permits. */
+export type PartialSpendFraction = 'HALF' | 'THIRD' | 'QUARTER';
+
+/** Gentlest first — the ladder stops at the first rung that fits. */
+const PARTIAL_FRACTIONS: { fraction: PartialSpendFraction; value: number }[] = [
+  { fraction: 'HALF', value: 1 / 2 },
+  { fraction: 'THIRD', value: 1 / 3 },
+  { fraction: 'QUARTER', value: 1 / 4 },
+];
 
 export interface BudgetKpiSnapshot {
   spent: number;
@@ -137,12 +155,25 @@ function computeRecovery(
   // long and therefore runs out of month first — reporting it as `2 *
   // zeroSpendDays` unconditionally is what produced "18 días gastando la
   // mitad" on a day with 12 left.
-  const fits = (days: number): number | null => (days < daysLeft ? days : null);
+  const fits = (days: number): boolean => days < daysLeft;
 
-  return {
-    zeroSpendDays: fits(zeroSpendDays),
-    halfSpendDays: fits(zeroSpendDays * 2),
-  };
+  if (!fits(zeroSpendDays)) {
+    // Total abstinence already overruns the month, so nothing gentler can
+    // possibly land. Both null rather than a count the user cannot act on.
+    return { zeroSpendDays: null, partialSpend: null };
+  }
+
+  // Nothing to recover — offering a 0-day plan of any flavour is noise.
+  if (zeroSpendDays === 0) {
+    return { zeroSpendDays: 0, partialSpend: null };
+  }
+
+  const partial = PARTIAL_FRACTIONS.map(({ fraction, value }) => ({
+    fraction,
+    days: Math.ceil(zeroSpendDays / (1 - value)),
+  })).find(({ days }) => fits(days));
+
+  return { zeroSpendDays, partialSpend: partial ?? null };
 }
 
 function round2(n: number): number {

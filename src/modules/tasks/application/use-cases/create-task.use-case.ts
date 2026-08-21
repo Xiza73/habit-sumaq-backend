@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 
 import { DomainException } from '@common/exceptions/domain.exception';
 
+import { TaskStatus } from '../../domain/enums/task-status.enum';
 import { SectionRepository } from '../../domain/section.repository';
 import { Task } from '../../domain/task.entity';
 import { TaskRepository } from '../../domain/task.repository';
@@ -35,7 +36,7 @@ export class CreateTaskUseCase {
       section.id,
       dto.title,
       dto.description ?? null,
-      false,
+      TaskStatus.PENDING,
       null,
       (maxPosition ?? 0) + 1,
       now,

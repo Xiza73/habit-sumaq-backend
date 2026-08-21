@@ -24,6 +24,15 @@ export class DebtLoanPaymentResponseDto {
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
 
+  @ApiProperty({
+    description:
+      'Cuándo se movió el dinero. Editable, a diferencia de `createdAt`, que es cuándo se ' +
+      'escribió la fila. Iguales al crearse; divergen solo si el usuario corrige la fecha.',
+    type: String,
+    format: 'date-time',
+  })
+  paidAt: Date;
+
   static fromDomain(p: DebtLoanPayment): DebtLoanPaymentResponseDto {
     const dto = new DebtLoanPaymentResponseDto();
     dto.id = p.id;
@@ -31,6 +40,7 @@ export class DebtLoanPaymentResponseDto {
     dto.currency = p.currency;
     dto.note = p.note;
     dto.createdAt = p.createdAt;
+    dto.paidAt = p.paidAt;
     return dto;
   }
 }

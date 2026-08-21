@@ -25,6 +25,7 @@ import {
   reminderDueId,
   serviceDueTodayId,
   serviceOverdueId,
+  servicePastDueDayId,
 } from '../../domain/alert-id';
 import { AlertSeverity } from '../../domain/enums/alert-severity.enum';
 import { AlertType } from '../../domain/enums/alert-type.enum';
@@ -221,26 +222,50 @@ export class GetAlertsForUserUseCase {
         withinDueWindow &&
         !service.isPaidForMonth(currentPeriod)
       ) {
+        // Two states inside the window, mutually exclusive by construction:
+        // today either IS the approximate day or is past it. They were one
+        // alert, which meant a service with a day-15 reference announced
+        // "vence hoy" every day until month end — nagging correctly, but
+        // lying about which day it was.
+        //
+        // A service with no `dueDay` has no day to be past, so it stays on
+        // DUE_TODAY with its own closing-window copy.
+        const isPastDueDay = service.dueDay !== null && today > service.dueDay;
+
+        const basePayload = {
+          serviceId: service.id,
+          serviceName: service.name,
+          dueDay: service.dueDay,
+          currency: service.currency,
+          estimatedAmount: service.estimatedAmount,
+        };
+
         alerts.push(
-          new Alert(
-            serviceDueTodayId(service.id, currentPeriod),
-            AlertType.SERVICE_DUE_TODAY,
-            AlertSeverity.INFO,
-            // Use the start of the current period as the "first appeared"
-            // anchor. A new month = a fresh ID + a fresh triggeredAt.
-            startOfPeriodUTC(currentPeriod),
-            {
-              serviceId: service.id,
-              serviceName: service.name,
-              dueDay: service.dueDay,
-              // Only meaningful for the anchorless case — the copy uses
-              // `dueDay` when the user did supply one. Computed here because
-              // the user's timezone lives on this side.
-              daysLeftInPeriod: service.dueDay === null ? daysLeftInPeriod : null,
-              currency: service.currency,
-              estimatedAmount: service.estimatedAmount,
-            },
-          ),
+          isPastDueDay
+            ? new Alert(
+                servicePastDueDayId(service.id, currentPeriod),
+                AlertType.SERVICE_PAST_DUE_DAY,
+                // Warning rather than info: the date the user wrote down has
+                // gone by. Not yet OVERDUE, which means the whole period did.
+                AlertSeverity.WARNING,
+                startOfPeriodUTC(currentPeriod),
+                { ...basePayload, daysPastDueDay: today - service.dueDay! },
+              )
+            : new Alert(
+                serviceDueTodayId(service.id, currentPeriod),
+                AlertType.SERVICE_DUE_TODAY,
+                AlertSeverity.INFO,
+                // Use the start of the current period as the "first appeared"
+                // anchor. A new month = a fresh ID + a fresh triggeredAt.
+                startOfPeriodUTC(currentPeriod),
+                {
+                  ...basePayload,
+                  // Only meaningful for the anchorless case — the copy uses
+                  // `dueDay` when the user did supply one. Computed here
+                  // because the user's timezone lives on this side.
+                  daysLeftInPeriod: service.dueDay === null ? daysLeftInPeriod : null,
+                },
+              ),
         );
       }
     }
