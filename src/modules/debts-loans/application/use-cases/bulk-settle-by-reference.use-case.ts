@@ -111,6 +111,9 @@ export class BulkSettleByReferenceUseCase {
             dto.currency ?? null,
             null,
             new Date(),
+            // A fresh settle happened now; `paidAt` only diverges from
+            // `createdAt` when the user corrects the date later.
+            new Date(),
           ),
           manager,
         );

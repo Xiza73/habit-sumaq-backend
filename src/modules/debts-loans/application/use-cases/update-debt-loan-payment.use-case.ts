@@ -79,7 +79,7 @@ export class UpdateDebtLoanPaymentUseCase {
     userId: string,
     dto: UpdateDebtLoanPaymentDto,
   ): Promise<DebtLoanPayment> {
-    if (dto.amount === undefined && dto.note === undefined) {
+    if (dto.amount === undefined && dto.note === undefined && dto.paidAt === undefined) {
       throw new DomainException(
         'DEBT_LOAN_PAYMENT_UPDATE_NO_FIELDS',
         'Tenés que enviar al menos un campo para actualizar',
@@ -136,7 +136,12 @@ export class UpdateDebtLoanPaymentUseCase {
 
       const isRealPayment = payment.currency !== null;
 
-      payment.applyEdit({ amount: dto.amount, note: dto.note });
+      payment.applyEdit({
+        amount: dto.amount,
+        note: dto.note,
+        // Only the business date moves; `createdAt` is untouched by design.
+        paidAt: dto.paidAt !== undefined ? new Date(dto.paidAt) : undefined,
+      });
       const persisted = await this.paymentRepo.update(payment, manager);
 
       if (amountChanged) {

@@ -35,4 +35,12 @@ export class DebtLoanPaymentOrmEntity {
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
+
+  /**
+   * When the money actually moved. Editable, unlike `createdAt`, which is the
+   * audit record of when the row was written. Equal at creation; they diverge
+   * only when the user corrects the date afterwards.
+   */
+  @Column({ type: 'timestamptz' })
+  paidAt: Date;
 }
