@@ -7,6 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { TaskStatus } from '../../domain/enums/task-status.enum';
+
 @Entity('tasks')
 @Index('IDX_tasks_userId', ['userId'])
 @Index('IDX_tasks_sectionId_position', ['sectionId', 'position'])
@@ -27,8 +29,8 @@ export class TaskOrmEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'boolean', default: false })
-  completed: boolean;
+  @Column({ type: 'enum', enum: TaskStatus, default: TaskStatus.PENDING })
+  status: TaskStatus;
 
   @Column({ type: 'timestamptz', nullable: true })
   completedAt: Date | null;

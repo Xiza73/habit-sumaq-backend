@@ -1,4 +1,5 @@
 import { makeSection } from '../../domain/__tests__/section.factory';
+import { TaskStatus } from '../../domain/enums/task-status.enum';
 import { type SectionRepository } from '../../domain/section.repository';
 import { type TaskRepository } from '../../domain/task.repository';
 
@@ -44,7 +45,7 @@ describe('CreateTaskUseCase', () => {
 
     expect(task.position).toBe(3);
     expect(task.sectionId).toBe('sec-1');
-    expect(task.completed).toBe(false);
+    expect(task.status).toBe(TaskStatus.PENDING);
     expect(task.completedAt).toBeNull();
   });
 

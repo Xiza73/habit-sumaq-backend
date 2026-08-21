@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { LessThan, Repository } from 'typeorm';
 
+import { TaskStatus } from '../../domain/enums/task-status.enum';
 import { Task } from '../../domain/task.entity';
 import { TaskRepository } from '../../domain/task.repository';
 
@@ -52,7 +53,7 @@ export class TaskRepositoryImpl extends TaskRepository {
       sectionId: task.sectionId,
       title: task.title,
       description: task.description,
-      completed: task.completed,
+      status: task.status,
       completedAt: task.completedAt,
       position: task.position,
       createdAt: task.createdAt,
@@ -69,7 +70,10 @@ export class TaskRepositoryImpl extends TaskRepository {
   async deleteCompletedBefore(userId: string, before: Date): Promise<number> {
     const result = await this.repo.delete({
       userId,
-      completed: true,
+      // DONE only. A task in IN_REVIEW is finished but still being checked,
+      // and hard-deleting it mid-verification is exactly the thing the third
+      // state exists to prevent.
+      status: TaskStatus.DONE,
       completedAt: LessThan(before),
     });
     return result.affected ?? 0;
@@ -101,7 +105,7 @@ export class TaskRepositoryImpl extends TaskRepository {
       entity.sectionId,
       entity.title,
       entity.description,
-      entity.completed,
+      entity.status,
       entity.completedAt,
       entity.position,
       entity.createdAt,

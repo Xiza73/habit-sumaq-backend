@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { TaskStatus } from '../enums/task-status.enum';
 import { Task } from '../task.entity';
 
 interface TaskOverrides {
@@ -8,7 +9,7 @@ interface TaskOverrides {
   sectionId?: string;
   title?: string;
   description?: string | null;
-  completed?: boolean;
+  status?: TaskStatus;
   completedAt?: Date | null;
   position?: number;
   createdAt?: Date;
@@ -23,7 +24,7 @@ export function makeTask(overrides: TaskOverrides = {}): Task {
     overrides.sectionId ?? 'section-test-id',
     overrides.title ?? 'Comprar pan',
     overrides.description !== undefined ? overrides.description : null,
-    overrides.completed ?? false,
+    overrides.status ?? TaskStatus.PENDING,
     overrides.completedAt !== undefined ? overrides.completedAt : null,
     overrides.position ?? 1,
     overrides.createdAt ?? now,

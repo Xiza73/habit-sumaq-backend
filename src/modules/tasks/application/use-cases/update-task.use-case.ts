@@ -14,7 +14,7 @@ import type { UpdateTaskDto } from '../dto/update-task.dto';
  * task is moved to the END of the new section. The old section's positions
  * are NOT renumbered — gaps are fine, the next reorder fixes them.
  *
- * Toggle of `completed` sets/clears `completedAt` automatically (handled in
+ * Moving in or out of DONE sets/clears `completedAt` automatically (handled in
  * the entity's `applyUpdate`).
  */
 @Injectable()
@@ -43,7 +43,7 @@ export class UpdateTaskUseCase {
     task.applyUpdate({
       title: dto.title,
       description: dto.description,
-      completed: dto.completed,
+      status: dto.status,
       sectionId: dto.sectionId,
       position: newPosition,
     });
