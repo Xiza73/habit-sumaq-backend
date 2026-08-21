@@ -1911,12 +1911,26 @@ en vez de resolverse de nuevo.
 | Campo | Significado |
 | ----- | ----------- |
 | `zeroSpendDays` | Días enteros gastando 0. **`null`** si no entra en los días que quedan |
-| `halfSpendDays` | Días enteros gastando `a₀/2` — el doble. **`null`** si no entra |
+| `partialSpend` | El plan parcial **más suave que entra**, o **`null`** si no entra ninguno |
 
-**Cada plan se valida por separado.** El de la mitad es el doble de largo, así que se queda
-sin mes antes: con 12 días restantes, un plan de 7 días en cero es alcanzable pero su gemelo
-de 14 gastando la mitad no. Reportarlo igual producía cosas como *"18 días gastando la mitad"*
-un día con 12 restantes.
+`partialSpend` es `{ fraction: 'HALF' \| 'THIRD' \| 'QUARTER', days }`.
+
+**La escalera de fracciones.** Como `k_f = k₀/(1−f)`, gastar **menos tarda menos**:
+
+| Gastás | Días |
+| ------ | ---- |
+| nada | `k₀` |
+| la mitad | `2.00 × k₀` |
+| un tercio | `1.50 × k₀` |
+| un cuarto | `1.33 × k₀` |
+
+O sea que **"la mitad" es la opción más larga** de las tres, y la primera en quedarse sin mes.
+El backend prueba de la más suave a la más estricta y devuelve la primera que entra: si con 12
+días restantes el plan de la mitad pide 14, ofrece el del tercio con 11. Si ni el cuarto entra,
+`partialSpend` viene en `null` y solo queda gastar cero.
+
+Ofrecer la mitad sin validar producía cosas como *"18 días gastando la mitad"* un día con 12
+restantes.
 
 Ojo con `0` vs `null` en `zeroSpendDays`: **`0` = no hay nada que recuperar** (estás en ritmo
 o adelantado), **`null` = no se recupera este mes**. Son respuestas distintas y la UI las

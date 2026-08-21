@@ -70,15 +70,20 @@ export class BudgetWithKpiResponseDto {
   @ApiPropertyOptional({
     description:
       'Cuántos días de contención hacen falta para que dailyAllowance vuelva a initialDailyAllowance. ' +
-      '`zeroSpendDays` = días gastando 0; `halfSpendDays` = días gastando la mitad del diario inicial, ' +
-      'que es el doble. Cada plan viene en **null** cuando NO entra en los días que quedan del mes — ' +
-      'se validan por separado porque el de la mitad, al ser el doble de largo, se queda sin mes antes. ' +
-      'Los dos en null = no se recupera este mes. `zeroSpendDays: 0` (distinto de null) = no hay nada ' +
-      'que recuperar. `recovery: null` = el mes ya cerró.',
-    example: { zeroSpendDays: 6, halfSpendDays: 12 },
+      '`zeroSpendDays` = días gastando 0. `partialSpend` = el plan parcial MÁS SUAVE que entra en los ' +
+      'días que quedan: mitad (2×k₀), tercio (1.5×k₀) o cuarto (1.33×k₀) — gastar menos tarda menos, ' +
+      'así que la escalera va de más largo a más corto y se corta en el primer escalón que entra. ' +
+      '`partialSpend: null` = ni el cuarto entra, solo queda gastar cero. ' +
+      '`zeroSpendDays: null` = no se recupera este mes ni gastando cero. ' +
+      '`zeroSpendDays: 0` (distinto de null) = no hay nada que recuperar. ' +
+      '`recovery: null` = el mes ya cerró.',
+    example: { zeroSpendDays: 7, partialSpend: { fraction: 'THIRD', days: 11 } },
     nullable: true,
   })
-  recovery: { zeroSpendDays: number | null; halfSpendDays: number | null } | null;
+  recovery: {
+    zeroSpendDays: number | null;
+    partialSpend: { fraction: 'HALF' | 'THIRD' | 'QUARTER'; days: number } | null;
+  } | null;
 
   @ApiProperty({
     example: '2026-04-15',
