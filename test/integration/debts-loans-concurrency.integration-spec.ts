@@ -84,6 +84,9 @@ async function seedPayment(
     currency,
     note: null,
     createdAt: new Date(),
+    // Seeded equal, the way a fresh settle records them. They diverge only
+    // when the user corrects the date.
+    paidAt: new Date(),
   } as DebtLoanPaymentOrmEntity);
 }
 

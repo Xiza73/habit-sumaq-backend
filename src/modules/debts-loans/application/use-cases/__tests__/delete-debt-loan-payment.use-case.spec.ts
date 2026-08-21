@@ -35,6 +35,7 @@ describe('DeleteDebtLoanPaymentUseCase', () => {
       currency: Currency | null;
       note: string | null;
       createdAt: Date;
+      paidAt: Date;
     }> = {},
   ): DebtLoanPayment {
     return new DebtLoanPayment(
@@ -44,6 +45,7 @@ describe('DeleteDebtLoanPaymentUseCase', () => {
       overrides.currency ?? null,
       overrides.note ?? null,
       overrides.createdAt ?? new Date('2026-02-01T12:00:00.000Z'),
+      overrides.paidAt ?? new Date('2026-02-01T12:00:00.000Z'),
     );
   }
 

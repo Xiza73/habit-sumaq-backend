@@ -26,6 +26,7 @@ export class DebtLoanPaymentRepositoryImpl extends DebtLoanPaymentRepository {
       currency: payment.currency,
       note: payment.note,
       createdAt: payment.createdAt,
+      paidAt: payment.paidAt,
     });
     return this.toDomain(saved);
   }
@@ -33,7 +34,9 @@ export class DebtLoanPaymentRepositoryImpl extends DebtLoanPaymentRepository {
   async findByDebtLoanId(debtLoanId: string): Promise<DebtLoanPayment[]> {
     const rows = await this.ormRepo.find({
       where: { debtLoanId },
-      order: { createdAt: 'DESC' },
+      // Ordered by the business date, not the audit one: backdating a payment
+      // should move it in the history, which is the point of editing it.
+      order: { paidAt: 'DESC', createdAt: 'DESC' },
     });
     return rows.map((r) => this.toDomain(r));
   }
@@ -63,6 +66,7 @@ export class DebtLoanPaymentRepositoryImpl extends DebtLoanPaymentRepository {
       currency: payment.currency,
       note: payment.note,
       createdAt: payment.createdAt,
+      paidAt: payment.paidAt,
     });
     return this.toDomain(saved);
   }
@@ -80,6 +84,7 @@ export class DebtLoanPaymentRepositoryImpl extends DebtLoanPaymentRepository {
       orm.currency,
       orm.note,
       orm.createdAt,
+      orm.paidAt,
     );
   }
 }

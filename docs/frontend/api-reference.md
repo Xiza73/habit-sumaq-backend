@@ -672,9 +672,20 @@ sin error (cap — el excedente se ignora). Toda la aritmética se hace en centa
 
 ### `GET /debts/:id/payments`
 
-Lista el historial de pagos (settles) aplicados a una deuda/préstamo, más reciente primero.
-Cada row representa un evento de settle (parcial o total). `currency` es `null` para settles
-informales (sin paso por el pool).
+Lista el historial de pagos (settles) aplicados a una deuda/préstamo, más reciente primero
+**por `paidAt`**. Cada row representa un evento de settle (parcial o total). `currency` es
+`null` para settles informales (sin paso por el pool).
+
+**`paidAt` vs `createdAt`.** Son dos hechos distintos y no se pueden colapsar:
+
+| Campo | Qué es | Editable |
+| ----- | ------ | -------- |
+| `paidAt` | Cuándo se movió el dinero | **sí** |
+| `createdAt` | Cuándo se escribió la fila | no |
+
+Iguales al crearse; divergen solo cuando el usuario corrige la fecha. La lista ordena por
+`paidAt` porque corregir la fecha de un pago debe moverlo en el historial — es el motivo por
+el que se edita.
 
 | Error code | HTTP | Cuándo                              |
 | ---------- | ---- | ----------------------------------- |
@@ -685,21 +696,22 @@ informales (sin paso por el pool).
 
 ### `PATCH /debts/payments/:paymentId`
 
-Edita un pago del historial (`amount` y/o `note`). Recomputa `remainingAmount` y `status`
-del parent (`SETTLED` ↔ `PENDING`) de forma atómica. Si el pago es real-payment (tiene
-`currency`), revierte el delta previo en el pool y aplica el nuevo. `currency` NO es editable
-post-creación. Debe enviarse al menos uno de `amount` o `note`.
+Edita un pago del historial (`amount`, `note` y/o `paidAt`). Recomputa `remainingAmount` y
+`status` del parent (`SETTLED` ↔ `PENDING`) de forma atómica. Si el pago es real-payment
+(tiene `currency`), revierte el delta previo en el pool y aplica el nuevo. `currency` NO es
+editable post-creación. Debe enviarse al menos uno de los tres.
 
 | Campo    | Tipo            | Requerido        | Notas                                                |
 | -------- | --------------- | ---------------- | ---------------------------------------------------- |
 | `amount` | number          | no (al menos uno) | > 0, 2 decimales. Recomputa saldo y status.         |
 | `note`   | string \| null  | no (al menos uno) | Máx 255 chars. `null` borra la nota.                |
+| `paidAt` | string (ISO)    | no (al menos uno) | Fecha real del pago. **No toca `createdAt`.**       |
 
 | Error code | HTTP | Cuándo                                                          |
 | ---------- | ---- | --------------------------------------------------------------- |
 | `DBT_008`  | 404  | El payment no existe                                            |
 | `DBT_002`  | 403  | El payment pertenece a otro usuario                             |
-| `DBT_009`  | 422  | Body sin `amount` ni `note`                                     |
+| `DBT_009`  | 422  | Body sin `amount`, `note` ni `paidAt`                           |
 | `DBT_006`  | 422  | El nuevo `amount` haría `remainingAmount < 0` (sobrepago)       |
 | `DBT_010`  | 422  | El nuevo `remainingAmount` excedería el `amount` del debt/loan  |
 
