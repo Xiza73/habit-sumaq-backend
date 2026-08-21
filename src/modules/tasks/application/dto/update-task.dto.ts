@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
-  IsBoolean,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -9,6 +9,8 @@ import {
   MaxLength,
   ValidateIf,
 } from 'class-validator';
+
+import { TaskStatus } from '../../domain/enums/task-status.enum';
 
 export class UpdateTaskDto {
   @ApiPropertyOptional({ example: 'Llamar al banco', maxLength: 120 })
@@ -30,11 +32,14 @@ export class UpdateTaskDto {
   description?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Toggle de completado. `true` setea `completedAt = now()`, `false` lo limpia.',
+    enum: TaskStatus,
+    description:
+      'Nuevo estado. Entrar a DONE sella `completedAt`; salir de DONE lo limpia, incluso ' +
+      'volviendo a IN_REVIEW — así una tarea sacada de done deja de ser barrible.',
   })
   @IsOptional()
-  @IsBoolean()
-  completed?: boolean;
+  @IsEnum(TaskStatus)
+  status?: TaskStatus;
 
   @ApiPropertyOptional({
     description:

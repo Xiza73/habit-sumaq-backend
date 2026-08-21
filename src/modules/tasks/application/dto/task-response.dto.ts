@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+import { TaskStatus } from '../../domain/enums/task-status.enum';
+
 import type { Task } from '../../domain/task.entity';
 
 export class TaskResponseDto {
@@ -18,11 +20,20 @@ export class TaskResponseDto {
   @ApiPropertyOptional({ description: 'Descripción opcional (markdown)', nullable: true })
   description: string | null;
 
-  @ApiProperty({ example: false })
-  completed: boolean;
+  @ApiProperty({
+    enum: TaskStatus,
+    example: TaskStatus.PENDING,
+    description:
+      'PENDING (sin empezar o en curso) · IN_REVIEW (terminada, en validación) · DONE. ' +
+      'El cleanup semanal solo barre DONE, así que una tarea en validación nunca se borra sola.',
+  })
+  status: TaskStatus;
 
   @ApiPropertyOptional({
-    description: 'Timestamp del marcado como completado. `null` cuando incompleta.',
+    description:
+      'Timestamp de entrada a DONE. `null` en cualquier otro estado, IN_REVIEW incluido — ' +
+      'es contra lo que mide el cleanup semanal, así que sellarlo antes haría barrible una ' +
+      'tarea sin terminar.',
     nullable: true,
   })
   completedAt: Date | null;
@@ -43,7 +54,7 @@ export class TaskResponseDto {
     dto.sectionId = task.sectionId;
     dto.title = task.title;
     dto.description = task.description;
-    dto.completed = task.completed;
+    dto.status = task.status;
     dto.completedAt = task.completedAt;
     dto.position = task.position;
     dto.createdAt = task.createdAt;

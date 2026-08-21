@@ -1,5 +1,6 @@
 import { makeSection } from '../../domain/__tests__/section.factory';
 import { makeTask } from '../../domain/__tests__/task.factory';
+import { TaskStatus } from '../../domain/enums/task-status.enum';
 import { type SectionRepository } from '../../domain/section.repository';
 import { type TaskRepository } from '../../domain/task.repository';
 
@@ -44,10 +45,10 @@ describe('UpdateTaskUseCase', () => {
   });
 
   it('toggling completed sets completedAt', async () => {
-    const task = makeTask({ userId: 'user-1', completed: false });
+    const task = makeTask({ userId: 'user-1', status: TaskStatus.PENDING });
     taskRepo.findById.mockResolvedValue(task);
-    const result = await useCase.execute(task.id, 'user-1', { completed: true });
-    expect(result.completed).toBe(true);
+    const result = await useCase.execute(task.id, 'user-1', { status: TaskStatus.DONE });
+    expect(result.status).toBe(TaskStatus.DONE);
     expect(result.completedAt).not.toBeNull();
   });
 

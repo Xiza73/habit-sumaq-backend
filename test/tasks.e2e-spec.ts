@@ -26,6 +26,7 @@ import { UpdateSectionUseCase } from '../src/modules/tasks/application/use-cases
 import { UpdateTaskUseCase } from '../src/modules/tasks/application/use-cases/update-task.use-case';
 import { makeSection } from '../src/modules/tasks/domain/__tests__/section.factory';
 import { makeTask } from '../src/modules/tasks/domain/__tests__/task.factory';
+import { TaskStatus } from '../src/modules/tasks/domain/enums/task-status.enum';
 import { SectionRepository } from '../src/modules/tasks/domain/section.repository';
 import { TaskRepository } from '../src/modules/tasks/domain/task.repository';
 import { SectionsController } from '../src/modules/tasks/presentation/sections.controller';
@@ -248,7 +249,7 @@ describe('Tasks (e2e)', () => {
         .expect(201);
       expect(res.body.data.title).toBe('Llamar al banco');
       expect(res.body.data.position).toBe(2);
-      expect(res.body.data.completed).toBe(false);
+      expect(res.body.data.status).toBe('PENDING');
     });
 
     it('returns 404 when section belongs to another user', async () => {
@@ -263,16 +264,38 @@ describe('Tasks (e2e)', () => {
   });
 
   describe('PATCH /api/v1/tasks/:id', () => {
-    it('toggles completed (sets completedAt)', async () => {
-      const task = makeTask({ id: TASK_ID_1, userId: USER_ID, completed: false });
+    it('moving to DONE stamps completedAt', async () => {
+      const task = makeTask({ id: TASK_ID_1, userId: USER_ID, status: TaskStatus.PENDING });
       mockTaskRepo.findById.mockResolvedValue(task);
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/tasks/${TASK_ID_1}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ completed: true })
+        .send({ status: 'DONE' })
         .expect(200);
-      expect(res.body.data.completed).toBe(true);
+      expect(res.body.data.status).toBe('DONE');
       expect(res.body.data.completedAt).not.toBeNull();
+    });
+
+    it('moving to IN_REVIEW leaves completedAt null', async () => {
+      // The whole point of the third state: a task under validation must not
+      // become eligible for the weekly cleanup, which measures completedAt.
+      const task = makeTask({ id: TASK_ID_1, userId: USER_ID, status: TaskStatus.PENDING });
+      mockTaskRepo.findById.mockResolvedValue(task);
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/tasks/${TASK_ID_1}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'IN_REVIEW' })
+        .expect(200);
+      expect(res.body.data.status).toBe('IN_REVIEW');
+      expect(res.body.data.completedAt).toBeNull();
+    });
+
+    it('rejects a status outside the enum', async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/tasks/${TASK_ID_1}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'VALIDATING' })
+        .expect(400);
     });
 
     it('moves task to a new section (placed at end)', async () => {
