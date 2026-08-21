@@ -71,6 +71,28 @@ export class LogHabitUseCase {
     const cappedCount = Math.min(dto.count, targetCount);
     const completed = cappedCount >= targetCount;
 
+    // Setting TODAY's target also moves the habit's default, so tomorrow
+    // starts from the number the user last chose instead of reverting to the
+    // original one and making them redo the edit every day.
+    //
+    // Only today. Correcting a day you forgot to log is the common case, and
+    // it must stay local to that day — otherwise fixing last Tuesday would
+    // silently rewrite what every future day starts at. The per-day snapshot
+    // on the log keeps the past intact either way.
+    if (
+      dto.targetCount !== undefined &&
+      logDate === todayStr &&
+      habit.targetCount !== targetCount
+    ) {
+      habit.targetCount = targetCount;
+      habit.updatedAt = new Date();
+      await this.habitRepo.save(habit);
+      this.logger.info(
+        { event: 'habit.default_target_moved', habitId, userId, targetCount },
+        'habit.default_target_moved',
+      );
+    }
+
     if (existingLog) {
       existingLog.updateCount(dto.count, targetCount);
       if (dto.note !== undefined) existingLog.note = dto.note ?? null;
