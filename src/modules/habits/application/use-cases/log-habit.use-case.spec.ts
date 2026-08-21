@@ -27,7 +27,13 @@ describe('LogHabitUseCase', () => {
   };
   const userId = 'user-1';
   const habitId = 'habit-1';
-  const todayStr = StatsCalculator.toDateString(new Date());
+  // Derived the way the use case derives it, for the SAME timezone the tests
+  // pass ('UTC'). Using `new Date()` here read the machine's local day, so
+  // the two disagreed for anyone in a negative UTC offset once their evening
+  // crossed midnight UTC — the target-persistence test passed until 19:00 in
+  // Lima and failed after. CI never sees it: runners are UTC, where the two
+  // calculations coincide.
+  const todayStr = StatsCalculator.toDateString(StatsCalculator.todayIn('UTC'));
 
   beforeEach(async () => {
     habitRepo = {
