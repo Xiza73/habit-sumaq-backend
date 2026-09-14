@@ -5,6 +5,7 @@ import { DateFormat } from './enums/date-format.enum';
 import { Language } from './enums/language.enum';
 import { StartOfWeek } from './enums/start-of-week.enum';
 import { Theme } from './enums/theme.enum';
+import { MAX_STREAK_SHIELDS, SHIELD_STREAK_THRESHOLD } from './user-settings.entity';
 
 describe('UserSettings', () => {
   describe('update', () => {
@@ -72,6 +73,79 @@ describe('UserSettings', () => {
       });
       settings.update({ language: Language.EN });
       expect(settings.updatedAt.getTime()).toBeGreaterThan(new Date('2026-01-01').getTime());
+    });
+  });
+});
+
+describe('UserSettings — streak shields', () => {
+  describe('grantShieldIfEarned', () => {
+    it('grants nothing below the threshold', () => {
+      const s = buildUserSettings({ streakShields: 0, shieldsEarnedMonth: null });
+
+      expect(s.grantShieldIfEarned('2026-09', SHIELD_STREAK_THRESHOLD - 1)).toBe(false);
+      expect(s.streakShields).toBe(0);
+      expect(s.shieldsEarnedMonth).toBeNull();
+    });
+
+    it('grants one on reaching the threshold', () => {
+      const s = buildUserSettings({ streakShields: 0, shieldsEarnedMonth: null });
+
+      expect(s.grantShieldIfEarned('2026-09', SHIELD_STREAK_THRESHOLD)).toBe(true);
+      expect(s.streakShields).toBe(1);
+      expect(s.shieldsEarnedMonth).toBe('2026-09');
+    });
+
+    it('grants only once per calendar month', () => {
+      const s = buildUserSettings({ streakShields: 0, shieldsEarnedMonth: null });
+
+      s.grantShieldIfEarned('2026-09', 30);
+      expect(s.grantShieldIfEarned('2026-09', 40)).toBe(false);
+      expect(s.streakShields).toBe(1);
+    });
+
+    it('grants again the following month', () => {
+      const s = buildUserSettings({ streakShields: 1, shieldsEarnedMonth: '2026-09' });
+
+      expect(s.grantShieldIfEarned('2026-10', 30)).toBe(true);
+      expect(s.streakShields).toBe(2);
+    });
+
+    // The rule the cap exists for.
+    it('LOSES the shield when the stock is already full', () => {
+      const s = buildUserSettings({ streakShields: MAX_STREAK_SHIELDS, shieldsEarnedMonth: null });
+
+      expect(s.grantShieldIfEarned('2026-09', 30)).toBe(false);
+      expect(s.streakShields).toBe(MAX_STREAK_SHIELDS);
+    });
+
+    it('still burns the month when the stock was full — the reward is forfeited, not deferred', () => {
+      // Without this, a user could sit at full stock for months, spend one,
+      // and immediately collect every month they had "banked". That is the
+      // accumulation the cap exists to prevent.
+      const s = buildUserSettings({ streakShields: MAX_STREAK_SHIELDS, shieldsEarnedMonth: null });
+
+      s.grantShieldIfEarned('2026-09', 30);
+      expect(s.shieldsEarnedMonth).toBe('2026-09');
+
+      s.spendShield();
+      expect(s.grantShieldIfEarned('2026-09', 30)).toBe(false);
+      expect(s.streakShields).toBe(MAX_STREAK_SHIELDS - 1);
+    });
+  });
+
+  describe('spendShield', () => {
+    it('decrements the stock', () => {
+      const s = buildUserSettings({ streakShields: 2 });
+
+      s.spendShield();
+
+      expect(s.streakShields).toBe(1);
+    });
+
+    it('refuses to go negative', () => {
+      const s = buildUserSettings({ streakShields: 0 });
+
+      expect(() => s.spendShield()).toThrow();
     });
   });
 });

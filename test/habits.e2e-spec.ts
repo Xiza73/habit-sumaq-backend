@@ -31,6 +31,7 @@ import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
 import { HabitStreakRescueRepository } from '../src/modules/habits/domain/habit-streak-rescue.repository';
 import { HabitsController } from '../src/modules/habits/presentation/habits.controller';
+import { UserSettingsRepository } from '../src/modules/users/domain/user-settings.repository';
 
 import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
 
@@ -119,6 +120,14 @@ describe('HabitsController (e2e)', () => {
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
         { provide: HabitStreakRescueRepository, useValue: mockRescueRepo },
+        {
+          provide: UserSettingsRepository,
+          useValue: {
+            findByUserId: jest.fn().mockResolvedValue(null),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
         { provide: getLoggerToken(CreateHabitUseCase.name), useValue: mockCreateLogger },
         { provide: getLoggerToken(LogHabitUseCase.name), useValue: mockLogLogger },
 
