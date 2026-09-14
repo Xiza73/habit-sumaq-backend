@@ -106,6 +106,7 @@ Actualiza parcialmente la configuración. Solo se modifican los campos enviados.
 | `monthlyServicesOrderBy`    | MonthlyServicesOrderBy     | Ver [enums.md](enums.md#monthlyservicesorderby)                                |
 | `monthlyServicesOrderDir`   | MonthlyServicesOrderDir    | Ver [enums.md](enums.md#monthlyservicesorderdir)                               |
 | `favoriteKeys`              | string[]                   | Max 4, sin duplicados. Drives la bottom nav en mobile (4 slots + Settings fijo) y la ★ en la sidebar. Strings free-form — el set válido vive en el `NAV_REGISTRY` del frontend; el backend no valida el contenido para desacoplar repos. Array vacío es válido. |
+| `disabledModules`           | string[]                   | Módulos apagados por el usuario en Settings. Sin duplicados y **sin tope**. El frontend los oculta de la sidebar y la bottom nav, de su porción de los dashboards de reportes, y del popover de alertas. Strings free-form, mismo contrato que `favoriteKeys`. Array vacío (el default) = todos activos. |
 
 Todos los campos son opcionales. Si no existe configuración previa, se crea antes de aplicar los cambios.
 
@@ -126,6 +127,7 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "monthlyServicesOrderBy": "name",
   "monthlyServicesOrderDir": "asc",
   "favoriteKeys": ["accounts", "transactions", "habits", "quick-tasks"],
+  "disabledModules": ["chores", "reminders"],
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
@@ -134,6 +136,10 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
 
 > **`favoriteKeys` default:** La migration `1741000023000` setea el default a `['accounts','transactions','habits','quick-tasks']` para todos los users (los 4 items que mobile ya mostraba antes del feature). Usuarios pre-existentes obtienen ese default sin acción adicional. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
+
+> **`disabledModules` default:** array **vacío** — todos los módulos activos (migration `1741000045000`). El default tiene que ser "nada apagado" porque apagar es la excepción: si nombrara módulos, cada módulo nuevo que se agregue en el futuro se convertiría en una decisión sobre los usuarios existentes. Así, un módulo nuevo entra encendido para todos sin tocar una sola fila.
+>
+> A diferencia de `favoriteKeys` **no tiene tope**. Apagar todos los módulos es un estado válido: Settings nunca está en esta lista, así que el usuario siempre puede volver a encenderlos. Un piso mínimo sería una regla sin ningún fallo que prevenir.
 
 ---
 

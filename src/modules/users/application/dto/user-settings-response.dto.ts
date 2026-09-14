@@ -89,6 +89,14 @@ export class UserSettingsResponseDto {
   })
   favoriteKeys: string[];
 
+  @ApiProperty({
+    type: [String],
+    description:
+      'Módulos que el usuario apagó en Settings. El frontend los oculta de la sidebar y la bottom nav, de su porción de los dashboards de reportes, y del popover de alertas. Array vacío (el default) = todos los módulos activos. Las keys son free-form: el set válido vive en el `NAV_REGISTRY` del frontend.',
+    example: ['chores', 'reminders'],
+  })
+  disabledModules: string[];
+
   @ApiProperty()
   createdAt: Date;
 
@@ -108,6 +116,7 @@ export class UserSettingsResponseDto {
     dto.monthlyServicesOrderBy = settings.monthlyServicesOrderBy;
     dto.monthlyServicesOrderDir = settings.monthlyServicesOrderDir;
     dto.favoriteKeys = settings.favoriteKeys;
+    dto.disabledModules = settings.disabledModules;
     dto.createdAt = settings.createdAt;
     dto.updatedAt = settings.updatedAt;
     return dto;

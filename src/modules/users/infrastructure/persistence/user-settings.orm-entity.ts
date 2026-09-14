@@ -94,6 +94,19 @@ export class UserSettingsOrmEntity {
   favoriteKeys: string[];
 
   /**
+   * Nav keys the user has switched OFF in Settings. Hidden from the sidebar
+   * and mobile nav, from their slice of the reports dashboards, and from the
+   * alerts popover.
+   *
+   * Empty by default — every module on. The set of valid keys lives in the
+   * frontend's `NAV_REGISTRY`, same decoupling as `favoriteKeys`. Uncapped on
+   * purpose: disabling everything is a legitimate state, and Settings is never
+   * in this list, so the user can always switch things back on.
+   */
+  @Column({ type: 'text', array: true, default: () => `'{}'::text[]` })
+  disabledModules: string[];
+
+  /**
    * Timestamp the user last opened the alerts popover. Drives the bell
    * badge — alerts whose `triggeredAt > lastAlertsSeenAt` are counted as
    * unread. Null until the user opens the popover for the first time.

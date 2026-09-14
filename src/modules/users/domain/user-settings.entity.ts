@@ -33,6 +33,17 @@ export class UserSettings {
      */
     public favoriteKeys: string[],
     /**
+     * Nav keys the user has switched OFF in Settings. The frontend hides
+     * these from the sidebar and mobile nav, from their slice of the reports
+     * dashboards, and from the alerts popover.
+     *
+     * Same dumb-strings contract as `favoriteKeys` — the canonical module list
+     * lives in the frontend's `NAV_REGISTRY`. Empty means everything is on,
+     * which is why the column defaults to `{}`: opting out is the exception,
+     * so a new module is on for everyone without touching a single row.
+     */
+    public disabledModules: string[],
+    /**
      * Timestamp the user last opened the alerts popover. Drives the bell
      * badge: an alert is considered unread when its `triggeredAt` is newer
      * than this. Null = the user has never opened the popover.
@@ -69,6 +80,7 @@ export class UserSettings {
     monthlyServicesOrderBy?: MonthlyServicesOrderBy;
     monthlyServicesOrderDir?: MonthlyServicesOrderDir;
     favoriteKeys?: string[];
+    disabledModules?: string[];
   }): void {
     if (partial.language !== undefined) this.language = partial.language;
     if (partial.theme !== undefined) this.theme = partial.theme;
@@ -83,6 +95,7 @@ export class UserSettings {
     if (partial.monthlyServicesOrderDir !== undefined)
       this.monthlyServicesOrderDir = partial.monthlyServicesOrderDir;
     if (partial.favoriteKeys !== undefined) this.favoriteKeys = partial.favoriteKeys;
+    if (partial.disabledModules !== undefined) this.disabledModules = partial.disabledModules;
     this.updatedAt = new Date();
   }
 }
