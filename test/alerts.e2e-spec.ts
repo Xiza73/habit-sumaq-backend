@@ -26,6 +26,7 @@ import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory
 import { HabitFrequency } from '../src/modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '../src/modules/habits/domain/habit-streak-rescue.repository';
 import { buildMonthlyService } from '../src/modules/monthly-services/domain/__tests__/monthly-service.factory';
 import { MonthlyServiceRepository } from '../src/modules/monthly-services/domain/monthly-service.repository';
 import { ReminderRepository } from '../src/modules/reminders/domain/reminder.repository';
@@ -67,6 +68,15 @@ describe('AlertsController (e2e)', () => {
     findByHabitIdAndDateRange: jest.fn(),
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
+  };
+  // Streak rescues bridge gaps in the streak walk. Every habit-stats use case
+  // depends on this repo, so the e2e module has to provide it even for specs
+  // that never exercise a rescue — an empty result keeps their expectations
+  // exactly as they were before shields existed.
+  const mockRescueRepo: jest.Mocked<HabitStreakRescueRepository> = {
+    findDatesByHabitId: jest.fn().mockResolvedValue([]),
+    findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+    create: jest.fn(),
   };
 
   const mockBudgetRepo: jest.Mocked<BudgetRepository> = {
@@ -127,6 +137,7 @@ describe('AlertsController (e2e)', () => {
         { provide: MonthlyServiceRepository, useValue: mockServiceRepo },
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
+        { provide: HabitStreakRescueRepository, useValue: mockRescueRepo },
         { provide: BudgetRepository, useValue: mockBudgetRepo },
         { provide: BudgetMovementRepository, useValue: mockBudgetMovementRepo },
         { provide: ChoreRepository, useValue: mockChoreRepo },
