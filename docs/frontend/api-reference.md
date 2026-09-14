@@ -1076,6 +1076,44 @@ Soft delete. Elimina el hábito y todos sus logs asociados.
 
 - `404` — Hábito no encontrado
 
+### `POST /habits/:id/rescue-streak`
+
+Gasta un **escudo de racha** para cubrir el período que el usuario acaba de
+perder. Sin body. Responde `200` con `{ "rescuedDate": "YYYY-MM-DD" }`.
+
+**No crea un log.** El rescate se guarda en `habit_streak_rescues` y el cálculo
+de racha lo consulta aparte. Por eso:
+
+| Métrica | ¿Cuenta el período rescatado? |
+| ------- | ----------------------------- |
+| `currentStreak` | ✅ es lo que el escudo existe para proteger |
+| `longestStreak` | ✅ es la misma racha |
+| `completionRate` | ❌ **nunca** — es el registro honesto de lo que se hizo |
+
+Escribir un log sintético habría sido más simple y habría inflado las tres.
+
+**Cuándo hay algo que rescatar.** Solo el período **inmediatamente anterior**, y
+solo si el anterior a ese estaba cumplido — de lo contrario no hay racha que
+salvar y cobrar un escudo sería robar. La unidad es el período del hábito: el
+día para `DAILY`, la **semana ISO** para `WEEKLY` (se registra el lunes de esa
+semana). Perder dos períodos seguidos cierra la ventana: el más viejo no se
+vuelve a ofrecer.
+
+**Cómo se consiguen.** Uno por **mes calendario** (en la zona horaria del
+usuario), al registrar un hábito que alcanza **20 períodos** de racha. Tope de
+**2 en mano**: uno ganado con el stock lleno **se pierde**, no se acumula para
+después.
+
+| Error | Status | Cuándo |
+| ----- | ------ | ------ |
+| `HAB_007` | 409 | Sin escudos disponibles |
+| `HAB_008` | 409 | Nada que rescatar en este momento |
+| `HAB_003` | 422 | Hábito archivado |
+
+> Ambos 409 son **estado, no validación**: la request está bien formada y sería
+> válida en otro momento. El cliente los renderiza como tal, no como error de
+> formulario.
+
 ### `POST /habits/:id/logs`
 
 Registra o actualiza el log de un hábito para una fecha. Si ya existe un log para esa fecha, lo actualiza (upsert).
