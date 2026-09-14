@@ -43,6 +43,8 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       monthlyServicesOrderDir: settings.monthlyServicesOrderDir,
       favoriteKeys: settings.favoriteKeys,
       disabledModules: settings.disabledModules,
+      streakShields: settings.streakShields,
+      shieldsEarnedMonth: settings.shieldsEarnedMonth,
       lastAlertsSeenAt: settings.lastAlertsSeenAt,
       updatedAt: settings.updatedAt,
     });
@@ -64,6 +66,8 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       orm.monthlyServicesOrderDir,
       orm.favoriteKeys,
       orm.disabledModules,
+      orm.streakShields,
+      orm.shieldsEarnedMonth,
       orm.lastAlertsSeenAt,
       orm.createdAt,
       orm.updatedAt,

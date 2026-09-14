@@ -113,6 +113,22 @@ export class UserSettingsOrmEntity {
   disabledModules: string[];
 
   /**
+   * Streak shields in hand, 0..2. The DB enforces the cap with a CHECK
+   * (migration 1741000046000) rather than trusting the grant path — the cap
+   * is what gives a shield its weight.
+   */
+  @Column({ type: 'smallint', default: 0 })
+  streakShields: number;
+
+  /**
+   * `YYYY-MM` of the month a shield was last granted, or null if never. One
+   * column instead of a grants table because the only question ever asked is
+   * "was one already granted this month".
+   */
+  @Column({ type: 'varchar', length: 7, nullable: true })
+  shieldsEarnedMonth: string | null;
+
+  /**
    * Timestamp the user last opened the alerts popover. Drives the bell
    * badge — alerts whose `triggeredAt > lastAlertsSeenAt` are counted as
    * unread. Null until the user opens the popover for the first time.

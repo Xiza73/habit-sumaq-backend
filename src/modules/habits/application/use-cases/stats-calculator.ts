@@ -226,7 +226,14 @@ export class StatsCalculator {
     return StatsCalculator.toDateString(d);
   }
 
-  private static toWeekKey(date: Date | string): string {
+  /**
+   * ISO week key (`YYYY-Www`) for a date.
+   *
+   * Public because the streak-rescue window has to group by the SAME week this
+   * class counts streaks in. Two definitions of "week" in one domain is a bug
+   * waiting for a year boundary to surface it.
+   */
+  static toWeekKey(date: Date | string): string {
     const d = new Date(typeof date === 'string' ? date + 'T12:00:00' : date);
     d.setHours(0, 0, 0, 0);
     // Set to nearest Thursday (ISO week algorithm)

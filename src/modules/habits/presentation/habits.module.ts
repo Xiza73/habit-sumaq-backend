@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { UsersModule } from '@modules/users/presentation/users.module';
+
 import { ArchiveHabitUseCase } from '../application/use-cases/archive-habit.use-case';
 import { CreateHabitUseCase } from '../application/use-cases/create-habit.use-case';
 import { DeleteHabitUseCase } from '../application/use-cases/delete-habit.use-case';
@@ -25,6 +27,7 @@ import { HabitsController } from './habits.controller';
 @Module({
   imports: [
     TypeOrmModule.forFeature([HabitOrmEntity, HabitLogOrmEntity, HabitStreakRescueOrmEntity]),
+    UsersModule,
   ],
   controllers: [HabitsController],
   providers: [

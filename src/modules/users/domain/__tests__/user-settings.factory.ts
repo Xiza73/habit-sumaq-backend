@@ -26,6 +26,8 @@ export function buildUserSettings(overrides: Partial<UserSettings> = {}): UserSe
     overrides.monthlyServicesOrderDir ?? MonthlyServicesOrderDir.ASC,
     overrides.favoriteKeys ?? ['debts', 'budgets', 'habits', 'quick-tasks'],
     overrides.disabledModules ?? [],
+    overrides.streakShields ?? 0,
+    overrides.shieldsEarnedMonth ?? null,
     overrides.lastAlertsSeenAt ?? null,
     overrides.createdAt ?? new Date('2026-01-01'),
     overrides.updatedAt ?? new Date('2026-01-01'),
