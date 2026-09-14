@@ -198,11 +198,12 @@ export class LogHabitUseCase {
         },
         granted ? 'habit.shield.granted' : 'habit.shield.forfeited',
       );
-    } catch (error) {
-      this.logger.warn(
-        { event: 'habit.shield.grant_failed', userId, error },
-        'shield grant failed',
-      );
+    } catch (err) {
+      // The key MUST be `err`: pino applies its error serializer to that name
+      // only. Under any other key an Error serializes to `{}`, because
+      // `message` and `stack` are non-enumerable — the failure this line
+      // exists to report would be logged as an empty object.
+      this.logger.warn({ event: 'habit.shield.grant_failed', userId, err }, 'shield grant failed');
     }
   }
 }
