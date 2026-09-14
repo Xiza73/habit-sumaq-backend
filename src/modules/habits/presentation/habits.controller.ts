@@ -32,6 +32,7 @@ import { GetHabitByIdUseCase } from '../application/use-cases/get-habit-by-id.us
 import { GetHabitLogsUseCase } from '../application/use-cases/get-habit-logs.use-case';
 import { GetHabitsUseCase } from '../application/use-cases/get-habits.use-case';
 import { LogHabitUseCase } from '../application/use-cases/log-habit.use-case';
+import { RescueStreakUseCase } from '../application/use-cases/rescue-streak.use-case';
 import { UpdateHabitUseCase } from '../application/use-cases/update-habit.use-case';
 
 import type { JwtPayload } from '../../auth/application/dto/jwt-payload.dto';
@@ -48,6 +49,7 @@ export class HabitsController {
     private readonly archiveHabit: ArchiveHabitUseCase,
     private readonly deleteHabit: DeleteHabitUseCase,
     private readonly logHabit: LogHabitUseCase,
+    private readonly rescueStreakUseCase: RescueStreakUseCase,
     private readonly getHabitLogs: GetHabitLogsUseCase,
     private readonly getDailySummary: GetDailySummaryUseCase,
   ) {}
@@ -224,6 +226,39 @@ export class HabitsController {
       HabitLogResponseDto.fromDomain(habitLog),
       'Log registrado exitosamente',
     );
+  }
+
+  @Post(':id/rescue-streak')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Gastar un escudo para rescatar la racha del hábito',
+    description:
+      'Consume un escudo de racha para cubrir el período que el usuario acaba de perder. ' +
+      'NO crea un log: el rescate se guarda aparte, así que el completion rate y el ' +
+      'calendario siguen reflejando solo lo que realmente se hizo. ' +
+      'Solo se puede rescatar el período inmediatamente anterior, y solo si el anterior a ' +
+      'ese estaba cumplido — de lo contrario no habría racha que salvar.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID del hábito',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({ status: 200, description: 'Racha rescatada' })
+  @ApiResponse({ status: 403, description: 'El hábito no te pertenece' })
+  @ApiResponse({ status: 404, description: 'Hábito no encontrado' })
+  @ApiResponse({
+    status: 409,
+    description: 'Sin escudos disponibles (HAB_007) o sin período rescatable (HAB_008)',
+  })
+  @ApiResponse({ status: 422, description: 'Hábito archivado' })
+  async rescueStreak(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @ClientTimezone() timezone: string,
+  ): Promise<ApiResponseDto<{ rescuedDate: string }>> {
+    const result = await this.rescueStreakUseCase.execute(id, payload.sub, timezone);
+    return ApiResponseDto.ok(result, 'Racha rescatada exitosamente');
   }
 
   @Get(':id/logs')

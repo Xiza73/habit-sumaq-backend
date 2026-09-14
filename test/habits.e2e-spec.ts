@@ -23,6 +23,7 @@ import { GetHabitByIdUseCase } from '../src/modules/habits/application/use-cases
 import { GetHabitLogsUseCase } from '../src/modules/habits/application/use-cases/get-habit-logs.use-case';
 import { GetHabitsUseCase } from '../src/modules/habits/application/use-cases/get-habits.use-case';
 import { LogHabitUseCase } from '../src/modules/habits/application/use-cases/log-habit.use-case';
+import { RescueStreakUseCase } from '../src/modules/habits/application/use-cases/rescue-streak.use-case';
 import { UpdateHabitUseCase } from '../src/modules/habits/application/use-cases/update-habit.use-case';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
 import { buildHabitLog } from '../src/modules/habits/domain/__tests__/habit-log.factory';
@@ -115,6 +116,7 @@ describe('HabitsController (e2e)', () => {
         ArchiveHabitUseCase,
         DeleteHabitUseCase,
         LogHabitUseCase,
+        RescueStreakUseCase,
         GetHabitLogsUseCase,
         GetDailySummaryUseCase,
         { provide: HabitRepository, useValue: mockHabitRepo },
