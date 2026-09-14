@@ -42,6 +42,7 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       monthlyServicesOrderBy: settings.monthlyServicesOrderBy,
       monthlyServicesOrderDir: settings.monthlyServicesOrderDir,
       favoriteKeys: settings.favoriteKeys,
+      disabledModules: settings.disabledModules,
       lastAlertsSeenAt: settings.lastAlertsSeenAt,
       updatedAt: settings.updatedAt,
     });
@@ -62,6 +63,7 @@ export class UserSettingsRepositoryImpl extends UserSettingsRepository {
       orm.monthlyServicesOrderBy,
       orm.monthlyServicesOrderDir,
       orm.favoriteKeys,
+      orm.disabledModules,
       orm.lastAlertsSeenAt,
       orm.createdAt,
       orm.updatedAt,
