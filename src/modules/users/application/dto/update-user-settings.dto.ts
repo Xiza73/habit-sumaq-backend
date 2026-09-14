@@ -99,7 +99,7 @@ export class UpdateUserSettingsDto {
     type: [String],
     description:
       'Keys de navegación favoritas del usuario (max 4). Drives la bottom nav en mobile (4 slots + Settings fijo) y la marca ★ en la sidebar de desktop. Las keys son free-form strings — el set válido vive en el `NAV_REGISTRY` del frontend; backend no valida el contenido para desacoplar repos. Array vacío es válido (mobile queda con solo el slot de Settings).',
-    example: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+    example: ['debts', 'budgets', 'habits', 'quick-tasks'],
     maxItems: 4,
   })
   @IsOptional()

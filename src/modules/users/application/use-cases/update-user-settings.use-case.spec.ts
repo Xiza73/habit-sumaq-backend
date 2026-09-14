@@ -91,7 +91,7 @@ describe('UpdateUserSettingsUseCase', () => {
     // permits 0..4). Confirm the use case threads it through unchanged.
     const settings = buildUserSettings({
       userId: 'user-1',
-      favoriteKeys: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+      favoriteKeys: ['debts', 'budgets', 'habits', 'quick-tasks'],
     });
     mockRepo.findByUserId.mockResolvedValue(settings);
     mockRepo.save.mockResolvedValue(settings);

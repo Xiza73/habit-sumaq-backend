@@ -85,11 +85,17 @@ export class UserSettingsOrmEntity {
    * the array order) and equality checks stay simple. The cap (≤ 4) is
    * enforced at two layers — DTO validator and SQL `CHECK` constraint
    * declared in migration 1741000023000.
+   *
+   * The default must stay in sync with `DEFAULT_FAVORITES` in the web repo
+   * (`src/lib/nav-registry.ts`). A key here that names a route the frontend
+   * dropped still counts toward the ≤ 4 cap while rendering nothing, which
+   * soft-locks the user out of managing their own favorites — see migration
+   * 1741000044000.
    */
   @Column({
     type: 'text',
     array: true,
-    default: () => `ARRAY['accounts','transactions','habits','quick-tasks']::text[]`,
+    default: () => `ARRAY['debts','budgets','habits','quick-tasks']::text[]`,
   })
   favoriteKeys: string[];
 
