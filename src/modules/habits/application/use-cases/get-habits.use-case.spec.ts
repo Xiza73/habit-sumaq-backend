@@ -1,4 +1,5 @@
 import { buildHabit } from '../../domain/__tests__/habit.factory';
+import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 
 import { GetHabitsUseCase } from './get-habits.use-case';
 
@@ -68,5 +69,84 @@ describe('GetHabitsUseCase', () => {
     await useCase.execute(userId, { includeArchived: true }, 'UTC');
 
     expect(habitRepo.findByUserId).toHaveBeenCalledWith(userId, true);
+  });
+});
+
+describe('GetHabitsUseCase — rescuableDate', () => {
+  // Frozen clock: 2026-03-13. Yesterday = 03-12, the day before = 03-11.
+  const FIXED_TODAY = new Date('2026-03-13T15:00:00Z');
+  const userId = 'user-1';
+
+  let useCase: GetHabitsUseCase;
+  let habitRepo: jest.Mocked<HabitRepository>;
+  let habitLogRepo: jest.Mocked<HabitLogRepository>;
+  let rescueRepo: {
+    findDatesByHabitId: jest.Mock;
+    findDatesByHabitIds: jest.Mock;
+    create: jest.Mock;
+  };
+
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(FIXED_TODAY);
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
+  beforeEach(() => {
+    habitRepo = {
+      findByUserId: jest.fn().mockResolvedValue([buildHabit({ id: 'h1', userId })]),
+      findByUserIdAndName: jest.fn(),
+      findById: jest.fn(),
+      save: jest.fn(),
+      softDelete: jest.fn(),
+    };
+    habitLogRepo = {
+      findByHabitIdAndDate: jest.fn(),
+      findByHabitId: jest.fn(),
+      findByUserIdAndDate: jest.fn(),
+      findCompletedByHabitId: jest.fn().mockResolvedValue([]),
+      save: jest.fn(),
+      softDeleteByHabitId: jest.fn(),
+      findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
+    };
+    rescueRepo = {
+      findDatesByHabitId: jest.fn().mockResolvedValue([]),
+      findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+      create: jest.fn(),
+    };
+    useCase = new GetHabitsUseCase(habitRepo, habitLogRepo, rescueRepo);
+  });
+
+  it('exposes the rescuable period when there is one', async () => {
+    // Gap yesterday, anchored by the day before → yesterday is rescuable.
+    habitLogRepo.findCompletedByHabitId.mockResolvedValue([
+      buildHabitLog({ habitId: 'h1', date: '2026-03-11', completed: true }),
+      buildHabitLog({ habitId: 'h1', date: '2026-03-10', completed: true }),
+    ]);
+
+    const [habit] = await useCase.execute(userId, {}, 'UTC');
+
+    expect(habit.rescuableDate).toBe('2026-03-12');
+  });
+
+  it('exposes null when nothing is rescuable', async () => {
+    habitLogRepo.findCompletedByHabitId.mockResolvedValue([
+      buildHabitLog({ habitId: 'h1', date: '2026-03-12', completed: true }),
+      buildHabitLog({ habitId: 'h1', date: '2026-03-11', completed: true }),
+    ]);
+
+    const [habit] = await useCase.execute(userId, {}, 'UTC');
+
+    expect(habit.rescuableDate).toBeNull();
+  });
+
+  it('costs no extra query — reuses the logs and rescues the stats already load', async () => {
+    await useCase.execute(userId, {}, 'UTC');
+
+    expect(habitLogRepo.findCompletedByHabitId).toHaveBeenCalledTimes(1);
+    expect(rescueRepo.findDatesByHabitId).toHaveBeenCalledTimes(1);
   });
 });

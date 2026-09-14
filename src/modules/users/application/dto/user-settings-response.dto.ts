@@ -97,6 +97,16 @@ export class UserSettingsResponseDto {
   })
   disabledModules: string[];
 
+  @ApiProperty({
+    example: 1,
+    description:
+      'Escudos de racha en mano (0-2). Se gana uno por mes calendario al alcanzar 20 períodos ' +
+      'de racha en algún hábito; uno ganado con el stock lleno SE PIERDE, no se acumula. ' +
+      'Se gasta con `POST /habits/:id/rescue-streak`. El frontend habilita el botón de rescate ' +
+      'cuando esto es > 0 Y el hábito trae `rescuableDate` no nulo.',
+  })
+  streakShields: number;
+
   @ApiProperty()
   createdAt: Date;
 
@@ -117,6 +127,7 @@ export class UserSettingsResponseDto {
     dto.monthlyServicesOrderDir = settings.monthlyServicesOrderDir;
     dto.favoriteKeys = settings.favoriteKeys;
     dto.disabledModules = settings.disabledModules;
+    dto.streakShields = settings.streakShields;
     dto.createdAt = settings.createdAt;
     dto.updatedAt = settings.updatedAt;
     return dto;

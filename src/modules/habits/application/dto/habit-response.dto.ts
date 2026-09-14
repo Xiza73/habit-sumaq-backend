@@ -93,6 +93,19 @@ export class HabitResponseDto {
     return dto;
   }
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '2026-03-12',
+    description:
+      'Período que un escudo de racha puede rescatar AHORA, o null si no hay ninguno. ' +
+      'Para un hábito WEEKLY es el lunes de la semana rescatable. ' +
+      'El frontend habilita el botón de rescate solo cuando esto no es null Y el usuario ' +
+      'tiene escudos (`streakShields` en la configuración). ' +
+      'Se recalcula en cada lectura: la ventana se cierra sola al pasar el período.',
+  })
+  rescuableDate: string | null;
+
   static fromDomainWithStats(
     habit: Habit,
     currentStreak: number,
@@ -102,6 +115,7 @@ export class HabitResponseDto {
     periodCount: number,
     periodCompleted: boolean,
     periodTarget: number,
+    rescuableDate: string | null = null,
   ): HabitResponseDto {
     const dto = HabitResponseDto.fromDomain(habit);
     dto.currentStreak = currentStreak;
@@ -111,6 +125,7 @@ export class HabitResponseDto {
     dto.periodCount = periodCount;
     dto.periodCompleted = periodCompleted;
     dto.periodTarget = periodTarget;
+    dto.rescuableDate = rescuableDate;
     return dto;
   }
 }
