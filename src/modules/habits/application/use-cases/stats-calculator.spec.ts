@@ -191,3 +191,94 @@ describe('StatsCalculator', () => {
     });
   });
 });
+
+describe('StatsCalculator — rescued periods (streak shields)', () => {
+  describe('Daily', () => {
+    const today = new Date(2026, 2, 13); // 2026-03-13
+
+    /** Completed on the 11th and 13th; the 12th is the hole. */
+    const logsWithHole = [
+      buildHabitLog({ date: '2026-03-13', completed: true }),
+      buildHabitLog({ date: '2026-03-11', completed: true }),
+      buildHabitLog({ date: '2026-03-10', completed: true }),
+    ];
+
+    it('breaks the streak at the hole when nothing was rescued', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, logsWithHole, today);
+
+      expect(result.currentStreak).toBe(1);
+    });
+
+    it('bridges the hole when that day was rescued', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, logsWithHole, today, [
+        '2026-03-12',
+      ]);
+
+      expect(result.currentStreak).toBe(4);
+    });
+
+    it('does NOT count the rescued day toward completionRate', () => {
+      // The whole point of the design: the streak is protected, the honesty
+      // metric is not. Three real days out of the 30-day window either way.
+      const withoutRescue = StatsCalculator.calculate(HabitFrequency.DAILY, logsWithHole, today);
+      const withRescue = StatsCalculator.calculate(HabitFrequency.DAILY, logsWithHole, today, [
+        '2026-03-12',
+      ]);
+
+      expect(withRescue.completionRate).toBe(withoutRescue.completionRate);
+      expect(withRescue.completionRate).toBe(Math.round((3 / 30) * 100) / 100);
+    });
+
+    it('counts the rescued day toward longestStreak', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, logsWithHole, today, [
+        '2026-03-12',
+      ]);
+
+      expect(result.longestStreak).toBe(4);
+    });
+
+    it('ignores a rescue for a day that is not part of any run', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.DAILY, logsWithHole, today, [
+        '2025-01-01',
+      ]);
+
+      expect(result.currentStreak).toBe(1);
+    });
+  });
+
+  describe('Weekly', () => {
+    const today = new Date(2026, 2, 13); // Friday of its ISO week
+
+    /** Logs two weeks back and this week; the week in between is the hole. */
+    const logsWithHole = [
+      buildHabitLog({ date: '2026-03-13', completed: true }),
+      buildHabitLog({ date: '2026-02-27', completed: true }),
+    ];
+
+    it('breaks the streak at the missing week when nothing was rescued', () => {
+      const result = StatsCalculator.calculate(HabitFrequency.WEEKLY, logsWithHole, today);
+
+      expect(result.currentStreak).toBe(1);
+    });
+
+    it('bridges the missing week from any date inside it', () => {
+      // The rescue is stored as a date, not a week key — passing the Wednesday
+      // of the missed week has to resolve to that week. This is what keeps a
+      // habit that later switches DAILY↔WEEKLY from orphaning its rescues.
+      const result = StatsCalculator.calculate(HabitFrequency.WEEKLY, logsWithHole, today, [
+        '2026-03-04',
+      ]);
+
+      expect(result.currentStreak).toBe(3);
+    });
+
+    it('does NOT count the rescued week toward completionRate', () => {
+      const withoutRescue = StatsCalculator.calculate(HabitFrequency.WEEKLY, logsWithHole, today);
+      const withRescue = StatsCalculator.calculate(HabitFrequency.WEEKLY, logsWithHole, today, [
+        '2026-03-04',
+      ]);
+
+      expect(withRescue.completionRate).toBe(withoutRescue.completionRate);
+    });
+  });
+});
