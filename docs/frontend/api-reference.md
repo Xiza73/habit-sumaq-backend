@@ -128,10 +128,17 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "monthlyServicesOrderDir": "asc",
   "favoriteKeys": ["debts", "budgets", "habits", "quick-tasks"],
   "disabledModules": ["chores", "reminders"],
+  "streakShields": 1,
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
+
+> **`streakShields` es de SOLO LECTURA.** No está en la tabla del PATCH a
+> propósito: no se setea, se gana y se gasta. Uno por mes calendario al llegar a
+> 20 períodos de racha en algún hábito (se otorga al registrar el log, no al
+> leer), y se gasta con `POST /habits/:id/rescue-streak`. Tope de 2; uno ganado
+> con el stock lleno **se pierde**. Mandarlo en un PATCH no hace nada.
 
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
 
@@ -1075,6 +1082,16 @@ Soft delete. Elimina el hábito y todos sus logs asociados.
 **Errores:**
 
 - `404` — Hábito no encontrado
+
+> **`rescuableDate` en la respuesta de un hábito.** Cada hábito devuelto por
+> `GET /habits`, `GET /habits/daily` y `GET /habits/:id` trae este campo: el
+> período que un escudo puede rescatar **ahora**, o `null` si no hay ninguno.
+> Para un hábito `WEEKLY` es el lunes de la semana rescatable.
+>
+> El botón de rescate se habilita cuando `rescuableDate !== null` **y**
+> `streakShields > 0` en la configuración. Se recalcula en cada lectura, sin
+> costo de queries extra: sale de los mismos logs y rescates que el cálculo de
+> racha ya carga. La ventana se cierra sola al pasar el período.
 
 ### `POST /habits/:id/rescue-streak`
 

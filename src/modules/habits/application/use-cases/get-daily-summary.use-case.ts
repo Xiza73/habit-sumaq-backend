@@ -8,6 +8,7 @@ import { HabitResponseDto } from '../dto/habit-response.dto';
 
 import { resolvePeriodTarget } from './period-target';
 import { StatsCalculator } from './stats-calculator';
+import { findRescuableDate } from './streak-rescue-window';
 
 import type { Habit } from '../../domain/habit.entity';
 
@@ -65,6 +66,11 @@ export class GetDailySummaryUseCase {
     const periodTarget = resolvePeriodTarget(habit, dateLog);
     const periodCompleted = periodCount >= periodTarget;
 
+    // Pure computation over data already loaded above — no extra query. The
+    // window closes on its own as the period passes, so this is recomputed on
+    // every read rather than stored.
+    const rescuableDate = findRescuableDate(habit.frequency, logs, rescuedDates, today);
+
     return HabitResponseDto.fromDomainWithStats(
       habit,
       currentStreak,
@@ -74,6 +80,7 @@ export class GetDailySummaryUseCase {
       periodCount,
       periodCompleted,
       periodTarget,
+      rescuableDate,
     );
   }
 }
