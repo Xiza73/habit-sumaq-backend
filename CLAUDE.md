@@ -259,6 +259,31 @@ git push origin dev
 - **Nunca pushear directo a master.** Master solo recibe merges desde `dev`.
 - **Nunca branch desde master para feature.** Siempre desde `dev` — si no, el PR queda fuera de sync.
 - **Hotfixes urgentes en producción**: si en algún momento hay que parchar master sin pasar por dev (ej: bug crítico en Railway), abrir branch `hotfix/<descripción>` desde master, PR a master, y DESPUÉS mergear master → dev para mantenerlas alineadas. Esto es excepción, no regla.
+- **Nunca mergear sin mirar los checks.** `gh pr merge` mergea de inmediato: no espera a CI ni le importa que esté en rojo, y `dev` no tiene protección de rama que lo impida. Correr `gh pr checks <n>` antes, o usar `gh pr merge --auto` para que espere.
+
+### Antes de mergear un PR
+
+```bash
+gh pr checks <n>                  # TODOS en pass. "pending" no es "pass"
+gh pr view <n> --json mergeStateStatus -q .mergeStateStatus   # CLEAN, no UNSTABLE
+```
+
+Dos trampas que ya costaron caro:
+
+1. **Un PR apilado + `--delete-branch` sobre su base.** Borrar la rama base
+   **cierra** el PR hijo, y después no se puede reabrir ni retargetear. Peor: si
+   el hijo ya se mergeó contra esa base, sus commits **nunca llegan a `dev`**
+   aunque el PR figure `MERGED`. Mergear la base **sin** `--delete-branch`,
+   después el hijo, y recién ahí borrar.
+2. **Verificar contenido, no estado.** `MERGED` no significa "llegó a dev".
+   `git ls-tree origin/dev --name-only <ruta>` sí.
+
+### Cuando cambia el constructor de un use case
+
+Correr **`pnpm test:e2e`**. Los specs e2e no usan `AppModule`: arman su propio
+`RootTestModule` con providers explícitos, así que un provider nuevo falta ahí
+aunque la app arranque perfecto. Ni los unit tests (mockean los repos) ni
+bootear la app lo detectan.
 
 ---
 
