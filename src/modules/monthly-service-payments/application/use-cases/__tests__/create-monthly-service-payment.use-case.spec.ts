@@ -5,7 +5,10 @@ import { buildMockPinoLogger } from '@common/__tests__/pino-logger.mock';
 import { Currency } from '@common/enums/currency.enum';
 import { type DomainException } from '@common/exceptions/domain.exception';
 import { type CurrencyPoolService } from '@modules/currency-pools/application/currency-pool.service';
-import { type DebtLoanSettlementComposer } from '@modules/debts-loans/application/services/debt-loan-settlement-composer';
+import {
+  type CreateLinkedDebtLoanInput,
+  type DebtLoanSettlementComposer,
+} from '@modules/debts-loans/application/services/debt-loan-settlement-composer';
 import { DebtLoanStatus } from '@modules/debts-loans/domain/enums/debt-loan-status.enum';
 import { DebtLoanType } from '@modules/debts-loans/domain/enums/debt-loan-type.enum';
 import { buildMonthlyService } from '@modules/monthly-services/domain/__tests__/monthly-service.factory';
@@ -73,17 +76,25 @@ describe('CreateMonthlyServicePaymentUseCase', () => {
       softDelete: jest.fn(),
     };
     pool = { applyDelta: jest.fn() } as unknown as jest.Mocked<CurrencyPoolService>;
+    // A bare `jest.fn()` infers its `mockImplementation` params as `any`, so
+    // the stub silently accepted anything the composer's real signature would
+    // have rejected. Annotating them ties the mock back to the contract it
+    // stands in for.
     composer = {
       createLinked: jest
         .fn()
-        .mockImplementation((_m, input) => Promise.resolve(buildLoanStub(input))),
-      createAndSettleLinked: jest.fn().mockImplementation((_m, input) =>
-        Promise.resolve({
-          ...buildLoanStub(input),
-          status: DebtLoanStatus.SETTLED,
-          remainingAmount: 0,
-        }),
-      ),
+        .mockImplementation((_m: EntityManager, input: CreateLinkedDebtLoanInput) =>
+          Promise.resolve(buildLoanStub(input)),
+        ),
+      createAndSettleLinked: jest
+        .fn()
+        .mockImplementation((_m: EntityManager, input: CreateLinkedDebtLoanInput) =>
+          Promise.resolve({
+            ...buildLoanStub(input),
+            status: DebtLoanStatus.SETTLED,
+            remainingAmount: 0,
+          }),
+        ),
     };
     dataSource = {
       transaction: jest
