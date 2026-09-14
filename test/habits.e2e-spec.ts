@@ -29,6 +29,7 @@ import { buildHabitLog } from '../src/modules/habits/domain/__tests__/habit-log.
 import { HabitFrequency } from '../src/modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '../src/modules/habits/domain/habit-streak-rescue.repository';
 import { HabitsController } from '../src/modules/habits/presentation/habits.controller';
 
 import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
@@ -80,6 +81,15 @@ describe('HabitsController (e2e)', () => {
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
   };
+  // Streak rescues bridge gaps in the streak walk. Every habit-stats use case
+  // depends on this repo, so the e2e module has to provide it even for specs
+  // that never exercise a rescue — an empty result keeps their expectations
+  // exactly as they were before shields existed.
+  const mockRescueRepo: jest.Mocked<HabitStreakRescueRepository> = {
+    findDatesByHabitId: jest.fn().mockResolvedValue([]),
+    findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+    create: jest.fn(),
+  };
 
   const mockCreateLogger = createLoggerMock();
   const mockLogLogger = createLoggerMock();
@@ -108,6 +118,7 @@ describe('HabitsController (e2e)', () => {
         GetDailySummaryUseCase,
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
+        { provide: HabitStreakRescueRepository, useValue: mockRescueRepo },
         { provide: getLoggerToken(CreateHabitUseCase.name), useValue: mockCreateLogger },
         { provide: getLoggerToken(LogHabitUseCase.name), useValue: mockLogLogger },
 
