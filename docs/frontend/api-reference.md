@@ -126,7 +126,7 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "monthlyServicesGroupBy": "none",
   "monthlyServicesOrderBy": "name",
   "monthlyServicesOrderDir": "asc",
-  "favoriteKeys": ["accounts", "transactions", "habits", "quick-tasks"],
+  "favoriteKeys": ["debts", "budgets", "habits", "quick-tasks"],
   "disabledModules": ["chores", "reminders"],
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
@@ -135,7 +135,11 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
 
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
 
-> **`favoriteKeys` default:** La migration `1741000023000` setea el default a `['accounts','transactions','habits','quick-tasks']` para todos los users (los 4 items que mobile ya mostraba antes del feature). Usuarios pre-existentes obtienen ese default sin acción adicional. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
+> **`favoriteKeys` default:** `['debts','budgets','habits','quick-tasks']`, seteado por la migration `1741000044000`. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
+>
+> **Pero ese desacople tiene un límite que hay que respetar.** El default original (migration `1741000023000`) era `['accounts','transactions','habits','quick-tasks']`, y cuando `accounts` y `transactions` se eliminaron en v1.0.0 esta columna no siguió. El frontend descartaba las dos keys muertas, así que el usuario veía 2 de 4 slots — pero el array seguía teniendo largo 4 y chocaba con el cap de `MAX_FAVORITES`: no podía agregar un favorito, y tampoco quitar los muertos, porque un item que no se renderiza no tiene dónde hacerle click derecho. La migration `1741000044000` corrigió el default y limpió esas dos keys de los usuarios existentes.
+>
+> **Regla:** el backend no valida el *contenido* de estas keys, pero su *default* sí tiene que seguir a `DEFAULT_FAVORITES` del frontend (`src/lib/nav-registry.ts`). Si se elimina una ruta que está en el default, el mismo PR actualiza esta columna.
 
 > **`disabledModules` default:** array **vacío** — todos los módulos activos (migration `1741000045000`). El default tiene que ser "nada apagado" porque apagar es la excepción: si nombrara módulos, cada módulo nuevo que se agregue en el futuro se convertiría en una decisión sobre los usuarios existentes. Así, un módulo nuevo entra encendido para todos sin tocar una sola fila.
 >

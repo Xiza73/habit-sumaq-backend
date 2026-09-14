@@ -84,8 +84,8 @@ export class UserSettingsResponseDto {
   @ApiProperty({
     type: [String],
     description:
-      'Keys de navegación favoritas del usuario (max 4) que drives la bottom nav en mobile y la marca ★ en sidebar de desktop. Default poblado en la migration con las 4 que ya muestra mobile hoy.',
-    example: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+      'Keys de navegación favoritas del usuario (max 4) que drives la bottom nav en mobile y la marca ★ en sidebar de desktop. El default de la columna debe coincidir con `DEFAULT_FAVORITES` del frontend — una key que nombre una ruta inexistente ocupa un slot sin renderizar nada.',
+    example: ['debts', 'budgets', 'habits', 'quick-tasks'],
   })
   favoriteKeys: string[];
 
