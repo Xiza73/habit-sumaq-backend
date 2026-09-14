@@ -12,19 +12,25 @@ import { LogHabitUseCase } from '../application/use-cases/log-habit.use-case';
 import { UpdateHabitUseCase } from '../application/use-cases/update-habit.use-case';
 import { HabitRepository } from '../domain/habit.repository';
 import { HabitLogRepository } from '../domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '../domain/habit-streak-rescue.repository';
 import { HabitOrmEntity } from '../infrastructure/persistence/habit.orm-entity';
 import { HabitRepositoryImpl } from '../infrastructure/persistence/habit.repository.impl';
 import { HabitLogOrmEntity } from '../infrastructure/persistence/habit-log.orm-entity';
 import { HabitLogRepositoryImpl } from '../infrastructure/persistence/habit-log.repository.impl';
+import { HabitStreakRescueOrmEntity } from '../infrastructure/persistence/habit-streak-rescue.orm-entity';
+import { HabitStreakRescueRepositoryImpl } from '../infrastructure/persistence/habit-streak-rescue.repository.impl';
 
 import { HabitsController } from './habits.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([HabitOrmEntity, HabitLogOrmEntity])],
+  imports: [
+    TypeOrmModule.forFeature([HabitOrmEntity, HabitLogOrmEntity, HabitStreakRescueOrmEntity]),
+  ],
   controllers: [HabitsController],
   providers: [
     { provide: HabitRepository, useClass: HabitRepositoryImpl },
     { provide: HabitLogRepository, useClass: HabitLogRepositoryImpl },
+    { provide: HabitStreakRescueRepository, useClass: HabitStreakRescueRepositoryImpl },
     CreateHabitUseCase,
     GetHabitsUseCase,
     GetHabitByIdUseCase,
@@ -35,6 +41,6 @@ import { HabitsController } from './habits.controller';
     GetHabitLogsUseCase,
     GetDailySummaryUseCase,
   ],
-  exports: [HabitRepository, HabitLogRepository],
+  exports: [HabitRepository, HabitLogRepository, HabitStreakRescueRepository],
 })
 export class HabitsModule {}
