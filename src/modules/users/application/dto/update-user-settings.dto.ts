@@ -99,7 +99,7 @@ export class UpdateUserSettingsDto {
     type: [String],
     description:
       'Keys de navegación favoritas del usuario (max 4). Drives la bottom nav en mobile (4 slots + Settings fijo) y la marca ★ en la sidebar de desktop. Las keys son free-form strings — el set válido vive en el `NAV_REGISTRY` del frontend; backend no valida el contenido para desacoplar repos. Array vacío es válido (mobile queda con solo el slot de Settings).',
-    example: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+    example: ['debts', 'budgets', 'habits', 'quick-tasks'],
     maxItems: 4,
   })
   @IsOptional()
@@ -108,4 +108,16 @@ export class UpdateUserSettingsDto {
   @ArrayUnique()
   @IsString({ each: true })
   favoriteKeys?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Módulos que el usuario apaga en Settings. El frontend los oculta de la sidebar y la bottom nav, de su porción de los dashboards de reportes, y del popover de alertas. Array vacío = todos activos. Las keys son free-form — el set válido vive en el `NAV_REGISTRY` del frontend; backend no valida el contenido para desacoplar repos. SIN tope, a diferencia de `favoriteKeys`: apagar todo es un estado válido y Settings nunca está en esta lista, así que el usuario siempre puede volver.',
+    example: ['chores', 'reminders'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  disabledModules?: string[];
 }

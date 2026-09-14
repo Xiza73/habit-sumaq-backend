@@ -85,13 +85,32 @@ export class UserSettingsOrmEntity {
    * the array order) and equality checks stay simple. The cap (≤ 4) is
    * enforced at two layers — DTO validator and SQL `CHECK` constraint
    * declared in migration 1741000023000.
+   *
+   * The default must stay in sync with `DEFAULT_FAVORITES` in the web repo
+   * (`src/lib/nav-registry.ts`). A key here that names a route the frontend
+   * dropped still counts toward the ≤ 4 cap while rendering nothing, which
+   * soft-locks the user out of managing their own favorites — see migration
+   * 1741000044000.
    */
   @Column({
     type: 'text',
     array: true,
-    default: () => `ARRAY['accounts','transactions','habits','quick-tasks']::text[]`,
+    default: () => `ARRAY['debts','budgets','habits','quick-tasks']::text[]`,
   })
   favoriteKeys: string[];
+
+  /**
+   * Nav keys the user has switched OFF in Settings. Hidden from the sidebar
+   * and mobile nav, from their slice of the reports dashboards, and from the
+   * alerts popover.
+   *
+   * Empty by default — every module on. The set of valid keys lives in the
+   * frontend's `NAV_REGISTRY`, same decoupling as `favoriteKeys`. Uncapped on
+   * purpose: disabling everything is a legitimate state, and Settings is never
+   * in this list, so the user can always switch things back on.
+   */
+  @Column({ type: 'text', array: true, default: () => `'{}'::text[]` })
+  disabledModules: string[];
 
   /**
    * Timestamp the user last opened the alerts popover. Drives the bell
