@@ -7,6 +7,7 @@ import { StatsCalculator } from '@modules/habits/application/use-cases/stats-cal
 import { HabitFrequency } from '@modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '@modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '@modules/habits/domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '@modules/habits/domain/habit-streak-rescue.repository';
 import { QuickTaskRepository } from '@modules/quick-tasks/domain/quick-task.repository';
 import { StartOfWeek } from '@modules/users/domain/enums/start-of-week.enum';
 import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
@@ -23,6 +24,7 @@ export class GetRoutinesDashboardUseCase {
   constructor(
     private readonly habitRepo: HabitRepository,
     private readonly habitLogRepo: HabitLogRepository,
+    private readonly rescueRepo: HabitStreakRescueRepository,
     private readonly quickTaskRepo: QuickTaskRepository,
     private readonly settingsRepo: UserSettingsRepository,
   ) {}
@@ -50,8 +52,13 @@ export class GetRoutinesDashboardUseCase {
     // completion rate inside StatsCalculator is still a rolling 30 days.
     const habitsWithStats = await Promise.all(
       habits.map(async (habit) => {
-        const logs = await this.habitLogRepo.findCompletedByHabitId(habit.id);
-        const stats = StatsCalculator.calculate(habit.frequency, logs, today);
+        const [logs, rescuedDates] = await Promise.all([
+          this.habitLogRepo.findCompletedByHabitId(habit.id),
+          // Same rescues the habits page honours — the dashboard must not
+          // report a different streak for the same habit.
+          this.rescueRepo.findDatesByHabitId(habit.id),
+        ]);
+        const stats = StatsCalculator.calculate(habit.frequency, logs, today, rescuedDates);
         return { habit, stats };
       }),
     );

@@ -5,6 +5,7 @@ import { DomainException } from '@common/exceptions/domain.exception';
 import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
 import { HabitRepository } from '../../domain/habit.repository';
 import { HabitLogRepository } from '../../domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '../../domain/habit-streak-rescue.repository';
 import { HabitResponseDto } from '../dto/habit-response.dto';
 
 import { resolvePeriodTarget } from './period-target';
@@ -15,6 +16,7 @@ export class GetHabitByIdUseCase {
   constructor(
     private readonly habitRepo: HabitRepository,
     private readonly habitLogRepo: HabitLogRepository,
+    private readonly rescueRepo: HabitStreakRescueRepository,
   ) {}
 
   async execute(id: string, userId: string, timezone: string): Promise<HabitResponseDto> {
@@ -32,18 +34,22 @@ export class GetHabitByIdUseCase {
     const isWeekly = habit.frequency === HabitFrequency.WEEKLY;
     const weekStartStr = isWeekly ? StatsCalculator.toWeekStart(today) : undefined;
 
-    const [logs, todayLog, weekLogs] = await Promise.all([
+    const [logs, todayLog, weekLogs, rescuedDates] = await Promise.all([
       this.habitLogRepo.findCompletedByHabitId(habit.id),
       this.habitLogRepo.findByHabitIdAndDate(habit.id, todayStr),
       isWeekly
         ? this.habitLogRepo.findByHabitIdAndDateRange(habit.id, weekStartStr!, todayStr)
         : Promise.resolve([]),
+      // Rescued periods bridge gaps in the streak walk. Joined into the same
+      // round of queries the stats already make per habit.
+      this.rescueRepo.findDatesByHabitId(habit.id),
     ]);
 
     const { currentStreak, longestStreak, completionRate } = StatsCalculator.calculate(
       habit.frequency,
       logs,
       today,
+      rescuedDates,
     );
 
     const periodCount = isWeekly

@@ -30,7 +30,13 @@ describe('GetHabitsUseCase', () => {
       findByHabitIdAndDateRange: jest.fn().mockResolvedValue([]),
     };
 
-    useCase = new GetHabitsUseCase(habitRepo, habitLogRepo);
+    const rescueRepo = {
+      findDatesByHabitId: jest.fn().mockResolvedValue([]),
+      findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+      create: jest.fn(),
+    };
+
+    useCase = new GetHabitsUseCase(habitRepo, habitLogRepo, rescueRepo);
   });
 
   it('should return habits with stats', async () => {
