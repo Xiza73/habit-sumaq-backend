@@ -25,6 +25,7 @@ import { buildHabitLog } from '../src/modules/habits/domain/__tests__/habit-log.
 import { HabitFrequency } from '../src/modules/habits/domain/enums/habit-frequency.enum';
 import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '../src/modules/habits/domain/habit-streak-rescue.repository';
 import { MonthlyServicePaymentRepository } from '../src/modules/monthly-service-payments/domain/monthly-service-payment.repository';
 import { buildQuickTask } from '../src/modules/quick-tasks/domain/__tests__/quick-task.factory';
 import { QuickTaskRepository } from '../src/modules/quick-tasks/domain/quick-task.repository';
@@ -102,6 +103,16 @@ describe('ReportsController (e2e)', () => {
     save: jest.fn(),
     softDeleteByHabitId: jest.fn(),
   };
+  // Streak rescues bridge gaps in the streak walk. Every habit-stats use case
+  // depends on this repo, so the e2e module has to provide it even for specs
+  // that never exercise a rescue — an empty result keeps their expectations
+  // exactly as they were before shields existed.
+  const mockRescueRepo: jest.Mocked<HabitStreakRescueRepository> = {
+    findDatesByHabitId: jest.fn().mockResolvedValue([]),
+    findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+    create: jest.fn(),
+    deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
+  };
 
   const mockQuickTaskRepo: jest.Mocked<QuickTaskRepository> = {
     findByUserId: jest.fn(),
@@ -140,6 +151,7 @@ describe('ReportsController (e2e)', () => {
         { provide: DebtLoanRepository, useValue: mockDebtLoanRepo },
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
+        { provide: HabitStreakRescueRepository, useValue: mockRescueRepo },
         { provide: QuickTaskRepository, useValue: mockQuickTaskRepo },
         { provide: UserSettingsRepository, useValue: mockSettingsRepo },
 

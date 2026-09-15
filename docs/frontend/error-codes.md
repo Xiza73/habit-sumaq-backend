@@ -118,6 +118,9 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 | `HAB_004` | 422  | Fecha futura                       | POST log con fecha posterior a hoy       |
 | `HAB_005` | 422  | targetCount inválido               | targetCount < 1                          |
 | `HAB_006` | 403  | El hábito pertenece a otro usuario | Acceso a hábito ajeno                    |
+| `HAB_007` | 409  | Sin escudos de racha disponibles   | `POST /habits/:id/rescue-streak` con `streakShields = 0` |
+| `HAB_008` | 409  | No hay período para rescatar       | `POST /habits/:id/rescue-streak` cuando el período anterior está cumplido, ya fue rescatado, o el de antes también está vacío |
+| `HAB_009` | 409  | Ese período no está rescatado      | `DELETE /habits/:id/rescue-streak/:date` sobre una fecha sin rescate que la cubra |
 
 ### Quick Tasks (Diarias)
 

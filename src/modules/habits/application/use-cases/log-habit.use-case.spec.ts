@@ -2,10 +2,13 @@ import { Test } from '@nestjs/testing';
 
 import { getLoggerToken } from 'nestjs-pino';
 
+import { UserSettingsRepository } from '@modules/users/domain/user-settings.repository';
+
 import { buildHabit } from '../../domain/__tests__/habit.factory';
 import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 import { HabitRepository } from '../../domain/habit.repository';
 import { HabitLogRepository } from '../../domain/habit-log.repository';
+import { HabitStreakRescueRepository } from '../../domain/habit-streak-rescue.repository';
 
 import { LogHabitUseCase } from './log-habit.use-case';
 import { StatsCalculator } from './stats-calculator';
@@ -69,6 +72,25 @@ describe('LogHabitUseCase', () => {
         LogHabitUseCase,
         { provide: HabitRepository, useValue: habitRepo },
         { provide: HabitLogRepository, useValue: habitLogRepo },
+        // Shield granting rides along on every log. These return "nothing to
+        // grant" so the existing expectations stay about logging alone.
+        {
+          provide: HabitStreakRescueRepository,
+          useValue: {
+            findDatesByHabitId: jest.fn().mockResolvedValue([]),
+            findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+            create: jest.fn(),
+            deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
+          provide: UserSettingsRepository,
+          useValue: {
+            findByUserId: jest.fn().mockResolvedValue(null),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
         { provide: getLoggerToken(LogHabitUseCase.name), useValue: mockLogger },
       ],
     }).compile();

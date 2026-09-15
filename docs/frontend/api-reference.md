@@ -106,6 +106,7 @@ Actualiza parcialmente la configuración. Solo se modifican los campos enviados.
 | `monthlyServicesOrderBy`    | MonthlyServicesOrderBy     | Ver [enums.md](enums.md#monthlyservicesorderby)                                |
 | `monthlyServicesOrderDir`   | MonthlyServicesOrderDir    | Ver [enums.md](enums.md#monthlyservicesorderdir)                               |
 | `favoriteKeys`              | string[]                   | Max 4, sin duplicados. Drives la bottom nav en mobile (4 slots + Settings fijo) y la ★ en la sidebar. Strings free-form — el set válido vive en el `NAV_REGISTRY` del frontend; el backend no valida el contenido para desacoplar repos. Array vacío es válido. |
+| `disabledModules`           | string[]                   | Módulos apagados por el usuario en Settings. Sin duplicados y **sin tope**. El frontend los oculta de la sidebar y la bottom nav, de su porción de los dashboards de reportes, y del popover de alertas. Strings free-form, mismo contrato que `favoriteKeys`. Array vacío (el default) = todos activos. |
 
 Todos los campos son opcionales. Si no existe configuración previa, se crea antes de aplicar los cambios.
 
@@ -125,15 +126,40 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
   "monthlyServicesGroupBy": "none",
   "monthlyServicesOrderBy": "name",
   "monthlyServicesOrderDir": "asc",
-  "favoriteKeys": ["accounts", "transactions", "habits", "quick-tasks"],
+  "favoriteKeys": ["debts", "budgets", "habits", "quick-tasks"],
+  "disabledModules": ["chores", "reminders"],
+  "streakShields": 1,
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
+> **`streakShields` es de SOLO LECTURA.** No está en la tabla del PATCH a
+> propósito: no se setea, se gana y se gasta. Uno por mes calendario al llegar a
+> 20 períodos de racha en algún hábito (se otorga al registrar el log, no al
+> leer), y se gasta con `POST /habits/:id/rescue-streak`. Tope de 2; uno ganado
+> con el stock lleno **se pierde**. Mandarlo en un PATCH no hace nada.
+> **`periodRescued` y `rescuedDates`** (solo lectura, en cada `HabitResponseDto`
+> con stats). Un período rescatado **no tiene log**, así que sin estos campos se
+> renderiza idéntico a uno perdido — que es exactamente cómo un escudo se quema
+> dos veces sobre la misma fecha.
+> - `periodRescued`: si el período **consultado** ya está cubierto. En `WEEKLY`
+>   responde por la SEMANA de la fecha, no por el día.
+> - `rescuedDates`: todas las fechas rescatadas del hábito (en `WEEKLY`, el lunes
+>   de cada semana). Para el heatmap del detalle, que si no miente sobre el
+>   historial.
+
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
 
-> **`favoriteKeys` default:** La migration `1741000023000` setea el default a `['accounts','transactions','habits','quick-tasks']` para todos los users (los 4 items que mobile ya mostraba antes del feature). Usuarios pre-existentes obtienen ese default sin acción adicional. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
+> **`favoriteKeys` default:** `['debts','budgets','habits','quick-tasks']`, seteado por la migration `1741000044000`. Las strings son free-form: el frontend mapea `key → href/icon/labelKey` vía su `NAV_REGISTRY`, e ignora silenciosamente las keys desconocidas. Eso permite agregar o renombrar rutas en frontend sin migration de backend.
+>
+> **Pero ese desacople tiene un límite que hay que respetar.** El default original (migration `1741000023000`) era `['accounts','transactions','habits','quick-tasks']`, y cuando `accounts` y `transactions` se eliminaron en v1.0.0 esta columna no siguió. El frontend descartaba las dos keys muertas, así que el usuario veía 2 de 4 slots — pero el array seguía teniendo largo 4 y chocaba con el cap de `MAX_FAVORITES`: no podía agregar un favorito, y tampoco quitar los muertos, porque un item que no se renderiza no tiene dónde hacerle click derecho. La migration `1741000044000` corrigió el default y limpió esas dos keys de los usuarios existentes.
+>
+> **Regla:** el backend no valida el *contenido* de estas keys, pero su *default* sí tiene que seguir a `DEFAULT_FAVORITES` del frontend (`src/lib/nav-registry.ts`). Si se elimina una ruta que está en el default, el mismo PR actualiza esta columna.
+
+> **`disabledModules` default:** array **vacío** — todos los módulos activos (migration `1741000045000`). El default tiene que ser "nada apagado" porque apagar es la excepción: si nombrara módulos, cada módulo nuevo que se agregue en el futuro se convertiría en una decisión sobre los usuarios existentes. Así, un módulo nuevo entra encendido para todos sin tocar una sola fila.
+>
+> A diferencia de `favoriteKeys` **no tiene tope**. Apagar todos los módulos es un estado válido: Settings nunca está en esta lista, así que el usuario siempre puede volver a encenderlos. Un piso mínimo sería una regla sin ningún fallo que prevenir.
 
 ---
 
@@ -1065,6 +1091,82 @@ Soft delete. Elimina el hábito y todos sus logs asociados.
 **Errores:**
 
 - `404` — Hábito no encontrado
+
+> **`rescuableDate` en la respuesta de un hábito.** Cada hábito devuelto por
+> `GET /habits`, `GET /habits/daily` y `GET /habits/:id` trae este campo: el
+> período que un escudo puede rescatar **ahora**, o `null` si no hay ninguno.
+> Para un hábito `WEEKLY` es el lunes de la semana rescatable.
+>
+> El botón de rescate se habilita cuando `rescuableDate !== null` **y**
+> `streakShields > 0` en la configuración. Se recalcula en cada lectura, sin
+> costo de queries extra: sale de los mismos logs y rescates que el cálculo de
+> racha ya carga. La ventana se cierra sola al pasar el período.
+
+### `POST /habits/:id/rescue-streak`
+
+Gasta un **escudo de racha** para cubrir el período que el usuario acaba de
+perder. Sin body. Responde `200` con `{ "rescuedDate": "YYYY-MM-DD" }`.
+
+**No crea un log.** El rescate se guarda en `habit_streak_rescues` y el cálculo
+de racha lo consulta aparte. Por eso:
+
+| Métrica | ¿Cuenta el período rescatado? |
+| ------- | ----------------------------- |
+| `currentStreak` | ✅ es lo que el escudo existe para proteger |
+| `longestStreak` | ✅ es la misma racha |
+| `completionRate` | ❌ **nunca** — es el registro honesto de lo que se hizo |
+
+Escribir un log sintético habría sido más simple y habría inflado las tres.
+
+**Cuándo hay algo que rescatar.** Solo el período **inmediatamente anterior**, y
+solo si el anterior a ese estaba cumplido — de lo contrario no hay racha que
+salvar y cobrar un escudo sería robar. La unidad es el período del hábito: el
+día para `DAILY`, la **semana ISO** para `WEEKLY` (se registra el lunes de esa
+semana). Perder dos períodos seguidos cierra la ventana: el más viejo no se
+vuelve a ofrecer.
+
+**Cómo se consiguen.** Uno por **mes calendario** (en la zona horaria del
+usuario), al registrar un hábito que alcanza **20 períodos** de racha. Tope de
+**2 en mano**: uno ganado con el stock lleno **se pierde**, no se acumula para
+después.
+
+| Error | Status | Cuándo |
+| ----- | ------ | ------ |
+| `HAB_007` | 409 | Sin escudos disponibles |
+| `HAB_008` | 409 | Nada que rescatar en este momento |
+| `HAB_003` | 422 | Hábito archivado |
+
+> Ambos 409 son **estado, no validación**: la request está bien formada y sería
+> válida en otro momento. El cliente los renderiza como tal, no como error de
+> formulario.
+
+### `DELETE /habits/:id/rescue-streak/:date`
+
+Libera el rescate que cubre el período de `:date` y **devuelve el escudo**.
+Responde `200` con `{ "releasedDate": "YYYY-MM-DD", "shieldReturned": true }`.
+
+**Por qué existe.** Un período rescatado no es un período completado: el usuario
+todavía puede ir y registrar ese día de verdad. Sin este endpoint eso quemaba el
+escudo en silencio sobre un período que ya no lo necesitaba — el rescate no
+tenía forma de deshacerse.
+
+`releasedDate` es la fecha **guardada**, no la que se mandó: en `WEEKLY` se
+puede mandar cualquier día de la semana rescatada y el backend resuelve el lunes.
+
+`shieldReturned` es `false` cuando el inventario ya estaba **lleno (2)**: ahí el
+escudo se pierde, la misma regla que al ganar uno con el stock lleno. No es una
+preferencia — `CK_user_settings_streak_shields_range` rechaza un tercero. **El
+frontend debería avisarlo ANTES de confirmar**, comparando `streakShields` con el
+tope.
+
+El rescate se libera igual aunque el escudo no vuelva: negarse dejaría al usuario
+trabado en un día que no puede registrar.
+
+| Error | Status | Cuándo |
+| ----- | ------ | ------ |
+| `HAB_009` | 409 | Ese período no está cubierto por ningún rescate |
+| `HAB_006` | 403 | El hábito es de otro usuario |
+| `HAB_001` | 404 | Hábito no encontrado |
 
 ### `POST /habits/:id/logs`
 

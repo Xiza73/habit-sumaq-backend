@@ -91,7 +91,7 @@ describe('UpdateUserSettingsUseCase', () => {
     // permits 0..4). Confirm the use case threads it through unchanged.
     const settings = buildUserSettings({
       userId: 'user-1',
-      favoriteKeys: ['accounts', 'transactions', 'habits', 'quick-tasks'],
+      favoriteKeys: ['debts', 'budgets', 'habits', 'quick-tasks'],
     });
     mockRepo.findByUserId.mockResolvedValue(settings);
     mockRepo.save.mockResolvedValue(settings);
@@ -99,5 +99,30 @@ describe('UpdateUserSettingsUseCase', () => {
     const result = await useCase.execute('user-1', { favoriteKeys: [] });
 
     expect(result.favoriteKeys).toEqual([]);
+  });
+
+  it('should thread disabledModules through unchanged', async () => {
+    const settings = buildUserSettings({ userId: 'user-1', disabledModules: [] });
+    mockRepo.findByUserId.mockResolvedValue(settings);
+    mockRepo.save.mockResolvedValue(settings);
+
+    const result = await useCase.execute('user-1', { disabledModules: ['chores', 'reminders'] });
+
+    expect(result.disabledModules).toEqual(['chores', 'reminders']);
+  });
+
+  it('should allow disabling every module — Settings is never in the list', async () => {
+    // Unlike favoriteKeys there is no cap, and no floor either: a user who
+    // wants none of the modules is left with a reachable Settings page and can
+    // switch them back on. Guarding against it would be a rule with no failure
+    // mode to prevent.
+    const everyModule = ['debts', 'categories', 'services', 'budgets', 'habits'];
+    const settings = buildUserSettings({ userId: 'user-1', disabledModules: [] });
+    mockRepo.findByUserId.mockResolvedValue(settings);
+    mockRepo.save.mockResolvedValue(settings);
+
+    const result = await useCase.execute('user-1', { disabledModules: everyModule });
+
+    expect(result.disabledModules).toEqual(everyModule);
   });
 });

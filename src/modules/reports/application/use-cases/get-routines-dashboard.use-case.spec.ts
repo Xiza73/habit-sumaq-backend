@@ -63,7 +63,20 @@ describe('GetRoutinesDashboardUseCase', () => {
       save: jest.fn(),
     };
 
-    useCase = new GetRoutinesDashboardUseCase(habitRepo, habitLogRepo, quickTaskRepo, settingsRepo);
+    const rescueRepo = {
+      findDatesByHabitId: jest.fn().mockResolvedValue([]),
+      findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
+      create: jest.fn(),
+      deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
+    };
+
+    useCase = new GetRoutinesDashboardUseCase(
+      habitRepo,
+      habitLogRepo,
+      rescueRepo,
+      quickTaskRepo,
+      settingsRepo,
+    );
   });
 
   it('returns zeroed metrics when the user has no habits or tasks', async () => {

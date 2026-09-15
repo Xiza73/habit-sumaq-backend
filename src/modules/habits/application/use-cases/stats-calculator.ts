@@ -9,22 +9,44 @@ export interface HabitStats {
 }
 
 export class StatsCalculator {
-  static calculate(frequency: HabitFrequency, completedLogs: HabitLog[], today: Date): HabitStats {
+  /**
+   * @param rescuedDates Days the user spent a streak shield on, as
+   *   `YYYY-MM-DD`. For a WEEKLY habit each entry is any day inside the
+   *   rescued week — the week key is derived here, so a habit that later
+   *   switches frequency still resolves its old rescues.
+   *
+   *   A rescued period counts toward `currentStreak` and `longestStreak`
+   *   but NEVER toward `completionRate`. The streak is the thing a shield
+   *   exists to protect; the rate is the honest record of what was actually
+   *   done, and inflating both would leave no number that tells the truth.
+   */
+  static calculate(
+    frequency: HabitFrequency,
+    completedLogs: HabitLog[],
+    today: Date,
+    rescuedDates: readonly string[] = [],
+  ): HabitStats {
     if (frequency === HabitFrequency.DAILY) {
-      return StatsCalculator.calculateDaily(completedLogs, today);
+      return StatsCalculator.calculateDaily(completedLogs, today, rescuedDates);
     }
-    return StatsCalculator.calculateWeekly(completedLogs, today);
+    return StatsCalculator.calculateWeekly(completedLogs, today, rescuedDates);
   }
 
-  private static calculateDaily(completedLogs: HabitLog[], today: Date): HabitStats {
+  private static calculateDaily(
+    completedLogs: HabitLog[],
+    today: Date,
+    rescuedDates: readonly string[],
+  ): HabitStats {
     const completedDates = new Set(
       completedLogs.map((log) => StatsCalculator.toDateString(log.date)),
     );
+    const rescued = new Set(rescuedDates);
 
     const todayStr = StatsCalculator.toDateString(today);
     const totalDays = 30;
 
-    // Completion rate: completed days / last 30 days
+    // Completion rate: completed days / last 30 days.
+    // Deliberately reads `completedDates` ONLY — a rescued day was not done.
     let completedCount = 0;
     for (let i = 0; i < totalDays; i++) {
       const d = new Date(today);
@@ -35,13 +57,15 @@ export class StatsCalculator {
     }
     const completionRate = Math.round((completedCount / totalDays) * 100) / 100;
 
+    const holds = (key: string): boolean => completedDates.has(key) || rescued.has(key);
+
     // Current streak: count backwards from today (or yesterday if today not completed)
     let currentStreak = 0;
-    const startOffset = completedDates.has(todayStr) ? 0 : 1;
+    const startOffset = holds(todayStr) ? 0 : 1;
     for (let i = startOffset; ; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      if (completedDates.has(StatsCalculator.toDateString(d))) {
+      if (holds(StatsCalculator.toDateString(d))) {
         currentStreak++;
       } else {
         break;
@@ -52,12 +76,19 @@ export class StatsCalculator {
     // A streak is unbounded by nature; only the rate above is deliberately a
     // rolling 30-day figure. Walking the sorted dates also finds streaks that
     // ended long ago, which a window anchored on `today` never could.
-    const longestStreak = StatsCalculator.longestRun([...completedDates].sort(), 1);
+    const longestStreak = StatsCalculator.longestRun(
+      [...new Set([...completedDates, ...rescued])].sort(),
+      1,
+    );
 
     return { currentStreak, longestStreak, completionRate };
   }
 
-  private static calculateWeekly(completedLogs: HabitLog[], today: Date): HabitStats {
+  private static calculateWeekly(
+    completedLogs: HabitLog[],
+    today: Date,
+    rescuedDates: readonly string[],
+  ): HabitStats {
     // Group logs by ISO week
     const weekMap = new Map<string, number>();
     for (const log of completedLogs) {
@@ -65,9 +96,15 @@ export class StatsCalculator {
       weekMap.set(weekKey, (weekMap.get(weekKey) ?? 0) + 1);
     }
 
+    // A rescue is stored as a DATE, not a week key, so a habit that switched
+    // frequency still resolves its old rescues through the same helper the
+    // logs go through.
+    const rescuedWeeks = new Set(rescuedDates.map((date) => StatsCalculator.toWeekKey(date)));
+
     const totalWeeks = 4;
 
-    // Completion rate: weeks with at least 1 completed log / last 4 weeks
+    // Completion rate: weeks with at least 1 completed log / last 4 weeks.
+    // Reads `weekMap` ONLY — a rescued week had no log in it.
     let completedWeeks = 0;
     const weekKeys: string[] = [];
     for (let i = 0; i < totalWeeks; i++) {
@@ -82,15 +119,16 @@ export class StatsCalculator {
     const completionRate = Math.round((completedWeeks / totalWeeks) * 100) / 100;
 
     const currentWeekKey = StatsCalculator.toWeekKey(today);
+    const holds = (key: string): boolean => (weekMap.get(key) ?? 0) > 0 || rescuedWeeks.has(key);
 
     // Current streak
     let currentStreak = 0;
-    const startOffset = (weekMap.get(currentWeekKey) ?? 0) > 0 ? 0 : 1;
+    const startOffset = holds(currentWeekKey) ? 0 : 1;
     for (let i = startOffset; ; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i * 7);
       const key = StatsCalculator.toWeekKey(d);
-      if ((weekMap.get(key) ?? 0) > 0) {
+      if (holds(key)) {
         currentStreak++;
       } else {
         break;
@@ -102,7 +140,10 @@ export class StatsCalculator {
     // key, because "consecutive" is then just a 7-day step and needs no
     // special handling at year boundaries.
     const weekStarts = [
-      ...new Set(completedLogs.map((log) => StatsCalculator.weekStartOf(log.date))),
+      ...new Set([
+        ...completedLogs.map((log) => StatsCalculator.weekStartOf(log.date)),
+        ...rescuedDates.map((date) => StatsCalculator.weekStartOf(date)),
+      ]),
     ].sort();
     const longestStreak = StatsCalculator.longestRun(weekStarts, 7);
 
@@ -185,7 +226,14 @@ export class StatsCalculator {
     return StatsCalculator.toDateString(d);
   }
 
-  private static toWeekKey(date: Date | string): string {
+  /**
+   * ISO week key (`YYYY-Www`) for a date.
+   *
+   * Public because the streak-rescue window has to group by the SAME week this
+   * class counts streaks in. Two definitions of "week" in one domain is a bug
+   * waiting for a year boundary to surface it.
+   */
+  static toWeekKey(date: Date | string): string {
     const d = new Date(typeof date === 'string' ? date + 'T12:00:00' : date);
     d.setHours(0, 0, 0, 0);
     // Set to nearest Thursday (ISO week algorithm)

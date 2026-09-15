@@ -93,6 +93,41 @@ export class HabitResponseDto {
     return dto;
   }
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '2026-03-12',
+    description:
+      'Período que un escudo de racha puede rescatar AHORA, o null si no hay ninguno. ' +
+      'Para un hábito WEEKLY es el lunes de la semana rescatable. ' +
+      'El frontend habilita el botón de rescate solo cuando esto no es null Y el usuario ' +
+      'tiene escudos (`streakShields` en la configuración). ' +
+      'Se recalcula en cada lectura: la ventana se cierra sola al pasar el período.',
+  })
+  rescuableDate: string | null;
+
+  @ApiProperty({
+    type: Boolean,
+    example: false,
+    description:
+      'Si el período consultado YA está cubierto por un escudo gastado. ' +
+      'Un período rescatado no tiene log, así que sin este campo se ve idéntico a uno ' +
+      'perdido: el frontend lo usa para marcarlo y para NO dejar registrarlo encima, que ' +
+      'es como se quema un escudo sin darse cuenta. ' +
+      'En un hábito WEEKLY responde por la SEMANA de la fecha consultada, no por el día.',
+  })
+  periodRescued?: boolean;
+
+  @ApiProperty({
+    type: [String],
+    example: ['2026-03-12', '2026-02-28'],
+    description:
+      'Todas las fechas rescatadas del hábito (`YYYY-MM-DD`; en WEEKLY, el lunes de cada ' +
+      'semana rescatada). Para el heatmap del detalle, que sin esto pinta un día protegido ' +
+      'igual que uno perdido y miente sobre el historial.',
+  })
+  rescuedDates?: string[];
+
   static fromDomainWithStats(
     habit: Habit,
     currentStreak: number,
@@ -102,6 +137,12 @@ export class HabitResponseDto {
     periodCount: number,
     periodCompleted: boolean,
     periodTarget: number,
+    rescuableDate: string | null = null,
+    // Named rather than appended to the positional list above: `periodRescued`
+    // is a boolean that would sit near `periodCompleted`, and two adjacent
+    // booleans in an eleven-argument call is a swap waiting to happen that no
+    // type would catch.
+    rescue: { periodRescued?: boolean; rescuedDates?: readonly string[] } = {},
   ): HabitResponseDto {
     const dto = HabitResponseDto.fromDomain(habit);
     dto.currentStreak = currentStreak;
@@ -111,6 +152,9 @@ export class HabitResponseDto {
     dto.periodCount = periodCount;
     dto.periodCompleted = periodCompleted;
     dto.periodTarget = periodTarget;
+    dto.rescuableDate = rescuableDate;
+    dto.periodRescued = rescue.periodRescued ?? false;
+    dto.rescuedDates = [...(rescue.rescuedDates ?? [])];
     return dto;
   }
 }

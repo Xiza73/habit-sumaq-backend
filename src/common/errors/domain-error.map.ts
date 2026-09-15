@@ -36,6 +36,12 @@ export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
   HABIT_LOG_FUTURE_DATE: HttpStatus.UNPROCESSABLE_ENTITY,
   INVALID_TARGET_COUNT: HttpStatus.UNPROCESSABLE_ENTITY,
   HABIT_BELONGS_TO_OTHER_USER: HttpStatus.FORBIDDEN,
+  // 409, not 400: the request is well-formed and would be valid at another
+  // moment — the user simply has no shield, or nothing to spend it on right
+  // now. The client renders these as state, not as a validation error.
+  NO_STREAK_SHIELDS: HttpStatus.CONFLICT,
+  NO_RESCUABLE_PERIOD: HttpStatus.CONFLICT,
+  NO_RESCUE_FOR_PERIOD: HttpStatus.CONFLICT,
   QUICK_TASK_NOT_FOUND: HttpStatus.NOT_FOUND,
   QUICK_TASK_BELONGS_TO_OTHER_USER: HttpStatus.FORBIDDEN,
   QUICK_TASK_TITLE_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
