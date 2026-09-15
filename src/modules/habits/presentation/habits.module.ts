@@ -11,6 +11,7 @@ import { GetHabitByIdUseCase } from '../application/use-cases/get-habit-by-id.us
 import { GetHabitLogsUseCase } from '../application/use-cases/get-habit-logs.use-case';
 import { GetHabitsUseCase } from '../application/use-cases/get-habits.use-case';
 import { LogHabitUseCase } from '../application/use-cases/log-habit.use-case';
+import { ReleaseStreakRescueUseCase } from '../application/use-cases/release-streak-rescue.use-case';
 import { RescueStreakUseCase } from '../application/use-cases/rescue-streak.use-case';
 import { UpdateHabitUseCase } from '../application/use-cases/update-habit.use-case';
 import { HabitRepository } from '../domain/habit.repository';
@@ -42,6 +43,7 @@ import { HabitsController } from './habits.controller';
     ArchiveHabitUseCase,
     DeleteHabitUseCase,
     LogHabitUseCase,
+    ReleaseStreakRescueUseCase,
     RescueStreakUseCase,
     GetHabitLogsUseCase,
     GetDailySummaryUseCase,

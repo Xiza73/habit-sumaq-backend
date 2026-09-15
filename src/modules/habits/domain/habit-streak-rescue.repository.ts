@@ -25,4 +25,16 @@ export abstract class HabitStreakRescueRepository {
    * forgotten by a future caller.
    */
   abstract create(habitId: string, userId: string, rescuedDate: string): Promise<HabitStreakRescue>;
+
+  /**
+   * Removes a rescue, so the shield spent on it can be handed back.
+   *
+   * Exists because a rescued period is not a completed one: the user can still
+   * go and actually log that day. When they do, the shield paid for nothing —
+   * and with no way to undo a rescue it was gone for good.
+   *
+   * Returns whether a row was actually removed, so the caller can refuse to
+   * refund a shield for a rescue that was not there.
+   */
+  abstract deleteByHabitIdAndDate(habitId: string, rescuedDate: string): Promise<boolean>;
 }

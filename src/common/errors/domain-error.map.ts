@@ -41,6 +41,7 @@ export const DOMAIN_HTTP_MAP: Record<ErrorCodeKey, number> = {
   // now. The client renders these as state, not as a validation error.
   NO_STREAK_SHIELDS: HttpStatus.CONFLICT,
   NO_RESCUABLE_PERIOD: HttpStatus.CONFLICT,
+  NO_RESCUE_FOR_PERIOD: HttpStatus.CONFLICT,
   QUICK_TASK_NOT_FOUND: HttpStatus.NOT_FOUND,
   QUICK_TASK_BELONGS_TO_OTHER_USER: HttpStatus.FORBIDDEN,
   QUICK_TASK_TITLE_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,

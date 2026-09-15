@@ -67,6 +67,7 @@ describe('RescueStreakUseCase', () => {
       findDatesByHabitId: jest.fn().mockResolvedValue([]),
       findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
       create: jest.fn().mockResolvedValue(undefined),
+      deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
     };
 
     settingsRepo = {

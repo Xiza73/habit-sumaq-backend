@@ -111,6 +111,7 @@ describe('ReportsController (e2e)', () => {
     findDatesByHabitId: jest.fn().mockResolvedValue([]),
     findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
     create: jest.fn(),
+    deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
   };
 
   const mockQuickTaskRepo: jest.Mocked<QuickTaskRepository> = {

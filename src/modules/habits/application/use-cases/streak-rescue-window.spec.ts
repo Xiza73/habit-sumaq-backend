@@ -1,7 +1,7 @@
 import { buildHabitLog } from '../../domain/__tests__/habit-log.factory';
 import { HabitFrequency } from '../../domain/enums/habit-frequency.enum';
 
-import { findRescuableDate } from './streak-rescue-window';
+import { findRescuableDate, isPeriodRescued, rescuedDateCovering } from './streak-rescue-window';
 
 describe('findRescuableDate', () => {
   describe('DAILY', () => {
@@ -100,5 +100,51 @@ describe('findRescuableDate', () => {
       // that means nothing to a weekly streak.
       expect(call(['2026-03-05'])).toBeNull();
     });
+  });
+});
+
+describe('isPeriodRescued', () => {
+  it('matches the exact day for a DAILY habit', () => {
+    expect(isPeriodRescued(HabitFrequency.DAILY, '2026-03-12', ['2026-03-12'])).toBe(true);
+    expect(isPeriodRescued(HabitFrequency.DAILY, '2026-03-11', ['2026-03-12'])).toBe(false);
+  });
+
+  it('is false when nothing was ever rescued', () => {
+    expect(isPeriodRescued(HabitFrequency.DAILY, '2026-03-12', [])).toBe(false);
+  });
+
+  it('matches ANY day of a rescued week for a WEEKLY habit', () => {
+    // The row stores the Monday. Asking about the Thursday of that same week
+    // has to say yes — otherwise the card lies on six days out of seven.
+    const mondayStored = ['2026-03-09'];
+    for (const day of ['2026-03-09', '2026-03-11', '2026-03-15']) {
+      expect(isPeriodRescued(HabitFrequency.WEEKLY, day, mondayStored)).toBe(true);
+    }
+  });
+
+  it('does not bleed into the neighbouring week', () => {
+    expect(isPeriodRescued(HabitFrequency.WEEKLY, '2026-03-16', ['2026-03-09'])).toBe(false);
+    expect(isPeriodRescued(HabitFrequency.WEEKLY, '2026-03-08', ['2026-03-09'])).toBe(false);
+  });
+});
+
+describe('rescuedDateCovering', () => {
+  it('returns the day itself for DAILY, or null', () => {
+    expect(rescuedDateCovering(HabitFrequency.DAILY, '2026-03-12', ['2026-03-12'])).toBe(
+      '2026-03-12',
+    );
+    expect(rescuedDateCovering(HabitFrequency.DAILY, '2026-03-11', ['2026-03-12'])).toBeNull();
+  });
+
+  it('resolves any day of the week back to the STORED Monday', () => {
+    // This is the whole point: deleting by the raw input would miss the row,
+    // and the user would be told their rescued week is not rescued.
+    expect(rescuedDateCovering(HabitFrequency.WEEKLY, '2026-03-12', ['2026-03-09'])).toBe(
+      '2026-03-09',
+    );
+  });
+
+  it('returns null when no rescue covers the period', () => {
+    expect(rescuedDateCovering(HabitFrequency.WEEKLY, '2026-03-16', ['2026-03-09'])).toBeNull();
   });
 });

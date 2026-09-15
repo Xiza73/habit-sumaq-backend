@@ -35,6 +35,7 @@ describe('GetHabitsUseCase', () => {
       findDatesByHabitId: jest.fn().mockResolvedValue([]),
       findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
       create: jest.fn(),
+      deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
     };
 
     useCase = new GetHabitsUseCase(habitRepo, habitLogRepo, rescueRepo);
@@ -84,6 +85,7 @@ describe('GetHabitsUseCase — rescuableDate', () => {
     findDatesByHabitId: jest.Mock;
     findDatesByHabitIds: jest.Mock;
     create: jest.Mock;
+    deleteByHabitIdAndDate: jest.Mock;
   };
 
   beforeAll(() => {
@@ -116,6 +118,7 @@ describe('GetHabitsUseCase — rescuableDate', () => {
       findDatesByHabitId: jest.fn().mockResolvedValue([]),
       findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
       create: jest.fn(),
+      deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
     };
     useCase = new GetHabitsUseCase(habitRepo, habitLogRepo, rescueRepo);
   });

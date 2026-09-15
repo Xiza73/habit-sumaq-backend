@@ -8,7 +8,7 @@ import { HabitResponseDto } from '../dto/habit-response.dto';
 
 import { resolvePeriodTarget } from './period-target';
 import { StatsCalculator } from './stats-calculator';
-import { findRescuableDate } from './streak-rescue-window';
+import { findRescuableDate, isPeriodRescued } from './streak-rescue-window';
 
 import type { Habit } from '../../domain/habit.entity';
 
@@ -81,6 +81,10 @@ export class GetDailySummaryUseCase {
       periodCompleted,
       periodTarget,
       rescuableDate,
+      {
+        periodRescued: isPeriodRescued(habit.frequency, refStr, rescuedDates),
+        rescuedDates,
+      },
     );
   }
 }

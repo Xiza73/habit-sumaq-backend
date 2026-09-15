@@ -41,6 +41,49 @@ export function findRescuableDate(
     : findRescuableWeek(completedLogs, rescuedDates, today);
 }
 
+/**
+ * Whether the period containing `referenceDate` is already covered by a rescue.
+ *
+ * The card, the table and the heatmap all need this: a rescued period has NO
+ * log, so without it a day the user paid a shield for renders exactly like a
+ * day they simply missed — which is how a shield gets spent twice on the same
+ * date, or silently overwritten by logging it after the fact.
+ *
+ * Matches on the PERIOD, not the date string. A WEEKLY rescue stores the
+ * Monday, so asking about a Thursday has to resolve to the same week or the
+ * answer is wrong for six days out of seven.
+ */
+export function isPeriodRescued(
+  frequency: HabitFrequency,
+  referenceDate: string,
+  rescuedDates: readonly string[],
+): boolean {
+  if (frequency === HabitFrequency.DAILY) {
+    return rescuedDates.includes(referenceDate);
+  }
+  const week = StatsCalculator.toWeekKey(referenceDate);
+  return rescuedDates.some((date) => StatsCalculator.toWeekKey(date) === week);
+}
+
+/**
+ * The stored `rescuedDate` covering `referenceDate`, or `null`.
+ *
+ * Releasing a rescue needs the row's own key, and for a WEEKLY habit that is
+ * the Monday — not whatever day inside the week the user happened to be
+ * looking at when they asked to release it.
+ */
+export function rescuedDateCovering(
+  frequency: HabitFrequency,
+  referenceDate: string,
+  rescuedDates: readonly string[],
+): string | null {
+  if (frequency === HabitFrequency.DAILY) {
+    return rescuedDates.includes(referenceDate) ? referenceDate : null;
+  }
+  const week = StatsCalculator.toWeekKey(referenceDate);
+  return rescuedDates.find((date) => StatsCalculator.toWeekKey(date) === week) ?? null;
+}
+
 function findRescuableDay(
   completedLogs: HabitLog[],
   rescuedDates: readonly string[],

@@ -10,7 +10,7 @@ import { HabitResponseDto } from '../dto/habit-response.dto';
 
 import { resolvePeriodTarget } from './period-target';
 import { StatsCalculator } from './stats-calculator';
-import { findRescuableDate } from './streak-rescue-window';
+import { findRescuableDate, isPeriodRescued } from './streak-rescue-window';
 
 @Injectable()
 export class GetHabitByIdUseCase {
@@ -74,6 +74,10 @@ export class GetHabitByIdUseCase {
       periodCompleted,
       periodTarget,
       rescuableDate,
+      {
+        periodRescued: isPeriodRescued(habit.frequency, todayStr, rescuedDates),
+        rescuedDates,
+      },
     );
   }
 }

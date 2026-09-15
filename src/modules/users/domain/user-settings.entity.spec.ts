@@ -148,4 +148,45 @@ describe('UserSettings — streak shields', () => {
       expect(() => s.spendShield()).toThrow();
     });
   });
+
+  describe('refundShield', () => {
+    it('hands the shield back and says so', () => {
+      const s = buildUserSettings({ streakShields: 0 });
+
+      expect(s.refundShield()).toBe(true);
+      expect(s.streakShields).toBe(1);
+    });
+
+    it('reports false at a full stock instead of blowing past the cap', () => {
+      // `CK_user_settings_streak_shields_range` rejects a third shield, so an
+      // uncapped increment would surface as a 500 rather than a refund.
+      const s = buildUserSettings({ streakShields: 2 });
+
+      expect(s.refundShield()).toBe(false);
+      expect(s.streakShields).toBe(2);
+    });
+
+    it('leaves shieldsEarnedMonth alone', () => {
+      // This is the user's own shield coming back, not a new one earned.
+      // Clearing the stamp would hand them a second grant for the month.
+      const s = buildUserSettings({ streakShields: 0, shieldsEarnedMonth: '2026-03' });
+
+      s.refundShield();
+
+      expect(s.shieldsEarnedMonth).toBe('2026-03');
+    });
+
+    it('does not re-grant when the month is already claimed', () => {
+      // Spend → refund → the month is still spent. Otherwise releasing a
+      // rescue would be a way to farm an extra shield every month.
+      const s = buildUserSettings({ streakShields: 1, shieldsEarnedMonth: '2026-03' });
+
+      s.spendShield();
+      s.refundShield();
+
+      expect(s.streakShields).toBe(1);
+      expect(s.grantShieldIfEarned('2026-03', 40)).toBe(false);
+      expect(s.streakShields).toBe(1);
+    });
+  });
 });
