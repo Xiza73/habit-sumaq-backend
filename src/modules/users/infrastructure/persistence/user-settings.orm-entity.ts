@@ -116,8 +116,12 @@ export class UserSettingsOrmEntity {
    * Streak shields in hand, 0..2. The DB enforces the cap with a CHECK
    * (migration 1741000046000) rather than trusting the grant path — the cap
    * is what gives a shield its weight.
+   *
+   * Every user STARTS with one (migration 1741000047000). The mechanic only
+   * teaches itself when a streak is actually at risk, and a user at zero meets
+   * it as a button they cannot press.
    */
-  @Column({ type: 'smallint', default: 0 })
+  @Column({ type: 'smallint', default: 1 })
   streakShields: number;
 
   /**
