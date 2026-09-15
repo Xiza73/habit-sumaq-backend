@@ -32,6 +32,7 @@ import { GetHabitByIdUseCase } from '../application/use-cases/get-habit-by-id.us
 import { GetHabitLogsUseCase } from '../application/use-cases/get-habit-logs.use-case';
 import { GetHabitsUseCase } from '../application/use-cases/get-habits.use-case';
 import { LogHabitUseCase } from '../application/use-cases/log-habit.use-case';
+import { ReleaseStreakRescueUseCase } from '../application/use-cases/release-streak-rescue.use-case';
 import { RescueStreakUseCase } from '../application/use-cases/rescue-streak.use-case';
 import { UpdateHabitUseCase } from '../application/use-cases/update-habit.use-case';
 
@@ -50,6 +51,7 @@ export class HabitsController {
     private readonly deleteHabit: DeleteHabitUseCase,
     private readonly logHabit: LogHabitUseCase,
     private readonly rescueStreakUseCase: RescueStreakUseCase,
+    private readonly releaseStreakRescueUseCase: ReleaseStreakRescueUseCase,
     private readonly getHabitLogs: GetHabitLogsUseCase,
     private readonly getDailySummary: GetDailySummaryUseCase,
   ) {}
@@ -259,6 +261,49 @@ export class HabitsController {
   ): Promise<ApiResponseDto<{ rescuedDate: string }>> {
     const result = await this.rescueStreakUseCase.execute(id, payload.sub, timezone);
     return ApiResponseDto.ok(result, 'Racha rescatada exitosamente');
+  }
+
+  @Delete(':id/rescue-streak/:date')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Liberar un rescate y recuperar el escudo',
+    description:
+      'Borra el rescate que cubre el período de `date` y devuelve el escudo al inventario. ' +
+      'Existe porque un período rescatado NO es un período completado: el usuario todavía ' +
+      'puede registrar ese día de verdad, y hasta ahora eso quemaba el escudo en silencio ' +
+      'sobre un período que ya no lo necesitaba. ' +
+      'El escudo vuelve salvo que el inventario ya esté lleno (máx. 2) — ahí se pierde, la ' +
+      'misma regla que al ganar uno con el stock lleno. La respuesta lo dice en ' +
+      '`shieldReturned`, así que el frontend puede avisarlo ANTES de confirmar. ' +
+      'En un hábito WEEKLY se puede mandar cualquier día de la semana rescatada: el ' +
+      'backend resuelve el lunes, que es la fecha realmente guardada.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID del hábito',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiParam({
+    name: 'date',
+    description: 'Fecha del período a liberar (`YYYY-MM-DD`)',
+    example: '2026-03-12',
+  })
+  @ApiResponse({ status: 200, description: 'Rescate liberado' })
+  @ApiResponse({ status: 403, description: 'El hábito no te pertenece' })
+  @ApiResponse({ status: 404, description: 'Hábito no encontrado' })
+  @ApiResponse({ status: 409, description: 'Ese período no está rescatado (HAB_009)' })
+  async releaseStreakRescue(
+    @CurrentUser() payload: JwtPayload,
+    @Param('id') id: string,
+    @Param('date') date: string,
+  ): Promise<ApiResponseDto<{ releasedDate: string; shieldReturned: boolean }>> {
+    const result = await this.releaseStreakRescueUseCase.execute(id, payload.sub, date);
+    return ApiResponseDto.ok(
+      result,
+      result.shieldReturned
+        ? 'Rescate liberado y escudo devuelto'
+        : 'Rescate liberado. El escudo no volvió: tu inventario ya estaba lleno',
+    );
   }
 
   @Get(':id/logs')

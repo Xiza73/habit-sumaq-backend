@@ -77,6 +77,7 @@ describe('AlertsController (e2e)', () => {
     findDatesByHabitId: jest.fn().mockResolvedValue([]),
     findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
     create: jest.fn(),
+    deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
   };
 
   const mockBudgetRepo: jest.Mocked<BudgetRepository> = {

@@ -38,6 +38,7 @@ describe('GetHabitByIdUseCase', () => {
       findDatesByHabitId: jest.fn().mockResolvedValue([]),
       findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
       create: jest.fn(),
+      deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
     };
 
     useCase = new GetHabitByIdUseCase(habitRepo, habitLogRepo, rescueRepo);

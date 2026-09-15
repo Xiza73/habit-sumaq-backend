@@ -125,6 +125,29 @@ export class UserSettings {
     this.updatedAt = new Date();
   }
 
+  /**
+   * Hands a spent shield back, when the rescue it paid for is released.
+   *
+   * Capped at {@link MAX_STREAK_SHIELDS}, and NOT because of a preference:
+   * `CK_user_settings_streak_shields_range` rejects a third one, so an
+   * uncapped increment would be a 500 instead of a refund. At a full stock the
+   * shield is lost — the same outcome as earning one while full, which keeps
+   * the cap meaning one thing rather than two.
+   *
+   * `shieldsEarnedMonth` is deliberately untouched: this is the user's own
+   * shield coming back, not a new one earned, and resetting the stamp would
+   * hand them a second grant for the month.
+   *
+   * Returns whether it actually landed, so the caller can tell the user their
+   * shield came back — or that it did not.
+   */
+  refundShield(): boolean {
+    this.updatedAt = new Date();
+    if (this.streakShields >= MAX_STREAK_SHIELDS) return false;
+    this.streakShields += 1;
+    return true;
+  }
+
   update(partial: {
     language?: Language;
     theme?: Theme;

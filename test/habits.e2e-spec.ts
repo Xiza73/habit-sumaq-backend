@@ -23,6 +23,7 @@ import { GetHabitByIdUseCase } from '../src/modules/habits/application/use-cases
 import { GetHabitLogsUseCase } from '../src/modules/habits/application/use-cases/get-habit-logs.use-case';
 import { GetHabitsUseCase } from '../src/modules/habits/application/use-cases/get-habits.use-case';
 import { LogHabitUseCase } from '../src/modules/habits/application/use-cases/log-habit.use-case';
+import { ReleaseStreakRescueUseCase } from '../src/modules/habits/application/use-cases/release-streak-rescue.use-case';
 import { RescueStreakUseCase } from '../src/modules/habits/application/use-cases/rescue-streak.use-case';
 import { UpdateHabitUseCase } from '../src/modules/habits/application/use-cases/update-habit.use-case';
 import { buildHabit } from '../src/modules/habits/domain/__tests__/habit.factory';
@@ -32,6 +33,7 @@ import { HabitRepository } from '../src/modules/habits/domain/habit.repository';
 import { HabitLogRepository } from '../src/modules/habits/domain/habit-log.repository';
 import { HabitStreakRescueRepository } from '../src/modules/habits/domain/habit-streak-rescue.repository';
 import { HabitsController } from '../src/modules/habits/presentation/habits.controller';
+import { buildUserSettings } from '../src/modules/users/domain/__tests__/user-settings.factory';
 import { UserSettingsRepository } from '../src/modules/users/domain/user-settings.repository';
 
 import { buildPinoLoggerProviders } from './helpers/pino-logger-providers';
@@ -91,6 +93,14 @@ describe('HabitsController (e2e)', () => {
     findDatesByHabitId: jest.fn().mockResolvedValue([]),
     findDatesByHabitIds: jest.fn().mockResolvedValue(new Map()),
     create: jest.fn(),
+    deleteByHabitIdAndDate: jest.fn().mockResolvedValue(true),
+  };
+  // Defaults to "no settings row", which is what every spec that predates
+  // shields expects. The rescue specs below override it per-case.
+  const mockSettingsRepo: jest.Mocked<UserSettingsRepository> = {
+    findByUserId: jest.fn().mockResolvedValue(null),
+    create: jest.fn(),
+    save: jest.fn(),
   };
 
   const mockCreateLogger = createLoggerMock();
@@ -116,20 +126,14 @@ describe('HabitsController (e2e)', () => {
         ArchiveHabitUseCase,
         DeleteHabitUseCase,
         LogHabitUseCase,
+        ReleaseStreakRescueUseCase,
         RescueStreakUseCase,
         GetHabitLogsUseCase,
         GetDailySummaryUseCase,
         { provide: HabitRepository, useValue: mockHabitRepo },
         { provide: HabitLogRepository, useValue: mockHabitLogRepo },
         { provide: HabitStreakRescueRepository, useValue: mockRescueRepo },
-        {
-          provide: UserSettingsRepository,
-          useValue: {
-            findByUserId: jest.fn().mockResolvedValue(null),
-            create: jest.fn(),
-            save: jest.fn(),
-          },
-        },
+        { provide: UserSettingsRepository, useValue: mockSettingsRepo },
         { provide: getLoggerToken(CreateHabitUseCase.name), useValue: mockCreateLogger },
         { provide: getLoggerToken(LogHabitUseCase.name), useValue: mockLogLogger },
 
@@ -558,6 +562,144 @@ describe('HabitsController (e2e)', () => {
           expect(body.data).toEqual([]);
           expect(body.meta.total).toBe(0);
         });
+    });
+  });
+
+  // ─── Escudos de racha ─────────────────────────────────────────────────────────
+  //
+  // Ninguno de los dos endpoints tenía cobertura e2e: el de rescate se shipeó
+  // en F7 sin ella, y sin estos specs un provider que falte en el módulo real
+  // solo aparece en producción — los unit tests mockean todo y no lo ven.
+
+  describe('POST /api/v1/habits/:id/rescue-streak', () => {
+    /** Hueco ayer, anclado por anteayer: la forma rescatable. */
+    function gapYesterday(today: Date) {
+      const day = (offset: number) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - offset);
+        return d.toISOString().split('T')[0];
+      };
+      return [
+        buildHabitLog({ date: day(2), completed: true }),
+        buildHabitLog({ date: day(3), completed: true }),
+      ];
+    }
+
+    it('spends a shield and records the rescue', async () => {
+      const habit = buildHabit({ userId: USER_ID, frequency: HabitFrequency.DAILY });
+      mockHabitRepo.findById.mockResolvedValue(habit);
+      mockHabitLogRepo.findCompletedByHabitId.mockResolvedValue(gapYesterday(new Date()));
+      mockRescueRepo.findDatesByHabitId.mockResolvedValue([]);
+      mockSettingsRepo.findByUserId.mockResolvedValue(
+        buildUserSettings({ userId: USER_ID, streakShields: 1 }),
+      );
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/habits/${habit.id}/rescue-streak`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.success).toBe(true);
+          expect(body.data.rescuedDate).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+        });
+
+      expect(mockRescueRepo.create).toHaveBeenCalled();
+      expect(mockSettingsRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ streakShields: 0 }),
+      );
+    });
+
+    it('returns 409 (HAB_007) with no shields in stock', async () => {
+      const habit = buildHabit({ userId: USER_ID });
+      mockHabitRepo.findById.mockResolvedValue(habit);
+      mockSettingsRepo.findByUserId.mockResolvedValue(
+        buildUserSettings({ userId: USER_ID, streakShields: 0 }),
+      );
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/habits/${habit.id}/rescue-streak`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409)
+        .expect(({ body }) => expect(body.error.code).toBe('HAB_007'));
+    });
+
+    it('returns 409 (HAB_008) when no period is rescuable', async () => {
+      const habit = buildHabit({ userId: USER_ID });
+      mockHabitRepo.findById.mockResolvedValue(habit);
+      // Sin logs no hay racha que salvar, así que no hay período rescatable.
+      mockHabitLogRepo.findCompletedByHabitId.mockResolvedValue([]);
+      mockRescueRepo.findDatesByHabitId.mockResolvedValue([]);
+      mockSettingsRepo.findByUserId.mockResolvedValue(
+        buildUserSettings({ userId: USER_ID, streakShields: 2 }),
+      );
+
+      return request(app.getHttpServer())
+        .post(`/api/v1/habits/${habit.id}/rescue-streak`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409)
+        .expect(({ body }) => expect(body.error.code).toBe('HAB_008'));
+    });
+  });
+
+  describe('DELETE /api/v1/habits/:id/rescue-streak/:date', () => {
+    it('releases the rescue and returns the shield', async () => {
+      const habit = buildHabit({ userId: USER_ID, frequency: HabitFrequency.DAILY });
+      mockHabitRepo.findById.mockResolvedValue(habit);
+      mockRescueRepo.findDatesByHabitId.mockResolvedValue([PAST_DATE]);
+      mockSettingsRepo.findByUserId.mockResolvedValue(
+        buildUserSettings({ userId: USER_ID, streakShields: 0 }),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/habits/${habit.id}/rescue-streak/${PAST_DATE}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data).toEqual({ releasedDate: PAST_DATE, shieldReturned: true });
+        });
+
+      expect(mockRescueRepo.deleteByHabitIdAndDate).toHaveBeenCalledWith(habit.id, PAST_DATE);
+      expect(mockSettingsRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ streakShields: 1 }),
+      );
+    });
+
+    it('still releases at a full stock, reporting the shield did not return', async () => {
+      const habit = buildHabit({ userId: USER_ID });
+      mockHabitRepo.findById.mockResolvedValue(habit);
+      mockRescueRepo.findDatesByHabitId.mockResolvedValue([PAST_DATE]);
+      mockSettingsRepo.findByUserId.mockResolvedValue(
+        buildUserSettings({ userId: USER_ID, streakShields: 2 }),
+      );
+
+      return request(app.getHttpServer())
+        .delete(`/api/v1/habits/${habit.id}/rescue-streak/${PAST_DATE}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data).toEqual({ releasedDate: PAST_DATE, shieldReturned: false });
+        });
+    });
+
+    it('returns 409 (HAB_009) when the period is not rescued', async () => {
+      const habit = buildHabit({ userId: USER_ID });
+      mockHabitRepo.findById.mockResolvedValue(habit);
+      mockRescueRepo.findDatesByHabitId.mockResolvedValue([]);
+
+      return request(app.getHttpServer())
+        .delete(`/api/v1/habits/${habit.id}/rescue-streak/${PAST_DATE}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409)
+        .expect(({ body }) => expect(body.error.code).toBe('HAB_009'));
+    });
+
+    it('returns 404 when the habit does not exist', async () => {
+      mockHabitRepo.findById.mockResolvedValue(null);
+
+      return request(app.getHttpServer())
+        .delete(`/api/v1/habits/nope/rescue-streak/${PAST_DATE}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
     });
   });
 });

@@ -139,6 +139,15 @@ Todos los campos son opcionales. Si no existe configuración previa, se crea ant
 > 20 períodos de racha en algún hábito (se otorga al registrar el log, no al
 > leer), y se gasta con `POST /habits/:id/rescue-streak`. Tope de 2; uno ganado
 > con el stock lleno **se pierde**. Mandarlo en un PATCH no hace nada.
+> **`periodRescued` y `rescuedDates`** (solo lectura, en cada `HabitResponseDto`
+> con stats). Un período rescatado **no tiene log**, así que sin estos campos se
+> renderiza idéntico a uno perdido — que es exactamente cómo un escudo se quema
+> dos veces sobre la misma fecha.
+> - `periodRescued`: si el período **consultado** ya está cubierto. En `WEEKLY`
+>   responde por la SEMANA de la fecha, no por el día.
+> - `rescuedDates`: todas las fechas rescatadas del hábito (en `WEEKLY`, el lunes
+>   de cada semana). Para el heatmap del detalle, que si no miente sobre el
+>   historial.
 
 > **Timezone default:** Usuarios pre-existentes tienen `'UTC'` hasta que el frontend auto-detecte su zona en el primer login post-deploy y haga un PATCH silencioso. Una vez seteado, el backend lo usa para cálculos "por día" como el cleanup diario de quick-tasks y el rango calendario-alineado (`month`, `3m`) en reports.
 
@@ -1130,6 +1139,34 @@ después.
 > Ambos 409 son **estado, no validación**: la request está bien formada y sería
 > válida en otro momento. El cliente los renderiza como tal, no como error de
 > formulario.
+
+### `DELETE /habits/:id/rescue-streak/:date`
+
+Libera el rescate que cubre el período de `:date` y **devuelve el escudo**.
+Responde `200` con `{ "releasedDate": "YYYY-MM-DD", "shieldReturned": true }`.
+
+**Por qué existe.** Un período rescatado no es un período completado: el usuario
+todavía puede ir y registrar ese día de verdad. Sin este endpoint eso quemaba el
+escudo en silencio sobre un período que ya no lo necesitaba — el rescate no
+tenía forma de deshacerse.
+
+`releasedDate` es la fecha **guardada**, no la que se mandó: en `WEEKLY` se
+puede mandar cualquier día de la semana rescatada y el backend resuelve el lunes.
+
+`shieldReturned` es `false` cuando el inventario ya estaba **lleno (2)**: ahí el
+escudo se pierde, la misma regla que al ganar uno con el stock lleno. No es una
+preferencia — `CK_user_settings_streak_shields_range` rechaza un tercero. **El
+frontend debería avisarlo ANTES de confirmar**, comparando `streakShields` con el
+tope.
+
+El rescate se libera igual aunque el escudo no vuelva: negarse dejaría al usuario
+trabado en un día que no puede registrar.
+
+| Error | Status | Cuándo |
+| ----- | ------ | ------ |
+| `HAB_009` | 409 | Ese período no está cubierto por ningún rescate |
+| `HAB_006` | 403 | El hábito es de otro usuario |
+| `HAB_001` | 404 | Hábito no encontrado |
 
 ### `POST /habits/:id/logs`
 

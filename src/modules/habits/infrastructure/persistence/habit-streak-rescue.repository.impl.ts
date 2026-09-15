@@ -44,6 +44,13 @@ export class HabitStreakRescueRepositoryImpl extends HabitStreakRescueRepository
     return byHabit;
   }
 
+  async deleteByHabitIdAndDate(habitId: string, rescuedDate: string): Promise<boolean> {
+    const result = await this.ormRepo.delete({ habitId, rescuedDate });
+    // `affected` is driver-reported and typed `number | null | undefined`;
+    // treating a null as "deleted" would refund a shield for nothing.
+    return (result.affected ?? 0) > 0;
+  }
+
   async create(habitId: string, userId: string, rescuedDate: string): Promise<HabitStreakRescue> {
     const saved = await this.ormRepo.save(this.ormRepo.create({ habitId, userId, rescuedDate }));
     return new HabitStreakRescue(
