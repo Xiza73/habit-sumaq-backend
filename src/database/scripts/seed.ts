@@ -32,6 +32,14 @@ const dateStr = (days: number): string => {
   return d.toISOString().split('T')[0]; // YYYY-MM-DD
 };
 
+/** Período `YYYY-MM` de hace `months` meses. */
+const periodStr = (months: number): string => {
+  const d = new Date();
+  d.setDate(1); // el 1 evita el salto de mes al restar desde un día 29-31
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 7);
+};
+
 /** `dateStr` camina hacia atrás; esto es lo mismo hacia adelante. */
 const dueInDays = (days: number): string => dateStr(-days);
 
@@ -437,6 +445,152 @@ async function seed() {
 
       console.log(
         `✅ ${choresData.length} quehaceres creados (vencido / hoy / próximo / horizonte)`,
+      );
+    }
+
+    // ── Finanzas ──────────────────────────────────────────────────
+    // Presupuestos, servicios mensuales y deudas/préstamos. Reemplaza al bloque
+    // de Cuentas/Transacciones que se borró: esas tablas ya no existen y el
+    // modelo de hoy es otro.
+    //
+    // El chequeo va sobre presupuestos y cubre las tres cosas a la vez: se
+    // siembran juntas o no se siembran, porque el saldo del pool depende de
+    // TODAS ellas.
+    const existingBudgets = await queryRunner.query(
+      `SELECT id FROM budgets WHERE "userId" = $1 AND "deletedAt" IS NULL`,
+      [userId],
+    );
+
+    if (existingBudgets.length > 0) {
+      console.log(
+        `⏭️  El usuario ya tiene ${existingBudgets.length} presupuesto(s), omitiendo finanzas`,
+      );
+    } else {
+      // Tipado explícito: `queryRunner.query` devuelve `any`, y este helper es
+      // el único punto del seed que LEE una fila en vez de solo insertarla.
+      const catRows = (await queryRunner.query(
+        `SELECT id, name FROM categories WHERE "userId" = $1 AND "deletedAt" IS NULL`,
+        [userId],
+      )) as { id: string; name: string }[];
+      const catId = (name: string): string =>
+        catRows.find((c) => c.name === name)?.id ?? catRows[0].id;
+
+      const now = new Date();
+      const CURRENCY = 'PEN';
+      // Saldo de partida del pool. Todo lo que se gasta abajo se descuenta de
+      // acá al final, así el número que ve el usuario cuadra con sus
+      // movimientos en vez de ser un valor suelto.
+      const POOL_START = 4000;
+      let spent = 0;
+
+      // ── Presupuesto del mes en curso ──
+      const budget = await queryRunner.query(
+        `INSERT INTO budgets (id, "userId", year, month, currency, amount)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) RETURNING id`,
+        [userId, now.getFullYear(), now.getMonth() + 1, CURRENCY, 1200],
+      );
+      const budgetId: string = budget[0].id;
+
+      const movements = [
+        { cat: 'Restaurantes', amount: 45.5, desc: 'Almuerzo con el equipo', daysAgo: 1 },
+        { cat: 'Transporte', amount: 18, desc: 'Taxi al aeropuerto', daysAgo: 3 },
+        { cat: 'Entretenimiento', amount: 60, desc: 'Cine y cena', daysAgo: 6 },
+        { cat: 'Alimentación', amount: 132.4, desc: 'Compra de la semana', daysAgo: 9 },
+      ];
+
+      for (const m of movements) {
+        await queryRunner.query(
+          `INSERT INTO budget_movements (id, "userId", "budgetId", "categoryId", currency, amount, description, date)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)`,
+          [userId, budgetId, catId(m.cat), CURRENCY, m.amount, m.desc, dateStr(m.daysAgo)],
+        );
+        spent += m.amount;
+      }
+      console.log(`✅ 1 presupuesto con ${movements.length} movimientos`);
+
+      // ── Servicios mensuales ──
+      // Uno pagado al día y otro con el pago del mes pendiente, para que la
+      // vista muestre los dos estados.
+      const services = [
+        { name: 'Netflix', cat: 'Entretenimiento', amount: 44.9, dueDay: 12, paidUpTo: 0 },
+        { name: 'Internet', cat: 'Servicios', amount: 129, dueDay: 5, paidUpTo: 1 },
+      ];
+
+      let paymentCount = 0;
+      for (const svc of services) {
+        const row = await queryRunner.query(
+          `INSERT INTO monthly_services (id, "userId", name, "categoryId", currency, "frequencyMonths",
+                                         "estimatedAmount", "dueDay", "startPeriod", "lastPaidPeriod", "isActive")
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, 1, $5, $6, $7, $8, true) RETURNING id`,
+          [
+            userId,
+            svc.name,
+            catId(svc.cat),
+            CURRENCY,
+            svc.amount,
+            svc.dueDay,
+            periodStr(6),
+            periodStr(svc.paidUpTo),
+          ],
+        );
+        // Historial de pagos hasta el período marcado como pagado.
+        for (let back = svc.paidUpTo; back <= svc.paidUpTo + 2; back++) {
+          await queryRunner.query(
+            `INSERT INTO monthly_service_payments (id, "userId", "monthlyServiceId", currency, amount, period, description, date)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NULL, $6)`,
+            [userId, row[0].id, CURRENCY, svc.amount, periodStr(back), dateStr(back * 30)],
+          );
+          spent += svc.amount;
+          paymentCount++;
+        }
+      }
+      console.log(`✅ ${services.length} servicios mensuales con ${paymentCount} pagos`);
+
+      // ── Deudas y préstamos ──
+      // Un préstamo con abono parcial (PENDING con remaining < amount) y una
+      // deuda saldada: los dos estados que la lista distingue.
+      const loan = await queryRunner.query(
+        `INSERT INTO debts_loans (id, "userId", type, "categoryId", currency, amount, "remainingAmount",
+                                  status, reference, description, date)
+         VALUES (gen_random_uuid(), $1, 'LOAN', $2, $3, 300, 180, 'PENDING', $4, $5, $6) RETURNING id`,
+        [
+          userId,
+          catId('Regalos Recibidos'),
+          CURRENCY,
+          'María López',
+          'Le presté para la mudanza',
+          dateStr(20),
+        ],
+      );
+      await queryRunner.query(
+        `INSERT INTO debt_loan_payments (id, "debtLoanId", amount, currency, note, "paidAt")
+         VALUES (gen_random_uuid(), $1, 120, $2, 'Primer abono', $3)`,
+        [loan[0].id, CURRENCY, dateStr(5)],
+      );
+
+      await queryRunner.query(
+        `INSERT INTO debts_loans (id, "userId", type, "categoryId", currency, amount, "remainingAmount",
+                                  status, reference, description, date)
+         VALUES (gen_random_uuid(), $1, 'DEBT', $2, $3, 250, 0, 'SETTLED', $4, $5, $6)`,
+        [userId, catId('Salud'), CURRENCY, 'Carlos Ruiz', 'Me cubrió la consulta', dateStr(45)],
+      );
+      console.log('✅ 1 préstamo con abono parcial + 1 deuda saldada');
+
+      // ── Pool de moneda ──
+      // `currency_pools` es el saldo corriente y NO se actualiza solo: la app
+      // lo mueve con `CurrencyPoolService.applyDelta` dentro de la transacción
+      // de cada caso de uso. Sembrando por SQL hay que calcularlo acá, o el
+      // saldo miente sobre los movimientos recién insertados.
+      //
+      // Gastar RESTA — la app pasa `-amount` al crear un movimiento o pagar un
+      // servicio — así que el saldo es el inicial menos todo lo gastado.
+      await queryRunner.query(
+        `INSERT INTO currency_pools (id, "userId", currency, balance)
+         VALUES (gen_random_uuid(), $1, $2, $3)`,
+        [userId, CURRENCY, POOL_START - spent],
+      );
+      console.log(
+        `✅ Pool ${CURRENCY}: ${POOL_START} - ${spent.toFixed(2)} = ${(POOL_START - spent).toFixed(2)}`,
       );
     }
 

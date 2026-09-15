@@ -1130,6 +1130,10 @@ usuario), al registrar un hábito que alcanza **20 períodos** de racha. Tope de
 **2 en mano**: uno ganado con el stock lleno **se pierde**, no se acumula para
 después.
 
+**Todo usuario arranca con uno** (migration `1741000047000`). La mecánica solo se
+enseña sola cuando hay una racha en riesgo de verdad, y un usuario en cero la
+conoce como un botón que no puede apretar.
+
 | Error | Status | Cuándo |
 | ----- | ------ | ------ |
 | `HAB_007` | 409 | Sin escudos disponibles |
