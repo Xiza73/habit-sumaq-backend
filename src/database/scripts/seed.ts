@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 /* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { AppDataSource } from '../data-source';
@@ -14,20 +13,27 @@ import { AppDataSource } from '../data-source';
  *   - Los módulos se ejecutan de forma independiente (uno puede fallar sin afectar al resto).
  *
  * Uso: pnpm migration:seed
+ *      SEED_EMAIL=otro@correo.com pnpm migration:seed
+ *
+ * El usuario debe existir ANTES de correr esto: el script lo busca y aborta si
+ * no lo encuentra. Y tiene que haber entrado por Google OAuth de verdad —
+ * `findOrCreateUser` resuelve por `googleId`, no por email, y `users.email` es
+ * único, así que un usuario creado por otra vía (p.ej. `test-login`) hace que
+ * su login real después choque contra `UQ_users_email` y falle.
  */
 
-// ── Helpers ──────────────────────────────────────────────────────────
-const daysAgo = (days: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
-};
+/** Cuenta a sembrar. Override con `SEED_EMAIL` para usar otra. */
+const SEED_EMAIL = process.env.SEED_EMAIL ?? 'gvnner73@gmail.com';
 
+// ── Helpers ──────────────────────────────────────────────────────────
 const dateStr = (days: number): string => {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().split('T')[0]; // YYYY-MM-DD
 };
+
+/** `dateStr` camina hacia atrás; esto es lo mismo hacia adelante. */
+const dueInDays = (days: number): string => dateStr(-days);
 
 async function seed() {
   await AppDataSource.initialize();
@@ -36,15 +42,19 @@ async function seed() {
   try {
     // ── Buscar usuario ──────────────────────────────────────────────
     const users = await queryRunner.query(
-      `SELECT id FROM users WHERE email = 'gvnner73@gmail.com' AND "deletedAt" IS NULL`,
+      `SELECT id FROM users WHERE email = $1 AND "deletedAt" IS NULL`,
+      [SEED_EMAIL],
     );
 
     const userId: string = users[0]?.id;
 
     if (!userId) {
-      console.error('❌ Usuario no encontrado. Abortando seed.');
+      console.error(`❌ Usuario ${SEED_EMAIL} no encontrado. Abortando seed.`);
+      console.error('   Entra primero al app con esa cuenta por Google OAuth.');
       process.exit(1);
     }
+
+    console.log(`👤 Sembrando para ${SEED_EMAIL}`);
 
     await queryRunner.startTransaction();
 
@@ -65,82 +75,45 @@ async function seed() {
       console.log('⏭️  User settings ya existen, omitiendo');
     }
 
-    // ── Cuentas ───────────────────────────────────────────────────
-    const existingAccounts = await queryRunner.query(
-      `SELECT id, name FROM accounts WHERE "userId" = $1 AND "deletedAt" IS NULL`,
+    // ── Escudo en mano ────────────────────────────────────────────
+    // Con un escudo disponible el botón de rescate es usable desde el primer
+    // minuto, sin tener que ganarse uno antes. `shieldsEarnedMonth` queda en
+    // NULL a propósito: así el OTRO camino — ganarlo registrando "Escribir" —
+    // también se puede probar en la misma sesión.
+    //
+    // El chequeo previo es para no pisar el estado que dejes probando si
+    // vuelves a correr el seed.
+    const currentShields = await queryRunner.query(
+      `SELECT "streakShields" FROM user_settings WHERE "userId" = $1`,
       [userId],
     );
 
-    let accountMap: Record<string, string> = {};
-
-    if (existingAccounts.length > 0) {
-      console.log(
-        `⏭️  El usuario ya tiene ${existingAccounts.length} cuenta(s), omitiendo cuentas/categorías/transacciones`,
+    if (currentShields[0]?.streakShields === 0) {
+      await queryRunner.query(
+        `UPDATE user_settings SET "streakShields" = 1, "shieldsEarnedMonth" = NULL
+         WHERE "userId" = $1`,
+        [userId],
       );
-      accountMap = Object.fromEntries(
-        existingAccounts.map((a: { id: string; name: string }) => [a.name, a.id]),
-      );
+      console.log('✅ 1 escudo de racha otorgado');
     } else {
-      // ── Crear cuentas ──
-      const accountsData = [
-        {
-          name: 'Cuenta Principal',
-          type: 'checking',
-          currency: 'PEN',
-          balance: 3500.0,
-          color: '#4F46E5',
-          icon: 'bank',
-        },
-        {
-          name: 'Ahorro Emergencia',
-          type: 'savings',
-          currency: 'PEN',
-          balance: 8000.0,
-          color: '#10B981',
-          icon: 'piggy-bank',
-        },
-        {
-          name: 'Efectivo',
-          type: 'cash',
-          currency: 'PEN',
-          balance: 250.0,
-          color: '#F59E0B',
-          icon: 'cash',
-        },
-        {
-          name: 'Tarjeta de Crédito',
-          type: 'credit_card',
-          currency: 'PEN',
-          balance: -1200.0,
-          color: '#EF4444',
-          icon: 'credit-card',
-        },
-        {
-          name: 'Cuenta USD',
-          type: 'savings',
-          currency: 'USD',
-          balance: 500.0,
-          color: '#3B82F6',
-          icon: 'dollar',
-        },
-      ];
+      console.log('⏭️  El usuario ya tiene escudos, omitiendo');
+    }
 
-      const insertedAccounts: { name: string; id: string }[] = [];
+    // ── Categorías ────────────────────────────────────────────────
+    // Vivían anidadas dentro del bloque de Cuentas, que insertaba en tablas
+    // que la migración v1 borró (`accounts`, `transactions`). Como todo el
+    // seed corre en UNA transacción, ese fallo hacía rollback de todo y el
+    // script no sembraba nada — llevaba muerto desde entonces sin que nadie
+    // lo notara. Las categorías sobreviven acá porque su tabla sigue viva y
+    // la usan presupuestos, servicios mensuales y deudas.
+    const existingCategories = await queryRunner.query(
+      `SELECT id FROM categories WHERE "userId" = $1 AND "deletedAt" IS NULL`,
+      [userId],
+    );
 
-      for (const acc of accountsData) {
-        const result = await queryRunner.query(
-          `INSERT INTO accounts (id, "userId", name, type, currency, balance, color, icon)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
-           RETURNING id`,
-          [userId, acc.name, acc.type, acc.currency, acc.balance, acc.color, acc.icon],
-        );
-        insertedAccounts.push({ name: acc.name, id: result[0].id });
-      }
-
-      console.log(`✅ ${insertedAccounts.length} cuentas creadas`);
-      accountMap = Object.fromEntries(insertedAccounts.map((a) => [a.name, a.id]));
-
-      // ── Categorías ────────────────────────────────────────────────
+    if (existingCategories.length > 0) {
+      console.log(`⏭️  El usuario ya tiene ${existingCategories.length} categoría(s), omitiendo`);
+    } else {
       const categoriesData = [
         // Ingresos
         { name: 'Salario', type: 'INCOME', color: '#10B981', icon: 'briefcase' },
@@ -160,305 +133,15 @@ async function seed() {
         { name: 'Suscripciones', type: 'EXPENSE', color: '#64748B', icon: 'repeat' },
       ];
 
-      const insertedCategories: { name: string; id: string }[] = [];
-
       for (const cat of categoriesData) {
-        const result = await queryRunner.query(
+        await queryRunner.query(
           `INSERT INTO categories (id, "userId", name, type, color, icon, "isDefault")
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, false)
-           RETURNING id`,
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, false)`,
           [userId, cat.name, cat.type, cat.color, cat.icon],
         );
-        insertedCategories.push({ name: cat.name, id: result[0].id });
       }
 
-      console.log(`✅ ${insertedCategories.length} categorías creadas`);
-
-      const catMap = Object.fromEntries(insertedCategories.map((c) => [c.name, c.id]));
-
-      // ── Transacciones ─────────────────────────────────────────────
-      const transactionsData = [
-        // ── Ingresos ──
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Salario',
-          type: 'INCOME',
-          amount: 5500.0,
-          description: 'Sueldo mensual - Febrero',
-          date: daysAgo(45),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Salario',
-          type: 'INCOME',
-          amount: 5500.0,
-          description: 'Sueldo mensual - Marzo',
-          date: daysAgo(15),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Freelance',
-          type: 'INCOME',
-          amount: 1200.0,
-          description: 'Proyecto diseño web',
-          date: daysAgo(30),
-        },
-        {
-          accountName: 'Cuenta USD',
-          categoryName: 'Freelance',
-          type: 'INCOME',
-          amount: 350.0,
-          description: 'Consultoría externa',
-          date: daysAgo(20),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Regalos Recibidos',
-          type: 'INCOME',
-          amount: 200.0,
-          description: 'Regalo cumpleaños',
-          date: daysAgo(10),
-        },
-
-        // ── Gastos ──
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Vivienda',
-          type: 'EXPENSE',
-          amount: 1800.0,
-          description: 'Alquiler departamento',
-          date: daysAgo(43),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Vivienda',
-          type: 'EXPENSE',
-          amount: 1800.0,
-          description: 'Alquiler departamento',
-          date: daysAgo(13),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Servicios',
-          type: 'EXPENSE',
-          amount: 120.0,
-          description: 'Luz + Agua',
-          date: daysAgo(40),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Servicios',
-          type: 'EXPENSE',
-          amount: 89.0,
-          description: 'Internet Movistar',
-          date: daysAgo(38),
-        },
-        {
-          accountName: 'Tarjeta de Crédito',
-          categoryName: 'Alimentación',
-          type: 'EXPENSE',
-          amount: 450.0,
-          description: 'Supermercado Wong',
-          date: daysAgo(35),
-        },
-        {
-          accountName: 'Efectivo',
-          categoryName: 'Alimentación',
-          type: 'EXPENSE',
-          amount: 85.0,
-          description: 'Mercado semanal',
-          date: daysAgo(28),
-        },
-        {
-          accountName: 'Tarjeta de Crédito',
-          categoryName: 'Alimentación',
-          type: 'EXPENSE',
-          amount: 380.0,
-          description: 'Supermercado Plaza Vea',
-          date: daysAgo(7),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Transporte',
-          type: 'EXPENSE',
-          amount: 150.0,
-          description: 'Gasolina',
-          date: daysAgo(25),
-        },
-        {
-          accountName: 'Efectivo',
-          categoryName: 'Transporte',
-          type: 'EXPENSE',
-          amount: 45.0,
-          description: 'Taxi aeropuerto',
-          date: daysAgo(18),
-        },
-        {
-          accountName: 'Tarjeta de Crédito',
-          categoryName: 'Entretenimiento',
-          type: 'EXPENSE',
-          amount: 60.0,
-          description: 'Cine + Snacks',
-          date: daysAgo(22),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Suscripciones',
-          type: 'EXPENSE',
-          amount: 45.0,
-          description: 'Netflix + Spotify',
-          date: daysAgo(12),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Salud',
-          type: 'EXPENSE',
-          amount: 200.0,
-          description: 'Consulta médica',
-          date: daysAgo(16),
-        },
-        {
-          accountName: 'Efectivo',
-          categoryName: 'Restaurantes',
-          type: 'EXPENSE',
-          amount: 95.0,
-          description: 'Cena cumpleaños amigo',
-          date: daysAgo(10),
-        },
-        {
-          accountName: 'Tarjeta de Crédito',
-          categoryName: 'Ropa',
-          type: 'EXPENSE',
-          amount: 310.0,
-          description: 'Zapatillas Nike',
-          date: daysAgo(5),
-        },
-        {
-          accountName: 'Cuenta Principal',
-          categoryName: 'Educación',
-          type: 'EXPENSE',
-          amount: 180.0,
-          description: 'Curso Udemy x3',
-          date: daysAgo(8),
-        },
-        {
-          accountName: 'Efectivo',
-          categoryName: 'Alimentación',
-          type: 'EXPENSE',
-          amount: 35.0,
-          description: 'Panadería',
-          date: daysAgo(2),
-        },
-        {
-          accountName: 'Tarjeta de Crédito',
-          categoryName: 'Restaurantes',
-          type: 'EXPENSE',
-          amount: 120.0,
-          description: 'Almuerzo de trabajo',
-          date: daysAgo(3),
-        },
-      ];
-
-      let txCount = 0;
-
-      for (const tx of transactionsData) {
-        await queryRunner.query(
-          `INSERT INTO transactions (id, "userId", "accountId", "categoryId", type, amount, description, date)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)`,
-          [
-            userId,
-            accountMap[tx.accountName],
-            catMap[tx.categoryName],
-            tx.type,
-            tx.amount,
-            tx.description,
-            tx.date,
-          ],
-        );
-        txCount++;
-      }
-
-      // ── Transferencias ──
-      const transfers = [
-        {
-          from: 'Cuenta Principal',
-          to: 'Ahorro Emergencia',
-          amount: 1000.0,
-          description: 'Ahorro mensual - Febrero',
-          date: daysAgo(42),
-        },
-        {
-          from: 'Cuenta Principal',
-          to: 'Ahorro Emergencia',
-          amount: 1000.0,
-          description: 'Ahorro mensual - Marzo',
-          date: daysAgo(12),
-        },
-        {
-          from: 'Cuenta Principal',
-          to: 'Efectivo',
-          amount: 300.0,
-          description: 'Retiro cajero',
-          date: daysAgo(30),
-        },
-      ];
-
-      for (const tr of transfers) {
-        await queryRunner.query(
-          `INSERT INTO transactions (id, "userId", "accountId", "categoryId", type, amount, description, date, "destinationAccountId")
-           VALUES (gen_random_uuid(), $1, $2, NULL, 'TRANSFER', $3, $4, $5, $6)`,
-          [userId, accountMap[tr.from], tr.amount, tr.description, tr.date, accountMap[tr.to]],
-        );
-        txCount++;
-      }
-
-      // ── Deuda / Préstamo ──
-      const debtResult = await queryRunner.query(
-        `INSERT INTO transactions (id, "userId", "accountId", "categoryId", type, amount, description, date, reference, status, "remainingAmount")
-         VALUES (gen_random_uuid(), $1, $2, NULL, 'DEBT', $3, $4, $5, $6, 'PENDING', $3)
-         RETURNING id`,
-        [
-          userId,
-          accountMap['Cuenta Principal'],
-          500.0,
-          'Préstamo de Carlos para reparación auto',
-          daysAgo(25),
-          'Carlos Pérez',
-        ],
-      );
-      txCount++;
-
-      await queryRunner.query(
-        `INSERT INTO transactions (id, "userId", "accountId", "categoryId", type, amount, description, date, reference, status, "relatedTransactionId", "remainingAmount")
-         VALUES (gen_random_uuid(), $1, $2, NULL, 'DEBT', $3, $4, $5, $6, 'PENDING', $7, $8)`,
-        [
-          userId,
-          accountMap['Cuenta Principal'],
-          200.0,
-          'Abono deuda Carlos',
-          daysAgo(10),
-          'Carlos Pérez',
-          debtResult[0].id,
-          300.0,
-        ],
-      );
-      txCount++;
-
-      await queryRunner.query(
-        `INSERT INTO transactions (id, "userId", "accountId", "categoryId", type, amount, description, date, reference, status, "remainingAmount")
-         VALUES (gen_random_uuid(), $1, $2, NULL, 'LOAN', $3, $4, $5, $6, 'PENDING', $3)`,
-        [
-          userId,
-          accountMap['Efectivo'],
-          150.0,
-          'Le presté a María para almuerzo',
-          daysAgo(14),
-          'María López',
-        ],
-      );
-      txCount++;
-
-      console.log(`✅ ${txCount} transacciones creadas`);
+      console.log(`✅ ${categoriesData.length} categorías creadas`);
     }
 
     // ── Hábitos ───────────────────────────────────────────────────
@@ -503,6 +186,25 @@ async function seed() {
           targetCount: 1,
           color: '#10B981',
           icon: 'brain',
+        },
+        // Los dos de abajo existen para que F7 (escudos de racha) se pueda
+        // probar. El resto del seed no llega: su racha más larga es de 4 días
+        // y el umbral para ganar un escudo es 20.
+        {
+          name: 'Escribir',
+          description: 'Racha intacta de 30 días — registrar hoy otorga un escudo',
+          frequency: 'DAILY',
+          targetCount: 1,
+          color: '#EC4899',
+          icon: 'pen',
+        },
+        {
+          name: 'Estirar',
+          description: 'Racha rota AYER, con anteayer completo — período rescatable',
+          frequency: 'DAILY',
+          targetCount: 1,
+          color: '#14B8A6',
+          icon: 'activity',
         },
         {
           name: 'Limpiar casa',
@@ -553,6 +255,14 @@ async function seed() {
         Ejercicio: new Set([2, 5, 8, 13, 16, 20, 24, 27]),
         Leer: new Set([3, 7, 10, 14, 19, 22, 26]),
         Meditar: new Set([1, 6, 9, 12, 15, 18, 21, 25, 29]),
+        // Ni un día perdido. Hoy queda SIN registrar a propósito: el cálculo
+        // arranca en ayer cuando hoy no está completo, así que la racha llega
+        // a 30 y registrar hoy dispara el otorgamiento del escudo.
+        Escribir: new Set<number>(),
+        // Solo ayer. Anteayer SÍ está, que es exactamente lo que
+        // `findRescuableDate` exige: hueco en el período anterior, sostenido
+        // en el de antes.
+        Estirar: new Set([1]),
       };
 
       // Días parciales para "Tomar agua" (no llegó a los 8 vasos)
@@ -569,7 +279,14 @@ async function seed() {
 
       // Logs diarios (últimos 30 días, excepto hoy = día 0)
       for (let day = 1; day <= 30; day++) {
-        for (const habitName of ['Tomar agua', 'Ejercicio', 'Leer', 'Meditar']) {
+        for (const habitName of [
+          'Tomar agua',
+          'Ejercicio',
+          'Leer',
+          'Meditar',
+          'Escribir',
+          'Estirar',
+        ]) {
           const habit = habitMap[habitName];
           const missed = missedDays[habitName]?.has(day) ?? false;
 
@@ -589,9 +306,9 @@ async function seed() {
           }
 
           await queryRunner.query(
-            `INSERT INTO habit_logs (id, "habitId", "userId", date, count, completed, note)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)`,
-            [habit.id, userId, dateStr(day), count, completed, note],
+            `INSERT INTO habit_logs (id, "habitId", "userId", date, count, completed, note, "targetCount")
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)`,
+            [habit.id, userId, dateStr(day), count, completed, note, habit.targetCount],
           );
           logCount++;
         }
@@ -612,9 +329,9 @@ async function seed() {
           if (missed) continue;
 
           await queryRunner.query(
-            `INSERT INTO habit_logs (id, "habitId", "userId", date, count, completed, note)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)`,
-            [habit.id, userId, dateStr(day), habit.targetCount, true, null],
+            `INSERT INTO habit_logs (id, "habitId", "userId", date, count, completed, note, "targetCount")
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)`,
+            [habit.id, userId, dateStr(day), habit.targetCount, true, null, habit.targetCount],
           );
           logCount++;
         }
@@ -629,14 +346,98 @@ async function seed() {
       for (const th of todayHabits) {
         const habit = habitMap[th.name];
         await queryRunner.query(
-          `INSERT INTO habit_logs (id, "habitId", "userId", date, count, completed, note)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)`,
-          [habit.id, userId, dateStr(0), th.count, th.completed, th.note],
+          `INSERT INTO habit_logs (id, "habitId", "userId", date, count, completed, note, "targetCount")
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)`,
+          [habit.id, userId, dateStr(0), th.count, th.completed, th.note, habit.targetCount],
         );
         logCount++;
       }
 
       console.log(`✅ ${logCount} registros de hábitos creados`);
+    }
+
+    // ── Quehaceres ────────────────────────────────────────────────
+    const existingChores = await queryRunner.query(
+      `SELECT id FROM chores WHERE "userId" = $1 AND "deletedAt" IS NULL`,
+      [userId],
+    );
+
+    if (existingChores.length > 0) {
+      console.log(`⏭️  El usuario ya tiene ${existingChores.length} quehacer(es), omitiendo`);
+    } else {
+      // Uno por cada estado del chip. La ventana de "próximo" es
+      // cadencia ÷ 7 acotada a [1, 7] (ver `upcomingWindowDays` en el web),
+      // así que la cadencia de cada uno está elegida para que su
+      // `nextDueDate` caiga del lado correcto de esa ventana — si no, los
+      // cuatro terminan pintados igual y el seed no prueba nada.
+      const choresData = [
+        {
+          // 30 días de cadencia → ventana 4. Vencido hace 5.
+          name: 'Cambiar las sábanas',
+          category: 'Hogar',
+          notes: null,
+          intervalValue: 1,
+          intervalUnit: 'months',
+          dueIn: -5,
+          lastDone: 35,
+        },
+        {
+          // 14 días → ventana 2. Vence hoy.
+          name: 'Regar las plantas del balcón',
+          category: 'Hogar',
+          notes: 'Las suculentas no, se pudren',
+          intervalValue: 2,
+          intervalUnit: 'weeks',
+          dueIn: 0,
+          lastDone: 14,
+        },
+        {
+          // 42 días → ventana 6. Vence en 3, así que cae dentro.
+          // Nombre largo + categoría a propósito: es el caso de F5, donde el
+          // nombre empujaba la etiqueta y el chip hacia abajo y estiraba la
+          // card. Acá se ve si el truncado aguanta.
+          name: 'Cambiar el filtro del purificador de agua de la cocina',
+          category: 'Mantenimiento',
+          notes: null,
+          intervalValue: 6,
+          intervalUnit: 'weeks',
+          dueIn: 3,
+          lastDone: 39,
+        },
+        {
+          // 365 días → ventana 7 (tope). Vence en 90, muy afuera.
+          name: 'Renovar el SOAT',
+          category: 'Trámites',
+          notes: 'Sale más barato renovando antes del vencimiento',
+          intervalValue: 1,
+          intervalUnit: 'years',
+          dueIn: 90,
+          lastDone: 275,
+        },
+      ];
+
+      for (const c of choresData) {
+        await queryRunner.query(
+          `INSERT INTO chores (id, "userId", name, notes, category, "intervalValue", "intervalUnit",
+                               "startDate", "lastDoneDate", "nextDueDate", "isActive")
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
+          [
+            userId,
+            c.name,
+            c.notes,
+            c.category,
+            c.intervalValue,
+            c.intervalUnit,
+            dateStr(c.lastDone),
+            dateStr(c.lastDone),
+            dueInDays(c.dueIn),
+          ],
+        );
+      }
+
+      console.log(
+        `✅ ${choresData.length} quehaceres creados (vencido / hoy / próximo / horizonte)`,
+      );
     }
 
     await queryRunner.commitTransaction();
