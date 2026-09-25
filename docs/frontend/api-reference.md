@@ -667,14 +667,14 @@ consume desde la deuda más vieja hacia la más nueva: cada una se liquida por
 sin error (cap — el excedente se ignora). Toda la aritmética se hace en centavos enteros.
 
 > A diferencia de `/debts/:id/settle` y `/debts/settle-by-reference` (donde la **presencia** de
-> `currency` togglea real-vs-informal), acá `currency` es **obligatoria** porque identifica el grupo
+> `currency` togglea real-vs-informal), aquí `currency` es **obligatoria** porque identifica el grupo
 > `(reference, currency)`. El toggle de modo pasa por el flag `realPayment`.
 
 | Campo         | Tipo                      | Requerido | Notas                                                                 |
 | ------------- | ------------------------- | --------- | --------------------------------------------------------------------- |
 | `reference`   | string                    | sí        | La persona. Match case + accent insensitive. Máx 255 chars.           |
 | `currency`    | `'PEN' \| 'USD' \| 'EUR'` | sí        | Identifica el grupo `(reference, currency)` a liquidar.               |
-| `type`        | `'DEBT' \| 'LOAN'`        | sí        | Dirección a liquidar. `DEBT` = lo que debés; `LOAN` = lo que te deben. |
+| `type`        | `'DEBT' \| 'LOAN'`        | sí        | Dirección a liquidar. `DEBT` = lo que debes; `LOAN` = lo que te deben. |
 | `amount`      | number                    | sí        | > 0, 2 decimales. Se reparte FIFO. Si excede el total, cap sin error. |
 | `realPayment` | boolean                   | no        | `true` → mueve el pool (DEBT debita, LOAN credita). Omitido/`false` → cierre informal (no toca pool). Default `false`. |
 
@@ -1197,7 +1197,7 @@ Solo aplica a hábitos **DAILY**. En **WEEKLY** el objetivo es de la semana, no
 del día, y se sigue midiendo contra el del hábito.
 
 **Mandar `targetCount` para HOY además mueve el default del hábito.** Si hoy lo
-ponés en 4, mañana arranca en 4 en vez de volver al valor original — el
+pones en 4, mañana arranca en 4 en vez de volver al valor original — el
 snapshot por día protege el pasado, pero por sí solo hacía que cada día nuevo
 empezara de cero y hubiera que repetir la edición a diario.
 
@@ -1268,7 +1268,7 @@ Historial de logs paginados.
 >
 > **`periodTarget`**: el DENOMINADOR a mostrar. Es el objetivo contra el que se mide
 > el período: en DAILY el del propio día (`todayLog.targetCount`), que puede diferir
-> del `targetCount` del hábito; en WEEKLY siempre el del hábito. **Usá siempre este
+> del `targetCount` del hábito; en WEEKLY siempre el del hábito. **Usa siempre este
 > campo para renderizar `periodCount / X`** — leer `targetCount` del hábito reescribe
 > visualmente los días pasados.
 >
@@ -1533,7 +1533,7 @@ cliente. Driver del KPI "Pagado / Estimado" en el dashboard de servicios.
 **`linkedDebts`** (array, siempre presente — `[]` si el servicio no tiene préstamos vinculados):
 préstamos (`LOAN`, módulo Deudas/Préstamos) generados por pagos compartidos de este servicio
 (`sourceMonthlyServicePaymentId`), agrupados por todos los pagos del servicio. Solo incluye los que
-siguen `PENDING` — los `SETTLED` dejan de listarse acá (siguen visibles como historial en
+siguen `PENDING` — los `SETTLED` dejan de listarse aquí (siguen visibles como historial en
 `GET /debts`). Cada ítem: `id` (UUID del `DebtLoan`, usar para `POST /debts/:id/settle`),
 `reference` (nombre de la persona, tal cual se guardó — sin normalizar), `remainingAmount`,
 `status` (siempre `'PENDING'` en este array). Se popula con valor exacto en `GET /monthly-services`
@@ -1587,7 +1587,7 @@ comportamiento).
 - **Response:** `201` — `MonthlyServiceResponseDto`
 - `404 ACC_001` si la cuenta no existe o no es tuya.
 - `404 CAT_001` si la categoría no existe o no es tuya.
-- `409 MSVC_003` si ya tenés un servicio activo con ese nombre.
+- `409 MSVC_003` si ya tienes un servicio activo con ese nombre.
 - `409 MSP_PARTICIPANT_DUPLICATE_REFERENCE` referencias duplicadas dentro de `participants[]`.
 - `422 VAL_002` si la moneda del DTO no coincide con la cuenta.
 - `422 MSP_PARTICIPANT_SUM_EXCEEDS_ESTIMATED` la suma de `participants[].defaultAmount` supera `estimatedAmount`.
@@ -1836,7 +1836,7 @@ Edita los campos permitidos. **No se puede cambiar** `startDate` (semilla de la 
 - **Body (todos opcionales):** `name`, `notes`, `category`, `intervalValue`, `intervalUnit`,
   `nextDueDate`.
 - **Importante:** cambiar `intervalValue` o `intervalUnit` **NO** recalcula `nextDueDate`
-  automáticamente. Si querés desplazar el próximo vencimiento, mandalo explícitamente vía
+  automáticamente. Si quieres desplazar el próximo vencimiento, mándalo explícitamente vía
   `nextDueDate` en el mismo PATCH.
 - **Response:** `200` — `ChoreResponseDto`
 - `404 CHRE_002` si no existe o pertenece a otro usuario.
@@ -1915,7 +1915,7 @@ Toggle de `isActive`. Archivar una chore **NO** afecta los logs históricos.
 ### `DELETE /chores/:id`
 
 Soft-delete (marca `deletedAt = now()`), **sólo** si la chore no tiene logs. Si los tiene,
-archivala con `PATCH /:id/archive`.
+archívala con `PATCH /:id/archive`.
 
 - **Response:** `204 No Content`
 - `404 CHRE_002` chore no encontrada.
@@ -2008,7 +2008,7 @@ Detalle de un budget específico (pasado, presente o futuro), con KPI y movimien
 
 #### Plan de recuperación (`recovery`)
 
-`dailyAllowance` se recalcula vivo, así que ya se auto-corrige: te pasás hoy y mañana baja.
+`dailyAllowance` se recalcula vivo, así que ya se auto-corrige: te pasas hoy y mañana baja.
 `recovery` responde la pregunta inversa — **cuántos días de contención hacen falta para que
 vuelva a `initialDailyAllowance`**.
 
@@ -2035,7 +2035,7 @@ en vez de resolverse de nuevo.
 
 **La escalera de fracciones.** Como `k_f = k₀/(1−f)`, gastar **menos tarda menos**:
 
-| Gastás | Días |
+| Gastas | Días |
 | ------ | ---- |
 | nada | `k₀` |
 | la mitad | `2.00 × k₀` |
@@ -2062,7 +2062,7 @@ Se redondea **hacia arriba**: medio día de contención no te deja ahí.
 
 Con los dos en `null` hay que mostrar "no se recupera este mes", no un número: un plan que
 iguala o supera `d` no deja ningún día para efectivamente gastar el diario recuperado. Un
-budget ya excedido (`remaining` negativo) cae también acá.
+budget ya excedido (`remaining` negativo) cae también aquí.
 
 ### `POST /budgets`
 
@@ -2311,7 +2311,7 @@ El payload lleva `daysLeftInPeriod` **solo** en el caso sin ancla (`dueDay: null
 - **Per-day**: el usuario puede cerrarlas y vuelven a aparecer al día siguiente (medianoche
   en su TZ). El backend registra el dismiss con `expiresAt = endOfDayInTimezone(tz, now)`.
 - **Persistent**: NO se pueden cerrar manualmente — se van solas cuando la condición se
-  resuelve (pagás el servicio, ajustás el budget, hacés el chore). `POST /:id/dismiss`
+  resuelve (pagas el servicio, ajustas el budget, haces el chore). `POST /:id/dismiss`
   sobre estas devuelve `409 ALR_001`.
 
 > **Mediodía gate:** el alerta `habits-midday` se filtra server-side cuando la hora local
