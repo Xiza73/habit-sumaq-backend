@@ -27,7 +27,7 @@ export class DeleteChoreUseCase {
     if (logCount > 0) {
       throw new DomainException(
         'CHORE_HAS_LOGS',
-        'No se puede eliminar una tarea con eventos registrados. Archivala en su lugar.',
+        'No se puede eliminar una tarea con eventos registrados. Archívala en su lugar.',
       );
     }
 

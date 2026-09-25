@@ -31,7 +31,7 @@ export class DeleteMonthlyServiceUseCase {
     if (payments.length > 0) {
       throw new DomainException(
         'MONTHLY_SERVICE_HAS_PAYMENTS',
-        'No se puede eliminar un servicio con pagos registrados. Archivalo en su lugar.',
+        'No se puede eliminar un servicio con pagos registrados. Archívalo en su lugar.',
       );
     }
 

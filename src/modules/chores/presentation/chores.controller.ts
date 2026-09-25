@@ -287,7 +287,7 @@ export class ChoresController {
   @ApiOperation({
     summary: 'Eliminar una tarea (soft delete condicional)',
     description:
-      'Sólo permitido si la tarea no tiene logs. Si los tiene, archivala con PATCH /:id/archive.',
+      'Sólo permitido si la tarea no tiene logs. Si los tiene, archívala con PATCH /:id/archive.',
   })
   @ApiParam({ name: 'id', description: 'UUID de la tarea' })
   @ApiResponse({ status: 204, description: 'Tarea eliminada' })

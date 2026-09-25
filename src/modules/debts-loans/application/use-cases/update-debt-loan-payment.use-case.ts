@@ -82,7 +82,7 @@ export class UpdateDebtLoanPaymentUseCase {
     if (dto.amount === undefined && dto.note === undefined && dto.paidAt === undefined) {
       throw new DomainException(
         'DEBT_LOAN_PAYMENT_UPDATE_NO_FIELDS',
-        'Tenés que enviar al menos un campo para actualizar',
+        'Tienes que enviar al menos un campo para actualizar',
       );
     }
 
@@ -100,7 +100,7 @@ export class UpdateDebtLoanPaymentUseCase {
       if (debt.userId !== userId) {
         throw new DomainException(
           'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-          'No tenés acceso a esta deuda/préstamo',
+          'No tienes acceso a esta deuda/préstamo',
         );
       }
 

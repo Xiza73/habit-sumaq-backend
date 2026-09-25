@@ -112,7 +112,7 @@ async function seed() {
     // que la migración v1 borró (`accounts`, `transactions`). Como todo el
     // seed corre en UNA transacción, ese fallo hacía rollback de todo y el
     // script no sembraba nada — llevaba muerto desde entonces sin que nadie
-    // lo notara. Las categorías sobreviven acá porque su tabla sigue viva y
+    // lo notara. Las categorías sobreviven aquí porque su tabla sigue viva y
     // la usan presupuestos, servicios mensuales y deudas.
     const existingCategories = await queryRunner.query(
       `SELECT id FROM categories WHERE "userId" = $1 AND "deletedAt" IS NULL`,
@@ -403,7 +403,7 @@ async function seed() {
           // 42 días → ventana 6. Vence en 3, así que cae dentro.
           // Nombre largo + categoría a propósito: es el caso de F5, donde el
           // nombre empujaba la etiqueta y el chip hacia abajo y estiraba la
-          // card. Acá se ve si el truncado aguanta.
+          // card. Aquí se ve si el truncado aguanta.
           name: 'Cambiar el filtro del purificador de agua de la cocina',
           category: 'Mantenimiento',
           notes: null,
@@ -478,7 +478,7 @@ async function seed() {
       const now = new Date();
       const CURRENCY = 'PEN';
       // Saldo de partida del pool. Todo lo que se gasta abajo se descuenta de
-      // acá al final, así el número que ve el usuario cuadra con sus
+      // aquí al final, así el número que ve el usuario cuadra con sus
       // movimientos en vez de ser un valor suelto.
       const POOL_START = 4000;
       let spent = 0;
@@ -579,7 +579,7 @@ async function seed() {
       // ── Pool de moneda ──
       // `currency_pools` es el saldo corriente y NO se actualiza solo: la app
       // lo mueve con `CurrencyPoolService.applyDelta` dentro de la transacción
-      // de cada caso de uso. Sembrando por SQL hay que calcularlo acá, o el
+      // de cada caso de uso. Sembrando por SQL hay que calcularlo aquí, o el
       // saldo miente sobre los movimientos recién insertados.
       //
       // Gastar RESTA — la app pasa `-amount` al crear un movimiento o pagar un

@@ -28,7 +28,7 @@ export class DebtsSummaryResponseDto {
   displayName: string;
 
   @ApiProperty({
-    description: 'Suma de remainingAmount de DEBTs pendientes (lo que le debés a esta persona).',
+    description: 'Suma de remainingAmount de DEBTs pendientes (lo que le debes a esta persona).',
     example: 500,
   })
   pendingDebt: number;

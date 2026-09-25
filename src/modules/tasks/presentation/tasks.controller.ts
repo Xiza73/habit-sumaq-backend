@@ -75,7 +75,7 @@ export class TasksController {
   @ApiOperation({
     summary: 'Reordenar tasks dentro de una sección',
     description:
-      'Body: `{ sectionId, orderedIds }`. La drag-and-drop está restringida a la misma sección — para mover una task entre secciones, usá `PATCH /tasks/:id` con un nuevo `sectionId`.',
+      'Body: `{ sectionId, orderedIds }`. La drag-and-drop está restringida a la misma sección — para mover una task entre secciones, usa `PATCH /tasks/:id` con un nuevo `sectionId`.',
   })
   @ApiResponse({ status: 204, description: 'Reordenamiento aplicado' })
   @ApiResponse({

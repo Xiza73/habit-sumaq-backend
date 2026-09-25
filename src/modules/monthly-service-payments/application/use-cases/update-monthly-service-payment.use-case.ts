@@ -46,7 +46,7 @@ export class UpdateMonthlyServicePaymentUseCase {
     if (payment.userId !== userId) {
       throw new DomainException(
         'MONTHLY_SERVICE_PAYMENT_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a este pago',
+        'No tienes acceso a este pago',
       );
     }
 
