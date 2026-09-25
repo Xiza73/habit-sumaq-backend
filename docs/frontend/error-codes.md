@@ -150,9 +150,9 @@ Cuando una operación falla, la respuesta incluye un `error.code` con un identif
 
 | Código     | HTTP | Descripción                                 | Cuándo ocurre                                                                                        |
 | ---------- | ---- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `MSVC_001` | 409  | El servicio tiene pagos registrados         | DELETE /monthly-services/:id cuando existen transacciones vinculadas. Archivalo en su lugar.         |
+| `MSVC_001` | 409  | El servicio tiene pagos registrados         | DELETE /monthly-services/:id cuando existen transacciones vinculadas. Archívalo en su lugar.         |
 | `MSVC_002` | 404  | Servicio mensual no encontrado              | GET/PATCH/POST .../pay .../skip DELETE con UUID inexistente o perteneciente a otro usuario.          |
-| `MSVC_003` | 409  | Ya tenés un servicio activo con ese nombre  | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
+| `MSVC_003` | 409  | Ya tienes un servicio activo con ese nombre | POST/PATCH con un nombre duplicado entre tus servicios activos.                                      |
 | `MSVC_004` | 409  | El servicio ya está pagado para el mes actual | POST /monthly-services/:id/pay cuando el servicio ya está al día (idempotency guard).              |
 
 ### Participantes de servicios compartidos
@@ -171,7 +171,7 @@ en `POST /monthly-services`) — no hay endpoints de agregar/editar/quitar uno p
 
 | Código     | HTTP | Descripción                                  | Cuándo ocurre                                                                                |
 | ---------- | ---- | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `CHRE_001` | 409  | La tarea tiene eventos (logs) registrados    | DELETE /chores/:id cuando ya existen logs. Archivala en su lugar con PATCH /:id/archive.     |
+| `CHRE_001` | 409  | La tarea tiene eventos (logs) registrados    | DELETE /chores/:id cuando ya existen logs. Archívala en su lugar con PATCH /:id/archive.     |
 | `CHRE_002` | 404  | Tarea no encontrada                          | GET/PATCH/POST .../done .../skip DELETE con UUID inexistente o perteneciente a otro usuario. |
 | `CHRE_003` | 409  | La tarea no tiene eventos para revertir      | POST /chores/:id/revert-last-done cuando la chore no tiene ningún log (no borrado) que deshacer. |
 
