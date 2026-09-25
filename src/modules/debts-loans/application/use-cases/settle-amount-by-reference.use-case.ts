@@ -112,7 +112,7 @@ export class SettleAmountByReferenceUseCase {
         if (row.userId !== userId) {
           throw new DomainException(
             'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-            'No tenés acceso a una de las deudas/préstamos',
+            'No tienes acceso a una de las deudas/préstamos',
           );
         }
         if (row.type !== dto.type || row.currency !== dto.currency) {

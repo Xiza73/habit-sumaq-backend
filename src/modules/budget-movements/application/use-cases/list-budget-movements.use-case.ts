@@ -25,7 +25,7 @@ export class ListBudgetMovementsUseCase {
     if (budget.userId !== userId) {
       throw new DomainException(
         'BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a este budget',
+        'No tienes acceso a este budget',
       );
     }
     return this.repo.findByBudgetId(budgetId);

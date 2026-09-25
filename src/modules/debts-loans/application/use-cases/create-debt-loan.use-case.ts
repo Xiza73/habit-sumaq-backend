@@ -17,7 +17,7 @@ import type { CreateDebtLoanDto } from '../dto/create-debt-loan.dto';
  * dinero. El pool solo se mueve cuando se settle en real-payment mode.
  *
  * Regla A3-B (locked en Q1): `reference` es obligatoria. El DTO la valida
- * con `@IsNotEmpty` y `@Length(1, 255)`, pero también la chequeamos acá
+ * con `@IsNotEmpty` y `@Length(1, 255)`, pero también la chequeamos aquí
  * defensivamente — los handlers podrían bypassear el pipe en escenarios
  * legacy y queremos que el use case sea seguro por sí mismo.
  */

@@ -18,7 +18,7 @@ export class GetDebtLoanUseCase {
     if (debt.userId !== userId) {
       throw new DomainException(
         'DEBT_LOAN_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a esta deuda/préstamo',
+        'No tienes acceso a esta deuda/préstamo',
       );
     }
     return debt;

@@ -113,7 +113,7 @@ export class CreateMonthlyServicePaymentUseCase {
     if (service.userId !== userId) {
       throw new DomainException(
         'MONTHLY_SERVICE_PAYMENT_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a este servicio',
+        'No tienes acceso a este servicio',
       );
     }
 

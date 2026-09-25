@@ -249,7 +249,7 @@ export class MonthlyServicesController {
     summary: 'Eliminar un servicio (soft delete condicional)',
     description:
       'Sólo permitido si el servicio no tiene pagos registrados (marca deletedAt=now). ' +
-      'Si los tiene, archivalo en su lugar con PATCH /:id/archive.',
+      'Si los tiene, archívalo en su lugar con PATCH /:id/archive.',
   })
   @ApiParam({ name: 'id', description: 'UUID del servicio' })
   @ApiResponse({ status: 204, description: 'Servicio eliminado' })

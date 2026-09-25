@@ -48,7 +48,7 @@ export class CreateBudgetMovementUseCase {
     if (budget.userId !== userId) {
       throw new DomainException(
         'BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a este budget',
+        'No tienes acceso a este budget',
       );
     }
 

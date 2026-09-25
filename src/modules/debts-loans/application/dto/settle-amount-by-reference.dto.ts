@@ -25,7 +25,7 @@ import { DebtLoanType } from '../../domain/enums/debt-loan-type.enum';
  *
  * **Real-vs-informal**: a diferencia de `/debts/:id/settle` y
  * `/debts/settle-by-reference` — donde la PRESENCIA de `currency` togglea
- * el modo — acá `currency` es OBLIGATORIA porque identifica el grupo
+ * el modo — aquí `currency` es OBLIGATORIA porque identifica el grupo
  * `(reference, currency)` a liquidar. El toggle de modo pasa entonces por
  * el flag explícito `realPayment`:
  *
