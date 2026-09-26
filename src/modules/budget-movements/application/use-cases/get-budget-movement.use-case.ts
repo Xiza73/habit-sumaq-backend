@@ -18,7 +18,7 @@ export class GetBudgetMovementUseCase {
     if (movement.userId !== userId) {
       throw new DomainException(
         'BUDGET_MOVEMENT_BELONGS_TO_OTHER_USER',
-        'No tenés acceso a este movimiento',
+        'No tienes acceso a este movimiento',
       );
     }
     return movement;

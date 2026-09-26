@@ -139,7 +139,7 @@ export class BudgetsController {
   @ApiOperation({
     summary: 'Editar el monto de un budget',
     description:
-      'Único campo editable: amount. year/month/currency son inmutables — si querés cambiar el período, eliminá y re-crea.',
+      'Único campo editable: amount. year/month/currency son inmutables — si quieres cambiar el período, elimina y re-crea.',
   })
   @ApiParam({ name: 'id', description: 'UUID del budget' })
   @ApiResponse({ status: 200, description: 'Budget actualizado', type: BudgetResponseDto })

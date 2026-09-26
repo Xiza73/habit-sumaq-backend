@@ -30,7 +30,7 @@ export class CreateBudgetUseCase {
     if (existing) {
       throw new DomainException(
         'BUDGET_ALREADY_EXISTS',
-        'Ya tienes un budget para ese mes y moneda. Editá el existente o eliminálo primero.',
+        'Ya tienes un budget para ese mes y moneda. Edita el existente o elimínalo primero.',
       );
     }
 

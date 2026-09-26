@@ -52,7 +52,7 @@ Guía de reglas para Claude Code al trabajar en este proyecto.
 6. **No omitir validación de entrada** — Todo body, param y query decorado con `class-validator` y transformado con `ValidationPipe`.
 7. **No importar entre módulos de feature directamente** — Comunicación entre módulos vía servicios exportados o eventos.
 8. **No crear helpers de un solo uso** — Si algo se usa una vez, queda inline. Si se reutiliza 2+, va a `common/`.
-9. **No loguear un error bajo una clave que no sea `err`** — Pino aplica su serializer de errores **solo** a esa clave. Bajo cualquier otra (`error`, `cause`, `e`), un `Error` se serializa como `{}`, porque `message` y `stack` son propiedades **no enumerables** y `JSON.stringify` las salta. El log queda vacío justo cuando más lo necesitás. Siempre `this.logger.warn({ event, ...ctx, err }, 'mensaje')`.
+9. **No loguear un error bajo una clave que no sea `err`** — Pino aplica su serializer de errores **solo** a esa clave. Bajo cualquier otra (`error`, `cause`, `e`), un `Error` se serializa como `{}`, porque `message` y `stack` son propiedades **no enumerables** y `JSON.stringify` las salta. El log queda vacío justo cuando más lo necesitas. Siempre `this.logger.warn({ event, ...ctx, err }, 'mensaje')`.
 
 ---
 
@@ -326,6 +326,6 @@ Si el PR introduce un endpoint, módulo, variable de entorno, comando de `packag
 - Refactors internos que preservan la API pública
 - Dependencias menores sin impacto en el cliente
 
-> **Regla de dedo:** si dudás si documentar o no, **documentar igual**. Es más barato bajar una doc innecesaria que subir una que falta.
+> **Regla de dedo:** si dudas si documentar o no, **documentar igual**. Es más barato bajar una doc innecesaria que subir una que falta.
 
-> **Fuente única de verdad:** `docs/frontend/api-reference.md`, `docs/frontend/error-codes.md` y `docs/frontend/enums.md` viven **acá, en el backend**. El repo `habit-sumaq-web` tiene solo stubs con el link a estos archivos. Si tu cambio toca contrato (endpoints, error codes, enums), editá solo estos archivos — no hace falta (ni hay dónde) duplicarlos en el web.
+> **Fuente única de verdad:** `docs/frontend/api-reference.md`, `docs/frontend/error-codes.md` y `docs/frontend/enums.md` viven **aquí, en el backend**. El repo `habit-sumaq-web` tiene solo stubs con el link a estos archivos. Si tu cambio toca contrato (endpoints, error codes, enums), edita solo estos archivos — no hace falta (ni hay dónde) duplicarlos en el web.

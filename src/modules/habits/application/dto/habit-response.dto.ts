@@ -72,7 +72,7 @@ export class HabitResponseDto {
       'En DAILY es el objetivo propio de ese día (`todayLog.targetCount`), que ' +
       'puede diferir del `targetCount` del hábito si ese día pidió más o menos. ' +
       'En WEEKLY es siempre el del hábito, porque la meta es de la semana. ' +
-      'Usá SIEMPRE este campo para renderizar `periodCount / X`: leer ' +
+      'Usa SIEMPRE este campo para renderizar `periodCount / X`: leer ' +
       '`targetCount` del hábito reescribe los días pasados.',
   })
   periodTarget?: number;
